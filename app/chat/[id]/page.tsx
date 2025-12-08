@@ -11,6 +11,12 @@ import { Input } from "@/components/ui/input"
 import { mockUsers, currentUser } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 
+export function generateStaticParams() {
+  return mockUsers.map((user) => ({
+    id: user.id,
+  }))
+}
+
 interface Message {
   id: string
   senderId: string

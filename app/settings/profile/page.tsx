@@ -1,0 +1,208 @@
+"use client"
+
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { ArrowLeft, Camera } from "lucide-react"
+import { MobileLayout } from "@/components/mobile-layout"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Card } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { useAuth } from "@/lib/auth-context"
+import { useToast } from "@/hooks/use-toast"
+
+const REGIONS = [
+  "서울 강남구", "서울 마포구", "서울 서초구", "서울 송파구", "서울 용산구",
+  "서울 성동구", "서울 종로구", "서울 중구", "서울 동작구", "서울 영등포구",
+  "부산 해운대구", "부산 중구", "인천 중구", "대구 중구", "대전 중구"
+]
+
+const CATEGORIES = [
+  { value: "KOREAN", label: "한식" },
+  { value: "JAPANESE", label: "일식" },
+  { value: "CHINESE", label: "중식" },
+  { value: "WESTERN", label: "양식" },
+  { value: "CAFE", label: "카페" },
+  { value: "BAKERY", label: "베이커리" },
+  { value: "SNACK", label: "분식" },
+]
+
+export default function ProfileEditPage() {
+  const router = useRouter()
+  const { user, updateProfile } = useAuth()
+  const { toast } = useToast()
+
+  const [formData, setFormData] = useState({
+    name: user?.name || "",
+    region: user?.region || "",
+    favoriteCategories: user?.favoriteCategories || [],
+  })
+  const [isLoading, setIsLoading] = useState(false)
+
+  const toggleCategory = (category: string) => {
+    setFormData(prev => ({
+      ...prev,
+      favoriteCategories: prev.favoriteCategories.includes(category)
+        ? prev.favoriteCategories.filter(c => c !== category)
+        : [...prev.favoriteCategories, category]
+    }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!formData.name.trim()) {
+      toast({
+        title: "이름을 입력해주세요",
+        variant: "destructive"
+      })
+      return
+    }
+
+    if (!formData.region) {
+      toast({
+        title: "지역을 선택해주세요",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      await updateProfile({
+        name: formData.name,
+        region: formData.region,
+        favoriteCategories: formData.favoriteCategories,
+      })
+      toast({
+        title: "프로필이 수정되었습니다",
+      })
+      router.back()
+    } catch (error) {
+      toast({
+        title: "프로필 수정에 실패했습니다",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <MobileLayout hideNavigation>
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-card border-b border-border">
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => router.back()}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <h1 className="text-xl font-bold text-foreground">프로필 수정</h1>
+          </div>
+          <Button
+            onClick={handleSubmit}
+            disabled={isLoading}
+            className="bg-primary text-primary-foreground"
+          >
+            {isLoading ? "저장 중..." : "저장"}
+          </Button>
+        </div>
+      </header>
+
+      <form onSubmit={handleSubmit} className="p-4 space-y-6">
+        {/* Avatar */}
+        <div className="flex justify-center">
+          <div className="relative">
+            <Avatar className="h-24 w-24 ring-4 ring-primary/20">
+              <AvatarImage src={user?.avatar || "/placeholder.svg"} alt={user?.name} />
+              <AvatarFallback className="text-2xl">{user?.name?.[0]}</AvatarFallback>
+            </Avatar>
+            <button
+              type="button"
+              className="absolute bottom-0 right-0 h-8 w-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-lg"
+            >
+              <Camera className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Name */}
+        <div className="space-y-2">
+          <Label htmlFor="name">이름</Label>
+          <Input
+            id="name"
+            value={formData.name}
+            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+            placeholder="이름을 입력하세요"
+            maxLength={30}
+          />
+          <p className="text-xs text-muted-foreground text-right">
+            {formData.name.length}/30
+          </p>
+        </div>
+
+        {/* Region */}
+        <div className="space-y-2">
+          <Label>활동 지역</Label>
+          <Select
+            value={formData.region}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, region: value }))}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="지역을 선택하세요" />
+            </SelectTrigger>
+            <SelectContent>
+              {REGIONS.map((region) => (
+                <SelectItem key={region} value={region}>
+                  {region}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Favorite Categories */}
+        <div className="space-y-2">
+          <Label>선호 카테고리</Label>
+          <p className="text-sm text-muted-foreground">관심있는 음식 카테고리를 선택하세요</p>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {CATEGORIES.map((category) => (
+              <Badge
+                key={category.value}
+                variant={formData.favoriteCategories.includes(category.label) ? "default" : "outline"}
+                className={`cursor-pointer transition-colors ${
+                  formData.favoriteCategories.includes(category.label)
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-secondary"
+                }`}
+                onClick={() => toggleCategory(category.label)}
+              >
+                {category.label}
+              </Badge>
+            ))}
+          </div>
+        </div>
+
+        {/* Email (Read-only) */}
+        <div className="space-y-2">
+          <Label>이메일</Label>
+          <Input
+            value={user?.email || ""}
+            disabled
+            className="bg-muted"
+          />
+          <p className="text-xs text-muted-foreground">이메일은 변경할 수 없습니다</p>
+        </div>
+      </form>
+    </MobileLayout>
+  )
+}

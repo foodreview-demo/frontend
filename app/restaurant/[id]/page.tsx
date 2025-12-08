@@ -11,6 +11,12 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { mockRestaurants, mockReviews } from "@/lib/mock-data"
 
+export function generateStaticParams() {
+  return mockRestaurants.map((restaurant) => ({
+    id: restaurant.id,
+  }))
+}
+
 export default function RestaurantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const [activeTab, setActiveTab] = useState("reviews")

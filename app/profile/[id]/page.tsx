@@ -12,6 +12,12 @@ import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { mockUsers, mockReviews, currentUser } from "@/lib/mock-data"
 
+export function generateStaticParams() {
+  return mockUsers.map((user) => ({
+    id: user.id,
+  }))
+}
+
 export default function UserProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const [isFollowing, setIsFollowing] = useState(false)

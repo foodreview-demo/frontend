@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew build:*)",
+      "Bash(gradle build:*)",
+      "Bash(cat:*)",
+      "Bash(gradle bootRun)",
+      "Bash(cmd.exe /c \"gradlew.bat bootRun\")",
+      "Bash(curl:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -1,4 +1,4 @@
-name: Deploy Frontend to AWS EC2
+name: Deploy Frontend to S3
 
 on:
   push:
@@ -40,12 +40,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nextjs-build
-          path: |
-            .next/
-            public/
-            package.json
-            package-lock.json
-            next.config.mjs
+          path: out/
 
   deploy:
     needs: build
@@ -57,30 +52,15 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: nextjs-build
+          path: ./out
 
-      - name: Create deployment package
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Sync to S3
         run: |
-          tar -czvf deploy.tar.gz .next public package.json package-lock.json next.config.mjs
-
-      - name: Copy to EC2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "deploy.tar.gz"
-          target: "/home/${{ secrets.EC2_USERNAME }}/food-review-app"
-
-      - name: Deploy on EC2
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            cd /home/${{ secrets.EC2_USERNAME }}/food-review-app
-            tar -xzvf deploy.tar.gz
-            rm deploy.tar.gz
-            npm ci --production
-            pm2 restart food-review-frontend || pm2 start npm --name "food-review-frontend" -- start
-            pm2 save
+          aws s3 sync ./out s3://${{ secrets.S3_BUCKET_NAME }} --delete

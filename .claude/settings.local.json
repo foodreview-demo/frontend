@@ -6,7 +6,8 @@
       "Bash(cat:*)",
       "Bash(gradle bootRun)",
       "Bash(cmd.exe /c \"gradlew.bat bootRun\")",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(cmd.exe /c \"gradlew.bat wrapper\")"
     ],
     "deny": [],
     "ask": []

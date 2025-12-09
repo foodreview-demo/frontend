@@ -114,10 +114,25 @@ export function KakaoMapSearch({
 
   // 스크립트 로드 후 지도 초기화
   useEffect(() => {
-    if (isScriptLoaded) {
-      const kakao = (window as any).kakao
-      if (kakao && kakao.maps) {
+    const kakao = (window as any).kakao
+
+    // 이미 스크립트가 로드된 경우 (페이지 이동 후 돌아온 경우)
+    if (kakao && kakao.maps) {
+      if (kakao.maps.services) {
+        // 이미 완전히 로드됨
+        initializeMap()
+      } else {
+        // 스크립트는 있지만 services가 아직 안 로드됨
         kakao.maps.load(() => {
+          initializeMap()
+        })
+      }
+      setIsScriptLoaded(true)
+    } else if (isScriptLoaded) {
+      // 새로 스크립트 로드된 경우
+      const newKakao = (window as any).kakao
+      if (newKakao && newKakao.maps) {
+        newKakao.maps.load(() => {
           initializeMap()
         })
       }

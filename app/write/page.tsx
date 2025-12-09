@@ -119,14 +119,75 @@ function WriteReviewContent() {
     }
 
     setIsSubmitting(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
 
-    // TODO: 카카오 장소 선택 시 백엔드에 새 음식점 등록 후 리뷰 작성
-    // selectedKakaoPlace가 있으면 새 음식점으로 등록
+    try {
+      let restaurantId: number
 
-    alert(isFirstReview ? "첫 리뷰 작성 완료! 맛잘알 점수가 2배로 적용됩니다!" : "리뷰가 등록되었습니다!")
-    router.push("/")
+      // 카카오 장소 선택 시 먼저 음식점 등록
+      if (selectedKakaoPlace) {
+        // 카테고리 추출 (예: "음식점 > 한식 > 국밥" -> "KOREAN")
+        const categoryMap: Record<string, string> = {
+          '한식': 'KOREAN',
+          '일식': 'JAPANESE',
+          '중식': 'CHINESE',
+          '양식': 'WESTERN',
+          '카페': 'CAFE',
+          '베이커리': 'BAKERY',
+          '분식': 'SNACK',
+        }
+        const categoryParts = selectedKakaoPlace.category.split(' > ')
+        let category = 'KOREAN' // 기본값
+        for (const part of categoryParts) {
+          if (categoryMap[part]) {
+            category = categoryMap[part]
+            break
+          }
+        }
+
+        // 주소에서 지역 추출 (예: "서울 강남구..." -> "서울")
+        const region = selectedKakaoPlace.address.split(' ')[0] || '서울'
+
+        const restaurantResult = await api.createRestaurant({
+          name: selectedKakaoPlace.name,
+          category,
+          address: selectedKakaoPlace.roadAddress || selectedKakaoPlace.address,
+          region,
+          phone: selectedKakaoPlace.phone || undefined,
+        })
+
+        if (!restaurantResult.success) {
+          throw new Error(restaurantResult.message || '음식점 등록에 실패했습니다')
+        }
+        restaurantId = restaurantResult.data.id
+      } else if (selectedRestaurant) {
+        restaurantId = Number(selectedRestaurant.id)
+      } else {
+        throw new Error('음식점을 선택해주세요')
+      }
+
+      // 리뷰 작성
+      const reviewResult = await api.createReview({
+        restaurantId,
+        content,
+        rating,
+        images: images.length > 0 ? images : undefined,
+        menu,
+        price: price || undefined,
+      })
+
+      if (!reviewResult.success) {
+        throw new Error(reviewResult.message || '리뷰 작성에 실패했습니다')
+      }
+
+      const isFirst = reviewResult.data.isFirstReview
+      alert(isFirst ? "첫 리뷰 작성 완료! 맛잘알 점수가 2배로 적용됩니다!" : "리뷰가 등록되었습니다!")
+      router.push("/")
+    } catch (error) {
+      console.error("리뷰 작성 실패:", error)
+      alert(error instanceof Error ? error.message : "리뷰 작성에 실패했습니다")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (

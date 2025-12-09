@@ -233,6 +233,13 @@ class ApiClient {
     return this.request<ApiResponse<PageResponse<Restaurant>>>(`/restaurants/first-review-available?page=${page}&size=${size}`);
   }
 
+  async createRestaurant(data: CreateRestaurantRequest) {
+    return this.request<ApiResponse<Restaurant>>('/restaurants', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   // Review API
   async getReviews(region?: string, category?: string, page = 0, size = 20) {
     const params = new URLSearchParams({ page: String(page), size: String(size) });
@@ -467,6 +474,17 @@ export interface TokenResponse {
 export interface ImageUploadResponse {
   urls: string[];
   count: number;
+}
+
+export interface CreateRestaurantRequest {
+  name: string;
+  category: string;
+  address: string;
+  region: string;
+  thumbnail?: string;
+  priceRange?: string;
+  phone?: string;
+  businessHours?: string;
 }
 
 export const api = new ApiClient(API_BASE_URL);

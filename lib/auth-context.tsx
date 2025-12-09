@@ -38,7 +38,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem('refreshToken')
         localStorage.removeItem('user')
         setUser(null)
-        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+        const publicPaths = ['/login', '/signup']
+        const isPublicPath = publicPaths.some(path => window.location.pathname.startsWith(path))
+        if (typeof window !== 'undefined' && !isPublicPath) {
           window.location.href = '/login'
         }
       }
@@ -48,7 +50,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('refreshToken')
       localStorage.removeItem('user')
       setUser(null)
-      if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+      const publicPaths = ['/login', '/signup']
+      const isPublicPath = publicPaths.some(path => window.location.pathname.startsWith(path))
+      if (typeof window !== 'undefined' && !isPublicPath) {
         window.location.href = '/login'
       }
     }

@@ -32,10 +32,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (result.success) {
         setUser(result.data)
         localStorage.setItem('user', JSON.stringify(result.data))
+      } else {
+        // 토큰이 유효하지 않으면 로그아웃 처리 및 로그인 페이지로 이동
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('refreshToken')
+        localStorage.removeItem('user')
+        setUser(null)
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+          window.location.href = '/login'
+        }
       }
     } catch (error) {
       console.error('사용자 정보 로드 실패:', error)
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('refreshToken')
+      localStorage.removeItem('user')
       setUser(null)
+      if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+        window.location.href = '/login'
+      }
     }
   }, [])
 

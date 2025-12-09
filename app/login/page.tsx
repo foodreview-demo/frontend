@@ -13,8 +13,8 @@ import { ChefHat, Loader2 } from "lucide-react"
 export default function LoginPage() {
   const router = useRouter()
   const { login } = useAuth()
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  const [email, setEmail] = useState("user1@foodreview.com")
+  const [password, setPassword] = useState("password123")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 

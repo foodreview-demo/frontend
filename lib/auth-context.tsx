@@ -25,6 +25,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const token = localStorage.getItem('accessToken')
       if (!token) {
         setUser(null)
+        const publicPaths = ['/login', '/signup']
+        const isPublicPath = publicPaths.some(path => window.location.pathname.startsWith(path))
+        if (typeof window !== 'undefined' && !isPublicPath) {
+          window.location.href = '/login'
+        }
         return
       }
 

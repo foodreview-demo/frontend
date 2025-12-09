@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, Suspense } from "react"
+import { useState, Suspense, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowLeft, Camera, Star, X, Sparkles, Search, MapPin } from "lucide-react"
+import { ArrowLeft, Camera, Star, X, Sparkles, Search, MapPin, Loader2 } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { mockRestaurants } from "@/lib/mock-data"
 import { KakaoMapSearch, KakaoPlace } from "@/components/kakao-map-search"
 import { cn } from "@/lib/utils"
+import { api } from "@/lib/api"
 
 function WriteReviewContent() {
   const router = useRouter()
@@ -34,6 +35,8 @@ function WriteReviewContent() {
   const [price, setPrice] = useState("")
   const [images, setImages] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const filteredRestaurants = searchQuery
     ? mockRestaurants.filter(
@@ -56,10 +59,53 @@ function WriteReviewContent() {
     setSelectedKakaoPlace(null)
   }
 
-  const handleImageUpload = () => {
-    // Simulating image upload
-    const newImage = `/placeholder.svg?height=200&width=200&query=food-photo-${images.length + 1}`
-    setImages([...images, newImage])
+  const handleImageButtonClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    const remainingSlots = 5 - images.length
+    if (remainingSlots <= 0) {
+      alert("이미지는 최대 5장까지 업로드할 수 있습니다")
+      return
+    }
+
+    const filesToUpload = Array.from(files).slice(0, remainingSlots)
+
+    // Validate file types
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    const invalidFiles = filesToUpload.filter(file => !validTypes.includes(file.type))
+    if (invalidFiles.length > 0) {
+      alert("JPEG, PNG, GIF, WebP 형식의 이미지만 업로드할 수 있습니다")
+      return
+    }
+
+    // Validate file sizes (max 10MB each)
+    const oversizedFiles = filesToUpload.filter(file => file.size > 10 * 1024 * 1024)
+    if (oversizedFiles.length > 0) {
+      alert("각 이미지 파일 크기는 10MB를 초과할 수 없습니다")
+      return
+    }
+
+    setIsUploading(true)
+    try {
+      const result = await api.uploadImages(filesToUpload)
+      if (result.success) {
+        setImages([...images, ...result.data.urls])
+      }
+    } catch (error) {
+      console.error("이미지 업로드 실패:", error)
+      alert(error instanceof Error ? error.message : "이미지 업로드에 실패했습니다")
+    } finally {
+      setIsUploading(false)
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
+    }
   }
 
   const removeImage = (index: number) => {
@@ -287,6 +333,14 @@ function WriteReviewContent() {
         {/* Images */}
         <div>
           <label className="text-sm font-medium text-foreground mb-2 block">사진 (최대 5장)</label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            multiple
+            onChange={handleImageUpload}
+            className="hidden"
+          />
           <div className="flex gap-2 flex-wrap">
             {images.map((image, index) => (
               <div key={index} className="relative h-20 w-20 rounded-lg overflow-hidden bg-muted">
@@ -295,6 +349,7 @@ function WriteReviewContent() {
                   alt={`업로드 이미지 ${index + 1}`}
                   fill
                   className="object-cover"
+                  unoptimized
                 />
                 <button
                   onClick={() => removeImage(index)}
@@ -306,13 +361,21 @@ function WriteReviewContent() {
             ))}
             {images.length < 5 && (
               <button
-                onClick={handleImageUpload}
-                className="h-20 w-20 rounded-lg border-2 border-dashed border-border flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                onClick={handleImageButtonClick}
+                disabled={isUploading}
+                className="h-20 w-20 rounded-lg border-2 border-dashed border-border flex items-center justify-center text-muted-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Camera className="h-6 w-6" />
+                {isUploading ? (
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                ) : (
+                  <Camera className="h-6 w-6" />
+                )}
               </button>
             )}
           </div>
+          {isUploading && (
+            <p className="text-xs text-muted-foreground mt-2">이미지 업로드 중...</p>
+          )}
         </div>
 
         {/* Content */}

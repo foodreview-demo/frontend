@@ -307,6 +307,36 @@ class ApiClient {
       body: JSON.stringify({ content }),
     });
   }
+
+  // Image API
+  async uploadImages(files: File[]): Promise<ApiResponse<ImageUploadResponse>> {
+    const token = this.getToken();
+    const formData = new FormData();
+
+    files.forEach((file) => {
+      formData.append('files', file);
+    });
+
+    const response = await fetch(`${this.baseUrl}/images/upload`, {
+      method: 'POST',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || '이미지 업로드 실패');
+    }
+
+    return response.json();
+  }
+
+  async deleteImage(url: string) {
+    return this.request<ApiResponse<void>>('/images', {
+      method: 'DELETE',
+      body: JSON.stringify({ url }),
+    });
+  }
 }
 
 // 카테고리 한글 -> Enum 변환
@@ -432,6 +462,11 @@ export interface TokenResponse {
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
+}
+
+export interface ImageUploadResponse {
+  urls: string[];
+  count: number;
 }
 
 export const api = new ApiClient(API_BASE_URL);

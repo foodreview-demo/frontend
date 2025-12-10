@@ -304,12 +304,32 @@ class ApiClient {
     });
   }
 
+  // UUID 기반 채팅방 조회
+  async getChatRoomByUuid(roomUuid: string) {
+    return this.request<ApiResponse<ChatRoom>>(`/chat/room/${roomUuid}`);
+  }
+
+  // roomId 기반 (deprecated)
   async getMessages(roomId: number, page = 0, size = 50) {
     return this.request<ApiResponse<PageResponse<ChatMessage>>>(`/chat/rooms/${roomId}/messages?page=${page}&size=${size}`);
   }
 
+  // UUID 기반 메시지 조회
+  async getMessagesByUuid(roomUuid: string, page = 0, size = 50) {
+    return this.request<ApiResponse<PageResponse<ChatMessage>>>(`/chat/room/${roomUuid}/messages?page=${page}&size=${size}`);
+  }
+
+  // roomId 기반 (deprecated)
   async sendMessage(roomId: number, content: string) {
     return this.request<ApiResponse<ChatMessage>>(`/chat/rooms/${roomId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+  }
+
+  // UUID 기반 메시지 전송
+  async sendMessageByUuid(roomUuid: string, content: string) {
+    return this.request<ApiResponse<ChatMessage>>(`/chat/room/${roomUuid}/messages`, {
       method: 'POST',
       body: JSON.stringify({ content }),
     });
@@ -436,6 +456,7 @@ export interface UpdateReviewRequest {
 
 export interface ChatRoom {
   id: number;
+  uuid: string;
   otherUser: User;
   lastMessage: string;
   lastMessageAt: string;

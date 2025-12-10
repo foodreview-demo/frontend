@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, RecommendedUser, User, ChatRoom } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { useNotificationSocket, NewMessageNotification } from "@/lib/use-notification-socket"
+import { requestNotificationPermission, showBrowserNotification } from "@/lib/browser-notification"
 import { cn } from "@/lib/utils"
 
 function getTasteLevel(score: number): { label: string; color: string } {
@@ -56,6 +57,40 @@ function RankBadge({ rank }: { rank: number }) {
   )
 }
 
+// 시간을 자연스럽게 표시 (오늘/어제/날짜)
+function formatChatTime(dateStr: string): string {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  const oneDay = 24 * 60 * 60 * 1000
+
+  // 오늘
+  if (date.toDateString() === now.toDateString()) {
+    return date.toLocaleTimeString("ko-KR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    })
+  }
+
+  // 어제
+  const yesterday = new Date(now.getTime() - oneDay)
+  if (date.toDateString() === yesterday.toDateString()) {
+    return "어제"
+  }
+
+  // 이번 주
+  if (diff < 7 * oneDay) {
+    return date.toLocaleDateString("ko-KR", { weekday: "short" })
+  }
+
+  // 그 이전
+  return date.toLocaleDateString("ko-KR", {
+    month: "short",
+    day: "numeric",
+  })
+}
+
 export default function FriendsPage() {
   const router = useRouter()
   const { user: currentUser } = useAuth()
@@ -74,6 +109,7 @@ export default function FriendsPage() {
 
   // 새 메시지 알림 처리
   const handleNewMessageNotification = useCallback((notification: NewMessageNotification) => {
+    // 채팅방 목록 업데이트
     setChatRooms((prev) => {
       const updatedRooms = prev.map((room) => {
         if (room.uuid === notification.roomUuid) {
@@ -91,7 +127,20 @@ export default function FriendsPage() {
         new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
       )
     })
-  }, [])
+
+    // 브라우저 알림 표시
+    showBrowserNotification(
+      `${notification.message.senderName}님의 메시지`,
+      {
+        body: notification.message.content,
+        icon: notification.message.senderAvatar || "/placeholder.svg",
+        tag: `chat-${notification.roomUuid}`,
+        onClick: () => {
+          router.push(`/chat?room=${notification.roomUuid}`)
+        },
+      }
+    )
+  }, [router])
 
   // 알림 WebSocket 구독
   useNotificationSocket({
@@ -99,6 +148,13 @@ export default function FriendsPage() {
     onNotification: handleNewMessageNotification,
     enabled: !!currentUser,
   })
+
+  // 브라우저 알림 권한 요청
+  useEffect(() => {
+    if (currentUser) {
+      requestNotificationPermission()
+    }
+  }, [currentUser])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -562,29 +618,38 @@ export default function FriendsPage() {
               {chatRooms.length > 0 ? (
                 chatRooms.map((room) => (
                   <Link key={room.id} href={`/chat?room=${room.uuid}`}>
-                    <Card className="p-3 flex items-center gap-3 hover:bg-secondary/50 transition-colors border border-border">
+                    <Card className={cn(
+                      "p-3 flex items-center gap-3 hover:bg-secondary/50 transition-colors border",
+                      room.unreadCount > 0 ? "border-primary/30 bg-primary/5" : "border-border"
+                    )}>
                       <div className="relative">
                         <Avatar className="h-12 w-12">
                           <AvatarImage src={room.otherUser.avatar || "/placeholder.svg"} alt={room.otherUser.name} />
                           <AvatarFallback>{room.otherUser.name[0]}</AvatarFallback>
                         </Avatar>
                         {room.unreadCount > 0 && (
-                          <span className="absolute -top-1 -right-1 h-5 w-5 bg-destructive text-destructive-foreground text-xs rounded-full flex items-center justify-center">
-                            {room.unreadCount}
+                          <span className="absolute -top-1 -right-1 h-5 min-w-5 px-1 bg-destructive text-destructive-foreground text-xs rounded-full flex items-center justify-center font-medium">
+                            {room.unreadCount > 99 ? "99+" : room.unreadCount}
                           </span>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-foreground">{room.otherUser.name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(room.lastMessageAt).toLocaleDateString("ko-KR", {
-                              month: "short",
-                              day: "numeric",
-                            })}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={cn(
+                            "font-semibold truncate",
+                            room.unreadCount > 0 ? "text-foreground" : "text-foreground"
+                          )}>{room.otherUser.name}</span>
+                          <span className={cn(
+                            "text-xs whitespace-nowrap",
+                            room.unreadCount > 0 ? "text-primary font-medium" : "text-muted-foreground"
+                          )}>
+                            {room.lastMessageAt ? formatChatTime(room.lastMessageAt) : ""}
                           </span>
                         </div>
-                        <p className="text-sm text-muted-foreground truncate">{room.lastMessage}</p>
+                        <p className={cn(
+                          "text-sm truncate",
+                          room.unreadCount > 0 ? "text-foreground font-medium" : "text-muted-foreground"
+                        )}>{room.lastMessage || "대화를 시작해보세요"}</p>
                       </div>
                     </Card>
                   </Link>

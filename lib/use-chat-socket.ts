@@ -7,14 +7,20 @@ import { ChatMessage } from "./api"
 
 const WS_URL = process.env.NEXT_PUBLIC_API_URL?.replace("/api", "/ws") || "http://localhost:8080/ws"
 
+export interface ReadNotification {
+  roomUuid: string
+  readByUserId: number
+}
+
 interface UseChatSocketOptions {
   roomUuid: string
   userId: number
   onMessage: (message: ChatMessage) => void
+  onReadNotification?: (notification: ReadNotification) => void
   enabled?: boolean
 }
 
-export function useChatSocket({ roomUuid, userId, onMessage, enabled = true }: UseChatSocketOptions) {
+export function useChatSocket({ roomUuid, userId, onMessage, onReadNotification, enabled = true }: UseChatSocketOptions) {
   const clientRef = useRef<Client | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -46,6 +52,17 @@ export function useChatSocket({ roomUuid, userId, onMessage, enabled = true }: U
             onMessage(chatMessage)
           } catch (e) {
             console.error("[STOMP] Failed to parse message:", e)
+          }
+        })
+
+        // 읽음 알림 구독
+        client.subscribe(`/topic/chat/${roomUuid}/read`, (message: IMessage) => {
+          try {
+            const notification = JSON.parse(message.body) as ReadNotification
+            console.log("[STOMP] Read notification received:", notification)
+            onReadNotification?.(notification)
+          } catch (e) {
+            console.error("[STOMP] Failed to parse read notification:", e)
           }
         })
       },
@@ -98,6 +115,28 @@ export function useChatSocket({ roomUuid, userId, onMessage, enabled = true }: U
     }
   }, [roomUuid, userId])
 
+  // 읽음 알림 전송
+  const sendReadNotification = useCallback(() => {
+    if (!clientRef.current || !clientRef.current.connected) {
+      console.error("[STOMP] Not connected")
+      return false
+    }
+
+    try {
+      clientRef.current.publish({
+        destination: `/app/chat/${roomUuid}/read`,
+        headers: {
+          userId: String(userId),
+        },
+        body: "",
+      })
+      return true
+    } catch (e) {
+      console.error("[STOMP] Failed to send read notification:", e)
+      return false
+    }
+  }, [roomUuid, userId])
+
   useEffect(() => {
     connect()
     return () => {
@@ -109,6 +148,7 @@ export function useChatSocket({ roomUuid, userId, onMessage, enabled = true }: U
     isConnected,
     error,
     sendMessage,
+    sendReadNotification,
     disconnect,
     reconnect: connect,
   }

@@ -16,6 +16,8 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, RecommendedUser, User, ChatRoom } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
+import { useNotificationSocket, NewMessageNotification } from "@/lib/use-notification-socket"
+import { requestNotificationPermission, showBrowserNotification } from "@/lib/browser-notification"
 import { cn } from "@/lib/utils"
 
 function getTasteLevel(score: number): { label: string; color: string } {
@@ -55,6 +57,40 @@ function RankBadge({ rank }: { rank: number }) {
   )
 }
 
+// 시간을 자연스럽게 표시 (오늘/어제/날짜)
+function formatChatTime(dateStr: string): string {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  const oneDay = 24 * 60 * 60 * 1000
+
+  // 오늘
+  if (date.toDateString() === now.toDateString()) {
+    return date.toLocaleTimeString("ko-KR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    })
+  }
+
+  // 어제
+  const yesterday = new Date(now.getTime() - oneDay)
+  if (date.toDateString() === yesterday.toDateString()) {
+    return "어제"
+  }
+
+  // 이번 주
+  if (diff < 7 * oneDay) {
+    return date.toLocaleDateString("ko-KR", { weekday: "short" })
+  }
+
+  // 그 이전
+  return date.toLocaleDateString("ko-KR", {
+    month: "short",
+    day: "numeric",
+  })
+}
+
 export default function FriendsPage() {
   const router = useRouter()
   const { user: currentUser } = useAuth()
@@ -71,6 +107,68 @@ export default function FriendsPage() {
   const [searchResults, setSearchResults] = useState<User[]>([])
   const [isSearching, setIsSearching] = useState(false)
 
+  // 새 메시지 알림 처리
+  const handleNewMessageNotification = useCallback((notification: NewMessageNotification) => {
+    // 채팅방 목록 업데이트
+    setChatRooms((prev) => {
+      const updatedRooms = prev.map((room) => {
+        if (room.uuid === notification.roomUuid) {
+          return {
+            ...room,
+            lastMessage: notification.message.content,
+            lastMessageAt: notification.message.createdAt,
+            unreadCount: room.unreadCount + 1,
+          }
+        }
+        return room
+      })
+      // 최신 메시지 순으로 정렬
+      return updatedRooms.sort((a, b) =>
+        new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
+      )
+    })
+
+    // 브라우저 알림 표시
+    showBrowserNotification(
+      `${notification.message.senderName}님의 메시지`,
+      {
+        body: notification.message.content,
+        icon: notification.message.senderAvatar || "/placeholder.svg",
+        tag: `chat-${notification.roomUuid}`,
+        onClick: () => {
+          router.push(`/chat?room=${notification.roomUuid}`)
+        },
+      }
+    )
+  }, [router])
+
+  // 알림 WebSocket 구독
+  useNotificationSocket({
+    userId: currentUser?.id || 0,
+    onNotification: handleNewMessageNotification,
+    enabled: !!currentUser,
+  })
+
+  // 브라우저 알림 권한 요청
+  useEffect(() => {
+    if (currentUser) {
+      requestNotificationPermission()
+    }
+  }, [currentUser])
+
+  // 채팅방 목록만 갱신하는 함수
+  const refreshChatRooms = useCallback(async () => {
+    try {
+      const chatResult = await api.getChatRooms()
+      if (chatResult.success) {
+        setChatRooms(chatResult.data.content)
+      }
+    } catch (err) {
+      console.error("채팅방 목록 갱신 실패:", err)
+    }
+  }, [])
+
+  // 초기 데이터 로드
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true)
@@ -106,6 +204,16 @@ export default function FriendsPage() {
 
     fetchData()
   }, [currentUser])
+
+  // 페이지 포커스 시 채팅방 목록 갱신 (채팅방에서 돌아왔을 때 읽음 상태 반영)
+  useEffect(() => {
+    const handleFocus = () => {
+      refreshChatRooms()
+    }
+
+    window.addEventListener("focus", handleFocus)
+    return () => window.removeEventListener("focus", handleFocus)
+  }, [refreshChatRooms])
 
   // Debounced search
   const searchUsers = useCallback(async (query: string) => {
@@ -171,15 +279,12 @@ export default function FriendsPage() {
   // Sort followings by taste score for friend ranking
   const friendRanking = [...followings].sort((a, b) => b.tasteScore - a.tasteScore)
 
-  // Start chat with a user - create or get chat room and navigate to UUID-based route
+  // Start chat with a user - create or get chat room and navigate
   const handleStartChat = async (userId: number) => {
     try {
       const result = await api.getOrCreateChatRoom(userId)
-      console.log("채팅방 생성 결과:", result)
       if (result.success && result.data.uuid) {
-        const chatUrl = `/chat/room/${result.data.uuid}`
-        console.log("이동할 URL:", chatUrl)
-        router.push(chatUrl)
+        router.push(`/chat?room=${result.data.uuid}`)
       } else {
         console.error("UUID가 없음:", result)
         alert("채팅방을 열 수 없습니다")
@@ -203,88 +308,85 @@ export default function FriendsPage() {
   return (
     <MobileLayout>
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-card border-b border-border">
+      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
         <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Users className="h-6 w-6 text-primary" />
-            <h1 className="text-xl font-bold text-foreground">친구</h1>
-          </div>
+          <h1 className="text-xl font-bold text-foreground">친구</h1>
           <Link href="/ranking">
-            <Button variant="outline" size="sm" className="gap-1">
+            <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground">
               <Trophy className="h-4 w-4" />
-              지역 랭킹
+              랭킹
             </Button>
           </Link>
         </div>
-      </header>
 
-      <div className="p-4 space-y-4">
-        {/* Friend Search */}
-        <Card className="p-4 border border-border">
-          <div className="flex items-center gap-2 mb-3">
-            <UserPlus className="h-5 w-5 text-primary" />
-            <span className="font-semibold text-foreground">친구 추가</span>
-          </div>
+        {/* Search Bar - 헤더 안에 포함 */}
+        <div className="px-4 pb-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="이름 또는 이메일로 검색"
+              placeholder="친구 검색"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
+              className="pl-10 bg-secondary/50 border-0 rounded-full h-9"
             />
           </div>
+        </div>
+      </header>
 
-          {/* Search Results */}
-          {searchQuery && (
-            <div className="mt-3 space-y-2 max-h-60 overflow-y-auto">
-              {isSearching ? (
-                <div className="flex justify-center py-4">
-                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                </div>
-              ) : searchResults.length > 0 ? (
-                searchResults.map((user) => {
-                  const level = getTasteLevel(user.tasteScore)
-                  const isFollowed = followedIds.has(user.id)
-                  const isMe = currentUser?.id === user.id
+      {/* Search Results Overlay */}
+      {searchQuery && (
+        <div className="px-4 py-2 bg-background border-b border-border">
+          <div className="space-y-1 max-h-60 overflow-y-auto">
+            {isSearching ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              </div>
+            ) : searchResults.length > 0 ? (
+              searchResults.map((user) => {
+                const level = getTasteLevel(user.tasteScore)
+                const isFollowed = followedIds.has(user.id)
+                const isMe = currentUser?.id === user.id
 
-                  return (
-                    <div key={user.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/50">
-                      <Link href={`/profile/${user.id}`}>
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
-                          <AvatarFallback>{user.name[0]}</AvatarFallback>
-                        </Avatar>
-                      </Link>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-foreground truncate">{user.name}</span>
-                          <Badge variant="secondary" className={cn("text-xs", level.color)}>
-                            {level.label}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground">{user.region}</p>
+                return (
+                  <div key={user.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-secondary/50 transition-colors">
+                    <Link href={`/profile/${user.id}`}>
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
+                        <AvatarFallback className="bg-primary/10 text-primary">{user.name[0]}</AvatarFallback>
+                      </Avatar>
+                    </Link>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-foreground truncate">{user.name}</span>
+                        <Badge variant="secondary" className={cn("text-[10px] px-1.5 py-0", level.color)}>
+                          {level.label}
+                        </Badge>
                       </div>
-                      {!isMe && (
-                        <Button
-                          size="sm"
-                          variant={isFollowed ? "secondary" : "default"}
-                          onClick={() => handleFollow(user.id)}
-                        >
-                          {isFollowed ? <Check className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
-                        </Button>
-                      )}
+                      <p className="text-xs text-muted-foreground">{user.region}</p>
                     </div>
-                  )
-                })
-              ) : (
-                <p className="text-center text-sm text-muted-foreground py-4">
-                  검색 결과가 없습니다
-                </p>
-              )}
-            </div>
-          )}
-        </Card>
+                    {!isMe && (
+                      <Button
+                        size="sm"
+                        variant={isFollowed ? "ghost" : "default"}
+                        className={cn("h-8 px-3", isFollowed && "text-primary")}
+                        onClick={() => handleFollow(user.id)}
+                      >
+                        {isFollowed ? <Check className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
+                      </Button>
+                    )}
+                  </div>
+                )
+              })
+            ) : (
+              <p className="text-center text-sm text-muted-foreground py-4">
+                검색 결과가 없습니다
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="p-4 space-y-4">
 
         {error ? (
           <div className="text-center py-12">
@@ -292,53 +394,64 @@ export default function FriendsPage() {
           </div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-4 bg-secondary">
-              <TabsTrigger value="friends">친구</TabsTrigger>
-              <TabsTrigger value="ranking">랭킹</TabsTrigger>
-              <TabsTrigger value="recommend">추천</TabsTrigger>
-              <TabsTrigger value="chat">채팅</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-4 bg-secondary/50 p-1 rounded-xl">
+              <TabsTrigger value="friends" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">친구</TabsTrigger>
+              <TabsTrigger value="chat" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">채팅</TabsTrigger>
+              <TabsTrigger value="recommend" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">추천</TabsTrigger>
+              <TabsTrigger value="ranking" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">랭킹</TabsTrigger>
             </TabsList>
 
             {/* Friends Tab */}
-            <TabsContent value="friends" className="mt-4 space-y-3">
+            <TabsContent value="friends" className="mt-4 space-y-2">
               {followings.length > 0 ? (
                 followings.map((user) => {
                   const level = getTasteLevel(user.tasteScore)
                   return (
-                    <Card key={user.id} className="p-3 flex items-center gap-3 border border-border">
+                    <div key={user.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-secondary/50 transition-colors">
                       <Link href={`/profile/${user.id}`}>
-                        <Avatar className="h-12 w-12">
+                        <Avatar className="h-12 w-12 ring-2 ring-background shadow-sm">
                           <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
-                          <AvatarFallback>{user.name[0]}</AvatarFallback>
+                          <AvatarFallback className="bg-primary/10 text-primary font-medium">{user.name[0]}</AvatarFallback>
                         </Avatar>
                       </Link>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <Link href={`/profile/${user.id}`} className="font-semibold text-foreground hover:underline">
+                          <Link href={`/profile/${user.id}`} className="font-semibold text-foreground hover:text-primary transition-colors">
                             {user.name}
                           </Link>
-                          <Badge variant="secondary" className={cn("text-xs", level.color)}>
+                          <Badge variant="secondary" className={cn("text-[10px] px-1.5 py-0", level.color)}>
                             {level.label}
                           </Badge>
                         </div>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
                           <MapPin className="h-3 w-3" />
                           <span>{user.region}</span>
-                          <span>·</span>
-                          <span>{user.tasteScore.toLocaleString()}점</span>
+                          <span className="text-border">•</span>
+                          <span className="text-primary font-medium">{user.tasteScore.toLocaleString()}점</span>
                         </div>
                       </div>
-                      <Button variant="ghost" size="icon" onClick={() => handleStartChat(user.id)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-10 w-10 rounded-full hover:bg-primary/10 hover:text-primary"
+                        onClick={() => handleStartChat(user.id)}
+                      >
                         <MessageCircle className="h-5 w-5" />
                       </Button>
-                    </Card>
+                    </div>
                   )
                 })
               ) : (
-                <div className="text-center py-12">
-                  <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground mb-2">아직 친구가 없어요</p>
-                  <p className="text-sm text-muted-foreground">추천 탭에서 비슷한 취향의 맛잘알을 찾아보세요!</p>
+                <div className="text-center py-16">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-secondary/50 flex items-center justify-center">
+                    <Users className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <p className="font-medium text-foreground mb-1">아직 친구가 없어요</p>
+                  <p className="text-sm text-muted-foreground mb-4">비슷한 취향의 맛잘알을 찾아보세요</p>
+                  <Button onClick={() => setActiveTab("recommend")} size="sm">
+                    <Sparkles className="h-4 w-4 mr-1.5" />
+                    추천 친구 보기
+                  </Button>
                 </div>
               )}
             </TabsContent>
@@ -532,42 +645,53 @@ export default function FriendsPage() {
             </TabsContent>
 
             {/* Chat Tab */}
-            <TabsContent value="chat" className="mt-4 space-y-3">
+            <TabsContent value="chat" className="mt-4 space-y-2">
               {chatRooms.length > 0 ? (
                 chatRooms.map((room) => (
-                  <Link key={room.id} href={`/chat/room/${room.uuid}`}>
-                    <Card className="p-3 flex items-center gap-3 hover:bg-secondary/50 transition-colors border border-border">
+                  <Link key={room.id} href={`/chat?room=${room.uuid}`}>
+                    <div className={cn(
+                      "flex items-center gap-3 p-3 rounded-xl transition-colors",
+                      room.unreadCount > 0 ? "bg-primary/5" : "hover:bg-secondary/50"
+                    )}>
                       <div className="relative">
-                        <Avatar className="h-12 w-12">
+                        <Avatar className="h-14 w-14 ring-2 ring-background shadow-sm">
                           <AvatarImage src={room.otherUser.avatar || "/placeholder.svg"} alt={room.otherUser.name} />
-                          <AvatarFallback>{room.otherUser.name[0]}</AvatarFallback>
+                          <AvatarFallback className="bg-primary/10 text-primary font-medium">{room.otherUser.name[0]}</AvatarFallback>
                         </Avatar>
                         {room.unreadCount > 0 && (
-                          <span className="absolute -top-1 -right-1 h-5 w-5 bg-destructive text-destructive-foreground text-xs rounded-full flex items-center justify-center">
-                            {room.unreadCount}
+                          <span className="absolute -top-0.5 -right-0.5 h-5 min-w-5 px-1.5 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center font-semibold shadow-sm">
+                            {room.unreadCount > 99 ? "99+" : room.unreadCount}
                           </span>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-foreground">{room.otherUser.name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(room.lastMessageAt).toLocaleDateString("ko-KR", {
-                              month: "short",
-                              day: "numeric",
-                            })}
+                        <div className="flex items-center justify-between gap-2 mb-0.5">
+                          <span className="font-semibold text-foreground truncate">{room.otherUser.name}</span>
+                          <span className={cn(
+                            "text-xs whitespace-nowrap",
+                            room.unreadCount > 0 ? "text-primary font-medium" : "text-muted-foreground"
+                          )}>
+                            {room.lastMessageAt ? formatChatTime(room.lastMessageAt) : ""}
                           </span>
                         </div>
-                        <p className="text-sm text-muted-foreground truncate">{room.lastMessage}</p>
+                        <p className={cn(
+                          "text-sm truncate",
+                          room.unreadCount > 0 ? "text-foreground" : "text-muted-foreground"
+                        )}>{room.lastMessage || "대화를 시작해보세요"}</p>
                       </div>
-                    </Card>
+                    </div>
                   </Link>
                 ))
               ) : (
-                <div className="text-center py-12">
-                  <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground mb-2">아직 대화가 없어요</p>
-                  <p className="text-sm text-muted-foreground">친구를 추가하고 대화를 시작해보세요!</p>
+                <div className="text-center py-16">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-secondary/50 flex items-center justify-center">
+                    <MessageCircle className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <p className="font-medium text-foreground mb-1">아직 대화가 없어요</p>
+                  <p className="text-sm text-muted-foreground mb-4">친구와 대화를 시작해보세요</p>
+                  <Button onClick={() => setActiveTab("friends")} size="sm" variant="outline">
+                    친구 목록 보기
+                  </Button>
                 </div>
               )}
             </TabsContent>

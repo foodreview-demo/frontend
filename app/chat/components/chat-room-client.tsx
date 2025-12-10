@@ -3,11 +3,11 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Send, MapPin, Loader2, MoreVertical, Wifi, WifiOff } from "lucide-react"
+import { ArrowLeft, Send, MapPin, Loader2, MoreVertical, Check, CheckCheck } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { api, ChatMessage, ChatRoom } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
-import { useChatSocket } from "@/lib/use-chat-socket"
+import { useChatSocket, ReadNotification } from "@/lib/use-chat-socket"
 import { cn } from "@/lib/utils"
 
 function getTasteLevel(score: number): { label: string; color: string } {
@@ -71,10 +71,15 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // WebSocket 연결 상태에서 수신된 메시지 처리
   const handleWebSocketMessage = useCallback((message: ChatMessage) => {
+    // 내가 보낸 메시지는 이미 optimistic update로 추가됨 - 무시
+    if (message.senderId === currentUser?.id) {
+      return
+    }
+
     setMessages((prev) => {
       // 중복 메시지 방지
       if (prev.some((m) => m.id === message.id)) {
@@ -82,13 +87,30 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
       }
       return [...prev, message]
     })
-  }, [])
+  }, [currentUser?.id])
+
+  // 읽음 알림 수신 처리 - 내가 보낸 메시지들을 읽음으로 표시
+  const handleReadNotification = useCallback((notification: ReadNotification) => {
+    // 상대방이 읽었을 때만 처리 (내가 읽은 건 무시)
+    if (notification.readByUserId === currentUser?.id) return
+
+    setMessages((prev) =>
+      prev.map((msg) => {
+        // 내가 보낸 메시지이고 아직 읽지 않은 경우 읽음으로 변경
+        if (msg.senderId === currentUser?.id && !msg.isRead) {
+          return { ...msg, isRead: true }
+        }
+        return msg
+      })
+    )
+  }, [currentUser?.id])
 
   // WebSocket 연결
-  const { isConnected, sendMessage: sendWebSocketMessage } = useChatSocket({
+  const { isConnected, sendMessage: sendWebSocketMessage, sendReadNotification } = useChatSocket({
     roomUuid: uuid,
     userId: currentUser?.id || 0,
     onMessage: handleWebSocketMessage,
+    onReadNotification: handleReadNotification,
     enabled: !!currentUser && uuid !== "placeholder",
   })
 
@@ -136,6 +158,29 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
     scrollToBottom()
   }, [messages, scrollToBottom])
 
+  // WebSocket 연결 시 읽음 알림 전송 (최초 1회)
+  const hasNotifiedRead = useRef(false)
+  useEffect(() => {
+    if (isConnected && !hasNotifiedRead.current) {
+      // 채팅방 입장 시 읽음 알림 전송
+      sendReadNotification()
+      hasNotifiedRead.current = true
+    }
+  }, [isConnected, sendReadNotification])
+
+  // 새 메시지 수신 시 읽음 알림 전송 (상대방 메시지인 경우)
+  const prevMessagesLengthRef = useRef(0)
+  useEffect(() => {
+    if (isConnected && messages.length > prevMessagesLengthRef.current) {
+      const lastMessage = messages[messages.length - 1]
+      // 상대방이 보낸 새 메시지가 있으면 읽음 알림 전송
+      if (lastMessage && lastMessage.senderId !== currentUser?.id) {
+        sendReadNotification()
+      }
+    }
+    prevMessagesLengthRef.current = messages.length
+  }, [isConnected, messages, currentUser?.id, sendReadNotification])
+
   // 메시지 전송
   const handleSend = async () => {
     if (!newMessage.trim() || !chatRoom || isSending || !currentUser) return
@@ -161,7 +206,7 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
         }
         setMessages((prev) => [...prev, optimisticMessage])
         setIsSending(false)
-        inputRef.current?.focus()
+        textareaRef.current?.focus()
         return
       }
     }
@@ -178,7 +223,7 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
       alert("메시지 전송에 실패했습니다")
     } finally {
       setIsSending(false)
-      inputRef.current?.focus()
+      textareaRef.current?.focus()
     }
   }
 
@@ -260,14 +305,6 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
               </div>
             </div>
           </Link>
-          {/* 연결 상태 표시 */}
-          <div className="flex items-center">
-            {isConnected ? (
-              <Wifi className="h-4 w-4 text-green-500" />
-            ) : (
-              <WifiOff className="h-4 w-4 text-muted-foreground" />
-            )}
-          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">
@@ -313,7 +350,8 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
 
               {/* Messages */}
               {group.messages.map((message, messageIndex) => {
-                const isMe = message.isMine
+                // senderId로 직접 비교 (WebSocket 브로드캐스트 시 isMine이 sender 기준으로만 설정되므로)
+                const isMe = message.senderId === currentUser?.id
                 const prevMessage = messageIndex > 0 ? group.messages[messageIndex - 1] : null
                 const nextMessage = messageIndex < group.messages.length - 1 ? group.messages[messageIndex + 1] : null
                 const isGroupedWithPrev = shouldGroupWithPrevious(message, prevMessage)
@@ -360,9 +398,19 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
                         </div>
 
                         {showTime && (
-                          <span className="text-[10px] text-muted-foreground mb-1 whitespace-nowrap">
-                            {formatTime(message.createdAt)}
-                          </span>
+                          <div className={cn("flex items-center gap-0.5 mb-1", isMe && "flex-row-reverse")}>
+                            {/* 읽음 표시 - 내 메시지에만 표시 */}
+                            {isMe && (
+                              message.isRead ? (
+                                <CheckCheck className="h-3 w-3 text-blue-500" />
+                              ) : (
+                                <Check className="h-3 w-3 text-muted-foreground" />
+                              )
+                            )}
+                            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                              {formatTime(message.createdAt)}
+                            </span>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -377,10 +425,10 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
 
       {/* Input Area */}
       <div className="sticky bottom-0 bg-card px-3 py-3 border-t border-border">
-        <div className="flex items-center gap-2">
+        <div className="flex items-end gap-2">
           <div className="flex-1">
-            <Input
-              ref={inputRef}
+            <Textarea
+              ref={textareaRef}
               placeholder="메시지를 입력하세요"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
@@ -390,15 +438,16 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
                   handleSend()
                 }
               }}
-              className="rounded-full bg-secondary border-0 focus-visible:ring-1 focus-visible:ring-primary"
+              className="min-h-[40px] max-h-[120px] resize-none rounded-2xl bg-secondary border-0 focus-visible:ring-1 focus-visible:ring-primary py-2.5 px-4"
               disabled={isSending}
+              rows={1}
             />
           </div>
           <Button
             onClick={handleSend}
             disabled={!newMessage.trim() || isSending}
             size="icon"
-            className="rounded-full shrink-0"
+            className="rounded-full shrink-0 h-10 w-10"
           >
             {isSending ? (
               <Loader2 className="h-4 w-4 animate-spin" />

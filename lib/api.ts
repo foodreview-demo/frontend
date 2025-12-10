@@ -371,6 +371,67 @@ class ApiClient {
       body: JSON.stringify({ url }),
     });
   }
+
+  // Playlist API
+  async getMyPlaylists(page = 0, size = 20) {
+    return this.request<ApiResponse<PageResponse<Playlist>>>(`/playlists?page=${page}&size=${size}`);
+  }
+
+  async getMyPlaylistsAll() {
+    return this.request<ApiResponse<Playlist[]>>('/playlists/all');
+  }
+
+  async getUserPublicPlaylists(userId: number, page = 0, size = 20) {
+    return this.request<ApiResponse<PageResponse<Playlist>>>(`/playlists/user/${userId}?page=${page}&size=${size}`);
+  }
+
+  async getPlaylistDetail(playlistId: number) {
+    return this.request<ApiResponse<PlaylistDetail>>(`/playlists/${playlistId}`);
+  }
+
+  async createPlaylist(data: { name: string; description?: string; isPublic?: boolean }) {
+    return this.request<ApiResponse<Playlist>>('/playlists', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updatePlaylist(playlistId: number, data: { name: string; description?: string; isPublic?: boolean }) {
+    return this.request<ApiResponse<Playlist>>(`/playlists/${playlistId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deletePlaylist(playlistId: number) {
+    return this.request<ApiResponse<void>>(`/playlists/${playlistId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async addToPlaylist(playlistId: number, restaurantId: number, memo?: string) {
+    return this.request<ApiResponse<PlaylistItem>>(`/playlists/${playlistId}/items`, {
+      method: 'POST',
+      body: JSON.stringify({ restaurantId, memo }),
+    });
+  }
+
+  async removeFromPlaylist(playlistId: number, restaurantId: number) {
+    return this.request<ApiResponse<void>>(`/playlists/${playlistId}/items/${restaurantId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async updatePlaylistItemMemo(playlistId: number, restaurantId: number, memo: string) {
+    return this.request<ApiResponse<PlaylistItem>>(`/playlists/${playlistId}/items/${restaurantId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ memo }),
+    });
+  }
+
+  async getRestaurantSaveStatus(restaurantId: number) {
+    return this.request<ApiResponse<SaveStatusResponse>>(`/playlists/restaurant/${restaurantId}/status`);
+  }
 }
 
 // 카테고리 한글 -> Enum 변환
@@ -513,6 +574,36 @@ export interface CreateRestaurantRequest {
   priceRange?: string;
   phone?: string;
   businessHours?: string;
+}
+
+export interface Playlist {
+  id: number;
+  name: string;
+  description?: string;
+  isPublic: boolean;
+  thumbnail?: string;
+  itemCount: number;
+  user?: User;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PlaylistDetail extends Playlist {
+  items: PlaylistItem[];
+}
+
+export interface PlaylistItem {
+  id: number;
+  restaurant: Restaurant;
+  position: number;
+  memo?: string;
+  addedAt: string;
+}
+
+export interface SaveStatusResponse {
+  restaurantId: number;
+  savedPlaylistIds: number[];
+  isSaved: boolean;
 }
 
 export const api = new ApiClient(API_BASE_URL);

@@ -1,60 +1,43 @@
 "use client"
 
-import { Heart, Sparkles, TrendingUp } from "lucide-react"
+import { useEffect, useState } from "react"
+import { Heart, Sparkles, TrendingUp, Loader2 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { api, ScoreEvent } from "@/lib/api"
 
-interface ScoreEvent {
-  id: string
-  type: "first_review" | "sympathy_received" | "sympathy_bonus"
-  description: string
-  points: number
-  date: string
-  from?: {
-    name: string
-    score: number
-  }
+interface ScoreHistoryProps {
+  userId: number
 }
 
-const mockScoreHistory: ScoreEvent[] = [
-  {
-    id: "1",
-    type: "sympathy_bonus",
-    description: "마스터 등급 유저의 공감",
-    points: 25,
-    date: "오늘 14:30",
-    from: { name: "맛탐험가", score: 2450 },
-  },
-  {
-    id: "2",
-    type: "sympathy_received",
-    description: "리뷰 공감 획득",
-    points: 10,
-    date: "오늘 12:15",
-    from: { name: "동네미식가", score: 1820 },
-  },
-  {
-    id: "3",
-    type: "first_review",
-    description: "첫 리뷰 보너스 (스시오마카세)",
-    points: 100,
-    date: "어제 18:45",
-  },
-  {
-    id: "4",
-    type: "sympathy_received",
-    description: "리뷰 공감 획득",
-    points: 5,
-    date: "어제 10:20",
-    from: { name: "카페투어러", score: 1420 },
-  },
-]
+export function ScoreHistory({ userId }: ScoreHistoryProps) {
+  const [history, setHistory] = useState<ScoreEvent[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-export function ScoreHistory() {
-  const getIcon = (type: ScoreEvent["type"]) => {
+  useEffect(() => {
+    const fetchHistory = async () => {
+      setIsLoading(true)
+      try {
+        const result = await api.getScoreHistory(userId)
+        if (result.success) {
+          setHistory(result.data.content)
+        }
+      } catch (err) {
+        console.error("점수 내역 로드 실패:", err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchHistory()
+  }, [userId])
+
+  const getIcon = (type: string) => {
     switch (type) {
+      case "FIRST_REVIEW":
       case "first_review":
         return <Sparkles className="h-4 w-4 text-primary" />
+      case "SYMPATHY_BONUS":
       case "sympathy_bonus":
         return <TrendingUp className="h-4 w-4 text-accent-foreground" />
       default:
@@ -62,32 +45,46 @@ export function ScoreHistory() {
     }
   }
 
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-3">
       <h3 className="font-semibold text-foreground">점수 획득 내역</h3>
 
       <div className="space-y-2">
-        {mockScoreHistory.map((event) => (
-          <Card key={event.id} className="p-3 flex items-center gap-3 border border-border">
-            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-              {getIcon(event.type)}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground">{event.description}</p>
-              {event.from && (
-                <p className="text-xs text-muted-foreground">
-                  {event.from.name} ({event.from.score.toLocaleString()}점)
-                </p>
-              )}
-            </div>
-            <div className="text-right">
-              <Badge variant="secondary" className="bg-primary/10 text-primary font-semibold">
-                +{event.points}
-              </Badge>
-              <p className="text-xs text-muted-foreground mt-1">{event.date}</p>
-            </div>
+        {history.length > 0 ? (
+          history.map((event) => (
+            <Card key={event.id} className="p-3 flex items-center gap-3 border border-border">
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                {getIcon(event.type)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground">{event.description}</p>
+                {event.from && (
+                  <p className="text-xs text-muted-foreground">
+                    {event.from.name} ({event.from.score.toLocaleString()}점)
+                  </p>
+                )}
+              </div>
+              <div className="text-right">
+                <Badge variant="secondary" className="bg-primary/10 text-primary font-semibold">
+                  +{event.points}
+                </Badge>
+                <p className="text-xs text-muted-foreground mt-1">{event.date}</p>
+              </div>
+            </Card>
+          ))
+        ) : (
+          <Card className="p-8 text-center border border-border">
+            <p className="text-muted-foreground">아직 점수 획득 내역이 없어요</p>
           </Card>
-        ))}
+        )}
       </div>
 
       {/* Score Explanation */}

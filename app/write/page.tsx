@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, Suspense, useRef } from "react"
+import { useState, useEffect, Suspense, useRef, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
@@ -12,22 +12,21 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { mockRestaurants } from "@/lib/mock-data"
 import { KakaoMapSearch, KakaoPlace } from "@/components/kakao-map-search"
 import { cn } from "@/lib/utils"
-import { api } from "@/lib/api"
+import { api, Restaurant } from "@/lib/api"
 
 function WriteReviewContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const restaurantId = searchParams.get("restaurantId")
+  const restaurantIdParam = searchParams.get("restaurantId")
 
-  const preselectedRestaurant = restaurantId ? mockRestaurants.find((r) => r.id === restaurantId) : null
-
-  const [selectedRestaurant, setSelectedRestaurant] = useState(preselectedRestaurant)
+  const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null)
   const [selectedKakaoPlace, setSelectedKakaoPlace] = useState<KakaoPlace | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [searchMode, setSearchMode] = useState<"app" | "kakao">("kakao")
+  const [searchResults, setSearchResults] = useState<Restaurant[]>([])
+  const [isSearching, setIsSearching] = useState(false)
   const [rating, setRating] = useState(0)
   const [hoverRating, setHoverRating] = useState(0)
   const [content, setContent] = useState("")
@@ -38,11 +37,54 @@ function WriteReviewContent() {
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const filteredRestaurants = searchQuery
-    ? mockRestaurants.filter(
-        (r) => r.name.includes(searchQuery) || r.address.includes(searchQuery) || r.category.includes(searchQuery),
-      )
-    : []
+  // Load preselected restaurant if restaurantId is provided
+  useEffect(() => {
+    const fetchPreselectedRestaurant = async () => {
+      if (restaurantIdParam) {
+        try {
+          const result = await api.getRestaurant(Number(restaurantIdParam))
+          if (result.success) {
+            setSelectedRestaurant(result.data)
+          }
+        } catch (err) {
+          console.error("음식점 로드 실패:", err)
+        }
+      }
+    }
+    fetchPreselectedRestaurant()
+  }, [restaurantIdParam])
+
+  // Search restaurants
+  const searchRestaurants = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([])
+      return
+    }
+
+    setIsSearching(true)
+    try {
+      const result = await api.searchRestaurants(query)
+      if (result.success) {
+        setSearchResults(result.data.content)
+      }
+    } catch (err) {
+      console.error("음식점 검색 실패:", err)
+    } finally {
+      setIsSearching(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const debounce = setTimeout(() => {
+      if (searchQuery) {
+        searchRestaurants(searchQuery)
+      } else {
+        setSearchResults([])
+      }
+    }, 300)
+
+    return () => clearTimeout(debounce)
+  }, [searchQuery, searchRestaurants])
 
   const isFirstReview = selectedRestaurant?.reviewCount === 0
   const hasSelectedPlace = selectedRestaurant || selectedKakaoPlace
@@ -160,7 +202,7 @@ function WriteReviewContent() {
         }
         restaurantId = restaurantResult.data.id
       } else if (selectedRestaurant) {
-        restaurantId = Number(selectedRestaurant.id)
+        restaurantId = selectedRestaurant.id
       } else {
         throw new Error('음식점을 선택해주세요')
       }
@@ -236,13 +278,14 @@ function WriteReviewContent() {
                   alt={selectedRestaurant.name}
                   fill
                   className="object-cover"
+                  unoptimized
                 />
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold text-foreground">{selectedRestaurant.name}</h3>
                   <Badge variant="outline" className="text-xs">
-                    {selectedRestaurant.category}
+                    {selectedRestaurant.categoryDisplay || selectedRestaurant.category}
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">{selectedRestaurant.address}</p>
@@ -312,9 +355,14 @@ function WriteReviewContent() {
                     className="pl-10"
                   />
                 </div>
-                {filteredRestaurants.length > 0 && (
+                {isSearching && (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                )}
+                {!isSearching && searchResults.length > 0 && (
                   <div className="bg-card border border-border rounded-xl overflow-hidden max-h-60 overflow-y-auto">
-                    {filteredRestaurants.map((restaurant) => (
+                    {searchResults.map((restaurant) => (
                       <button
                         key={restaurant.id}
                         className="w-full p-3 flex items-center gap-3 hover:bg-secondary transition-colors text-left border-b border-border last:border-0"
@@ -322,6 +370,7 @@ function WriteReviewContent() {
                           setSelectedRestaurant(restaurant)
                           setSelectedKakaoPlace(null)
                           setSearchQuery("")
+                          setSearchResults([])
                         }}
                       >
                         <div className="relative h-12 w-12 rounded-lg overflow-hidden bg-muted">
@@ -330,6 +379,7 @@ function WriteReviewContent() {
                             alt={restaurant.name}
                             fill
                             className="object-cover"
+                            unoptimized
                           />
                         </div>
                         <div className="flex-1">
@@ -345,7 +395,7 @@ function WriteReviewContent() {
                     ))}
                   </div>
                 )}
-                {searchQuery && filteredRestaurants.length === 0 && (
+                {searchQuery && !isSearching && searchResults.length === 0 && (
                   <p className="text-sm text-muted-foreground text-center py-4">
                     검색 결과가 없습니다. 지도 검색을 이용해보세요.
                   </p>

@@ -5,7 +5,7 @@ import { Bell, MapPin, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
-import { regions } from "@/lib/mock-data"
+import { regions } from "@/lib/constants"
 
 interface HomeHeaderProps {
   selectedRegion: string

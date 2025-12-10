@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ArrowLeft, MapPin, MessageCircle, UserPlus } from "lucide-react"
+import { ArrowLeft, MapPin, MessageCircle, UserPlus, Loader2 } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { TasteScoreCard } from "@/components/taste-score-card"
 import { ReviewCard } from "@/components/review-card"
@@ -10,14 +10,97 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
-import { mockUsers, mockReviews, currentUser } from "@/lib/mock-data"
+import { api, User, Review } from "@/lib/api"
+import { useAuth } from "@/lib/auth-context"
 
 export function ProfileClient({ id }: { id: string }) {
+  const { user: currentUser } = useAuth()
+  const [user, setUser] = useState<User | null>(null)
+  const [reviews, setReviews] = useState<Review[]>([])
   const [isFollowing, setIsFollowing] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const user = mockUsers.find((u) => u.id === id) || mockUsers[0]
-  const userReviews = mockReviews.filter((r) => r.userId === id)
-  const isOwnProfile = user.id === currentUser.id
+  const isOwnProfile = currentUser && user && currentUser.id === user.id
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const userId = Number(id)
+        const [userResult, reviewsResult] = await Promise.all([
+          api.getUser(userId),
+          api.getUserReviews(userId),
+        ])
+
+        if (userResult.success) {
+          setUser(userResult.data)
+        }
+        if (reviewsResult.success) {
+          setReviews(reviewsResult.data.content)
+        }
+
+        // Check if following
+        if (currentUser && currentUser.id !== userId) {
+          try {
+            const followResult = await api.isFollowing(userId)
+            if (followResult.success) {
+              setIsFollowing(followResult.data)
+            }
+          } catch (err) {
+            // Ignore follow check error
+          }
+        }
+      } catch (err) {
+        console.error("프로필 로드 실패:", err)
+        setError("프로필을 불러오는데 실패했습니다")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [id, currentUser])
+
+  const handleFollow = async () => {
+    if (!user) return
+    try {
+      if (isFollowing) {
+        await api.unfollow(user.id)
+        setIsFollowing(false)
+      } else {
+        await api.follow(user.id)
+        setIsFollowing(true)
+      }
+    } catch (err) {
+      console.error("팔로우 처리 실패:", err)
+      alert("팔로우 처리에 실패했습니다")
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <MobileLayout>
+        <div className="flex justify-center items-center min-h-screen">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </MobileLayout>
+    )
+  }
+
+  if (error || !user) {
+    return (
+      <MobileLayout>
+        <div className="flex flex-col items-center justify-center min-h-screen p-4">
+          <p className="text-muted-foreground">{error || "사용자를 찾을 수 없습니다"}</p>
+          <Link href="/">
+            <Button className="mt-4">홈으로 돌아가기</Button>
+          </Link>
+        </div>
+      </MobileLayout>
+    )
+  }
 
   return (
     <MobileLayout>
@@ -64,7 +147,7 @@ export function ProfileClient({ id }: { id: string }) {
                 className={`flex-1 ${
                   isFollowing ? "bg-secondary text-secondary-foreground" : "bg-primary text-primary-foreground"
                 }`}
-                onClick={() => setIsFollowing(!isFollowing)}
+                onClick={handleFollow}
               >
                 <UserPlus className="h-4 w-4 mr-2" />
                 {isFollowing ? "팔로잉" : "맛잘알 친구 추가"}
@@ -83,10 +166,10 @@ export function ProfileClient({ id }: { id: string }) {
 
         {/* User Reviews */}
         <div>
-          <h3 className="font-semibold text-foreground mb-3">작성한 리뷰 ({userReviews.length})</h3>
-          {userReviews.length > 0 ? (
+          <h3 className="font-semibold text-foreground mb-3">작성한 리뷰 ({reviews.length})</h3>
+          {reviews.length > 0 ? (
             <div className="space-y-4">
-              {userReviews.map((review) => (
+              {reviews.map((review) => (
                 <ReviewCard key={review.id} review={review} />
               ))}
             </div>

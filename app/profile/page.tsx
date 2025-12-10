@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Settings, MapPin, Edit2, ChevronRight } from "lucide-react"
+import { Settings, MapPin, Edit2, ChevronRight, Loader2 } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { TasteScoreCard } from "@/components/taste-score-card"
 import { ScoreHistory } from "@/components/score-history"
@@ -12,12 +12,51 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
-import { currentUser, mockReviews } from "@/lib/mock-data"
+import { useAuth } from "@/lib/auth-context"
+import { api, Review, User } from "@/lib/api"
 
 export default function ProfilePage() {
+  const { user: currentUser } = useAuth()
   const [activeTab, setActiveTab] = useState("reviews")
+  const [reviews, setReviews] = useState<Review[]>([])
+  const [followingCount, setFollowingCount] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
 
-  const userReviews = mockReviews.filter((r) => r.userId === currentUser.id)
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!currentUser) return
+      setIsLoading(true)
+      try {
+        const [reviewsResult, followingsResult] = await Promise.all([
+          api.getUserReviews(currentUser.id),
+          api.getFollowings(currentUser.id),
+        ])
+
+        if (reviewsResult.success) {
+          setReviews(reviewsResult.data.content)
+        }
+        if (followingsResult.success) {
+          setFollowingCount(followingsResult.data.totalElements)
+        }
+      } catch (err) {
+        console.error("프로필 데이터 로드 실패:", err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [currentUser])
+
+  if (!currentUser) {
+    return (
+      <MobileLayout>
+        <div className="flex justify-center items-center min-h-screen">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </MobileLayout>
+    )
+  }
 
   return (
     <MobileLayout>
@@ -73,7 +112,7 @@ export default function ProfilePage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">지역 랭킹</p>
-                  <p className="text-lg font-bold text-primary">#{currentUser.rank}</p>
+                  <p className="text-lg font-bold text-primary">#{currentUser.rank || '-'}</p>
                 </div>
                 <ChevronRight className="h-5 w-5 text-muted-foreground" />
               </div>
@@ -84,7 +123,7 @@ export default function ProfilePage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">맛잘알 친구</p>
-                  <p className="text-lg font-bold text-primary">12명</p>
+                  <p className="text-lg font-bold text-primary">{followingCount}명</p>
                 </div>
                 <ChevronRight className="h-5 w-5 text-muted-foreground" />
               </div>
@@ -100,8 +139,12 @@ export default function ProfilePage() {
           </TabsList>
 
           <TabsContent value="reviews" className="mt-4 space-y-4">
-            {userReviews.length > 0 ? (
-              userReviews.map((review) => <ReviewCard key={review.id} review={review} />)
+            {isLoading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              </div>
+            ) : reviews.length > 0 ? (
+              reviews.map((review) => <ReviewCard key={review.id} review={review} />)
             ) : (
               <div className="text-center py-12">
                 <p className="text-muted-foreground mb-4">아직 작성한 리뷰가 없어요</p>
@@ -113,7 +156,7 @@ export default function ProfilePage() {
           </TabsContent>
 
           <TabsContent value="history" className="mt-4">
-            <ScoreHistory />
+            <ScoreHistory userId={currentUser.id} />
           </TabsContent>
         </Tabs>
       </div>

@@ -2,21 +2,15 @@
 
 import { useState, useRef, useEffect } from "react"
 import Link from "next/link"
-import { ArrowLeft, Send, MapPin, MoreVertical } from "lucide-react"
+import { ArrowLeft, Send, MapPin, MoreVertical, Loader2 } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { mockUsers, currentUser } from "@/lib/mock-data"
+import { api, User, ChatMessage, ChatRoom } from "@/lib/api"
+import { useAuth } from "@/lib/auth-context"
 import { cn } from "@/lib/utils"
-
-interface Message {
-  id: string
-  senderId: string
-  content: string
-  createdAt: Date
-}
 
 function getTasteLevel(score: number): { label: string; color: string } {
   if (score >= 2000) return { label: "마스터", color: "bg-primary text-primary-foreground" }
@@ -27,87 +21,112 @@ function getTasteLevel(score: number): { label: string; color: string } {
 }
 
 export function ChatClient({ id }: { id: string }) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      senderId: id,
-      content: "안녕하세요! 마포구 맛집 정보 공유하고 싶어서 연락드렸어요 😊",
-      createdAt: new Date(Date.now() - 3600000 * 2),
-    },
-    {
-      id: "2",
-      senderId: currentUser.id,
-      content: "반가워요! 마포구에 자주 가시나요?",
-      createdAt: new Date(Date.now() - 3600000 * 1.5),
-    },
-    {
-      id: "3",
-      senderId: id,
-      content: "네! 연남동, 망원동 쪽 자주 다녀요. 혹시 추천해주실 곳 있으신가요?",
-      createdAt: new Date(Date.now() - 3600000),
-    },
-    {
-      id: "4",
-      senderId: currentUser.id,
-      content: "망원동에 새로 생긴 파스타집 진짜 맛있더라고요! 리뷰 올려뒀는데 확인해보세요",
-      createdAt: new Date(Date.now() - 1800000),
-    },
-  ])
+  const { user: currentUser } = useAuth()
+  const [otherUser, setOtherUser] = useState<User | null>(null)
+  const [chatRoom, setChatRoom] = useState<ChatRoom | null>(null)
+  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [newMessage, setNewMessage] = useState("")
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSending, setIsSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-
-  const otherUser = mockUsers.find((u) => u.id === id) || mockUsers[1]
-  const level = getTasteLevel(otherUser.tasteScore)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
 
   useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const userId = Number(id)
+
+        // Get other user info
+        const userResult = await api.getUser(userId)
+        if (userResult.success) {
+          setOtherUser(userResult.data)
+        }
+
+        // Get or create chat room
+        const roomResult = await api.getOrCreateChatRoom(userId)
+        if (roomResult.success) {
+          setChatRoom(roomResult.data)
+
+          // Get messages
+          const messagesResult = await api.getMessages(roomResult.data.id)
+          if (messagesResult.success) {
+            setMessages(messagesResult.data.content.reverse()) // Reverse to show oldest first
+          }
+        }
+      } catch (err) {
+        console.error("채팅 로드 실패:", err)
+        setError("채팅을 불러오는데 실패했습니다")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [id])
+
+  useEffect(() => {
     scrollToBottom()
   }, [messages])
 
-  const handleSend = () => {
-    if (!newMessage.trim()) return
+  const handleSend = async () => {
+    if (!newMessage.trim() || !chatRoom || isSending) return
 
-    const message: Message = {
-      id: Date.now().toString(),
-      senderId: currentUser.id,
-      content: newMessage.trim(),
-      createdAt: new Date(),
-    }
-
-    setMessages([...messages, message])
+    setIsSending(true)
+    const messageContent = newMessage.trim()
     setNewMessage("")
 
-    // Simulate reply after 1 second
-    setTimeout(() => {
-      const replies = [
-        "오 좋은 정보 감사해요!",
-        "저도 다음에 꼭 가볼게요 👍",
-        "혹시 그 근처에 다른 추천 맛집도 있나요?",
-        "리뷰 봤어요! 맛있어 보이네요~",
-      ]
-      const randomReply = replies[Math.floor(Math.random() * replies.length)]
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          senderId: id,
-          content: randomReply,
-          createdAt: new Date(),
-        },
-      ])
-    }, 1000)
+    try {
+      const result = await api.sendMessage(chatRoom.id, messageContent)
+      if (result.success) {
+        setMessages([...messages, result.data])
+      }
+    } catch (err) {
+      console.error("메시지 전송 실패:", err)
+      alert("메시지 전송에 실패했습니다")
+      setNewMessage(messageContent) // Restore message on failure
+    } finally {
+      setIsSending(false)
+    }
   }
 
-  const formatTime = (date: Date) => {
+  const formatTime = (dateStr: string) => {
+    const date = new Date(dateStr)
     return date.toLocaleTimeString("ko-KR", {
       hour: "2-digit",
       minute: "2-digit",
     })
   }
+
+  if (isLoading) {
+    return (
+      <MobileLayout>
+        <div className="flex justify-center items-center min-h-screen">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </MobileLayout>
+    )
+  }
+
+  if (error || !otherUser) {
+    return (
+      <MobileLayout>
+        <div className="flex flex-col items-center justify-center min-h-screen p-4">
+          <p className="text-muted-foreground">{error || "사용자를 찾을 수 없습니다"}</p>
+          <Link href="/friends">
+            <Button className="mt-4">돌아가기</Button>
+          </Link>
+        </div>
+      </MobileLayout>
+    )
+  }
+
+  const level = getTasteLevel(otherUser.tasteScore)
 
   return (
     <MobileLayout>
@@ -145,39 +164,48 @@ export function ChatClient({ id }: { id: string }) {
 
       {/* Messages */}
       <div className="flex-1 p-4 space-y-4 pb-24 overflow-y-auto">
-        {/* Date Divider */}
-        <div className="flex items-center gap-4">
-          <div className="flex-1 h-px bg-border" />
-          <span className="text-xs text-muted-foreground">오늘</span>
-          <div className="flex-1 h-px bg-border" />
-        </div>
-
-        {messages.map((message) => {
-          const isMe = message.senderId === currentUser.id
-          return (
-            <div key={message.id} className={cn("flex gap-2", isMe ? "justify-end" : "justify-start")}>
-              {!isMe && (
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={otherUser.avatar || "/placeholder.svg"} alt={otherUser.name} />
-                  <AvatarFallback>{otherUser.name[0]}</AvatarFallback>
-                </Avatar>
-              )}
-              <div className={cn("max-w-[70%]", isMe ? "items-end" : "items-start")}>
-                <div
-                  className={cn(
-                    "px-4 py-2 rounded-2xl",
-                    isMe
-                      ? "bg-primary text-primary-foreground rounded-tr-sm"
-                      : "bg-secondary text-secondary-foreground rounded-tl-sm",
-                  )}
-                >
-                  <p className="text-sm">{message.content}</p>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1 px-1">{formatTime(message.createdAt)}</p>
-              </div>
+        {messages.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">아직 대화가 없습니다</p>
+            <p className="text-sm text-muted-foreground mt-1">먼저 인사해보세요!</p>
+          </div>
+        ) : (
+          <>
+            {/* Date Divider */}
+            <div className="flex items-center gap-4">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-muted-foreground">오늘</span>
+              <div className="flex-1 h-px bg-border" />
             </div>
-          )
-        })}
+
+            {messages.map((message) => {
+              const isMe = message.isMine
+              return (
+                <div key={message.id} className={cn("flex gap-2", isMe ? "justify-end" : "justify-start")}>
+                  {!isMe && (
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={message.senderAvatar || "/placeholder.svg"} alt={message.senderName} />
+                      <AvatarFallback>{message.senderName[0]}</AvatarFallback>
+                    </Avatar>
+                  )}
+                  <div className={cn("max-w-[70%]", isMe ? "items-end" : "items-start")}>
+                    <div
+                      className={cn(
+                        "px-4 py-2 rounded-2xl",
+                        isMe
+                          ? "bg-primary text-primary-foreground rounded-tr-sm"
+                          : "bg-secondary text-secondary-foreground rounded-tl-sm",
+                      )}
+                    >
+                      <p className="text-sm">{message.content}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 px-1">{formatTime(message.createdAt)}</p>
+                  </div>
+                </div>
+              )
+            })}
+          </>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
@@ -195,9 +223,14 @@ export function ChatClient({ id }: { id: string }) {
               }
             }}
             className="flex-1"
+            disabled={isSending}
           />
-          <Button onClick={handleSend} disabled={!newMessage.trim()} className="bg-primary text-primary-foreground">
-            <Send className="h-4 w-4" />
+          <Button
+            onClick={handleSend}
+            disabled={!newMessage.trim() || isSending}
+            className="bg-primary text-primary-foreground"
+          >
+            {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </div>
       </div>

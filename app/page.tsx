@@ -6,7 +6,6 @@ import { HomeHeader } from "@/components/home-header"
 import { CategoryFilter } from "@/components/category-filter"
 import { ReviewCard } from "@/components/review-card"
 import { api, Review } from "@/lib/api"
-import { mockReviews } from "@/lib/mock-data"
 import { Loader2 } from "lucide-react"
 
 export default function HomePage() {
@@ -14,11 +13,12 @@ export default function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState("전체")
   const [reviews, setReviews] = useState<Review[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [useMock, setUseMock] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchReviews = async () => {
       setIsLoading(true)
+      setError(null)
       try {
         const result = await api.getReviews(
           selectedRegion !== "전체" ? selectedRegion : undefined,
@@ -26,11 +26,10 @@ export default function HomePage() {
         )
         if (result.success) {
           setReviews(result.data.content)
-          setUseMock(false)
         }
-      } catch (error) {
-        console.error("리뷰 로드 실패, 목업 데이터 사용:", error)
-        setUseMock(true)
+      } catch (err) {
+        console.error("리뷰 로드 실패:", err)
+        setError("리뷰를 불러오는데 실패했습니다")
       } finally {
         setIsLoading(false)
       }
@@ -38,33 +37,6 @@ export default function HomePage() {
 
     fetchReviews()
   }, [selectedRegion, selectedCategory])
-
-  // 목업 데이터 사용 시 필터링
-  const filteredMockReviews = mockReviews.filter((review) => {
-    const regionMatch = selectedRegion === "전체" || review.restaurant.region === selectedRegion
-    const categoryMatch = selectedCategory === "전체" || review.restaurant.category === selectedCategory
-    return regionMatch && categoryMatch
-  })
-
-  const displayReviews = useMock ? filteredMockReviews : reviews
-
-  // 목업 데이터를 API 형식으로 변환
-  const convertedReviews = useMock
-    ? displayReviews.map((r) => ({
-        ...r,
-        id: Number(r.id),
-        user: {
-          ...r.user,
-          id: Number(r.user.id),
-          tasteGrade: getTasteGrade(r.user.tasteScore),
-        },
-        restaurant: {
-          ...r.restaurant,
-          id: Number(r.restaurant.id),
-          categoryDisplay: r.restaurant.category,
-        },
-      }))
-    : displayReviews
 
   return (
     <MobileLayout>
@@ -85,8 +57,12 @@ export default function HomePage() {
           <div className="flex justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
-        ) : convertedReviews.length > 0 ? (
-          convertedReviews.map((review) => <ReviewCard key={review.id} review={review as any} />)
+        ) : error ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">{error}</p>
+          </div>
+        ) : reviews.length > 0 ? (
+          reviews.map((review) => <ReviewCard key={review.id} review={review} />)
         ) : (
           <div className="text-center py-12">
             <p className="text-muted-foreground">해당 조건의 리뷰가 없습니다</p>
@@ -95,12 +71,4 @@ export default function HomePage() {
       </div>
     </MobileLayout>
   )
-}
-
-function getTasteGrade(score: number): string {
-  if (score >= 2000) return "마스터"
-  if (score >= 1500) return "전문가"
-  if (score >= 1000) return "미식가"
-  if (score >= 500) return "탐험가"
-  return "입문자"
 }

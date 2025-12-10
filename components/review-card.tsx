@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import type { Review } from "@/lib/mock-data"
+import { api, type Review } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 interface ReviewCardProps {
@@ -29,13 +29,19 @@ export function ReviewCard({ review }: ReviewCardProps) {
 
   const tasteLevel = getTasteLevel(review.user.tasteScore)
 
-  const handleSympathy = () => {
-    if (hasSympathized) {
-      setSympathyCount((prev) => prev - 1)
-    } else {
-      setSympathyCount((prev) => prev + 1)
+  const handleSympathy = async () => {
+    try {
+      if (hasSympathized) {
+        await api.removeSympathy(review.id)
+        setSympathyCount((prev) => prev - 1)
+      } else {
+        await api.addSympathy(review.id)
+        setSympathyCount((prev) => prev + 1)
+      }
+      setHasSympathized(!hasSympathized)
+    } catch (err) {
+      console.error("공감 처리 실패:", err)
     }
-    setHasSympathized(!hasSympathized)
   }
 
   return (
@@ -89,6 +95,7 @@ export function ReviewCard({ review }: ReviewCardProps) {
             alt={`${review.restaurant.name} 리뷰 이미지`}
             fill
             className="object-cover"
+            unoptimized
           />
         </div>
       )}

@@ -3,20 +3,20 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Send, MapPin, Loader2, MoreVertical } from "lucide-react"
+import { ArrowLeft, Send, MapPin, Loader2, MoreVertical, Wifi, WifiOff } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card } from "@/components/ui/card"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { api, User, ChatMessage, ChatRoom } from "@/lib/api"
+import { api, ChatMessage, ChatRoom } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
+import { useChatSocket } from "@/lib/use-chat-socket"
 import { cn } from "@/lib/utils"
 
 function getTasteLevel(score: number): { label: string; color: string } {
@@ -73,10 +73,30 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // WebSocket 연결 상태에서 수신된 메시지 처리
+  const handleWebSocketMessage = useCallback((message: ChatMessage) => {
+    setMessages((prev) => {
+      // 중복 메시지 방지
+      if (prev.some((m) => m.id === message.id)) {
+        return prev
+      }
+      return [...prev, message]
+    })
+  }, [])
+
+  // WebSocket 연결
+  const { isConnected, sendMessage: sendWebSocketMessage } = useChatSocket({
+    roomUuid: uuid,
+    userId: currentUser?.id || 0,
+    onMessage: handleWebSocketMessage,
+    enabled: !!currentUser && uuid !== "placeholder",
+  })
+
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [])
 
+  // 초기 데이터 로드
   useEffect(() => {
     const fetchData = async () => {
       if (uuid === "placeholder") {
@@ -93,10 +113,11 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
         if (roomResult.success) {
           setChatRoom(roomResult.data)
 
-          // Get messages
+          // Get messages - 정렬은 서버에서 ASC로 옴
           const messagesResult = await api.getMessagesByUuid(uuid)
           if (messagesResult.success) {
-            setMessages(messagesResult.data.content.reverse())
+            // 서버에서 오래된 순으로 정렬되어 오므로 그대로 사용
+            setMessages(messagesResult.data.content)
           }
         }
       } catch (err) {
@@ -110,59 +131,49 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
     fetchData()
   }, [uuid])
 
+  // 메시지 변경 시 스크롤
   useEffect(() => {
     scrollToBottom()
   }, [messages, scrollToBottom])
 
-  // Poll for new messages every 3 seconds
-  useEffect(() => {
-    if (!chatRoom || uuid === "placeholder") return
+  // 메시지 전송
+  const handleSend = async () => {
+    if (!newMessage.trim() || !chatRoom || isSending || !currentUser) return
 
-    const pollMessages = async () => {
-      try {
-        const messagesResult = await api.getMessagesByUuid(uuid)
-        if (messagesResult.success) {
-          setMessages(messagesResult.data.content.reverse())
+    const messageContent = newMessage.trim()
+    setNewMessage("")
+    setIsSending(true)
+
+    // WebSocket으로 전송 시도
+    if (isConnected) {
+      const sent = sendWebSocketMessage(messageContent)
+      if (sent) {
+        // Optimistic update - WebSocket으로 전송 성공 시
+        const optimisticMessage: ChatMessage = {
+          id: Date.now(),
+          senderId: currentUser.id,
+          senderName: currentUser.name,
+          senderAvatar: currentUser.avatar || "",
+          content: messageContent,
+          createdAt: new Date().toISOString(),
+          isRead: false,
+          isMine: true,
         }
-      } catch (err) {
-        console.error("메시지 폴링 실패:", err)
+        setMessages((prev) => [...prev, optimisticMessage])
+        setIsSending(false)
+        inputRef.current?.focus()
+        return
       }
     }
 
-    const interval = setInterval(pollMessages, 3000)
-    return () => clearInterval(interval)
-  }, [chatRoom, uuid])
-
-  const handleSend = async () => {
-    if (!newMessage.trim() || !chatRoom || isSending) return
-
-    setIsSending(true)
-    const messageContent = newMessage.trim()
-    setNewMessage("")
-
-    // Optimistic update
-    const optimisticMessage: ChatMessage = {
-      id: Date.now(),
-      senderId: currentUser?.id || 0,
-      senderName: currentUser?.name || "",
-      senderAvatar: currentUser?.avatar || "",
-      content: messageContent,
-      createdAt: new Date().toISOString(),
-      isRead: false,
-      isMine: true,
-    }
-    setMessages((prev) => [...prev, optimisticMessage])
-
+    // WebSocket 연결이 안 되어 있으면 REST API로 fallback
     try {
       const result = await api.sendMessageByUuid(uuid, messageContent)
       if (result.success) {
-        setMessages((prev) =>
-          prev.map((m) => (m.id === optimisticMessage.id ? result.data : m))
-        )
+        setMessages((prev) => [...prev, result.data])
       }
     } catch (err) {
       console.error("메시지 전송 실패:", err)
-      setMessages((prev) => prev.filter((m) => m.id !== optimisticMessage.id))
       setNewMessage(messageContent)
       alert("메시지 전송에 실패했습니다")
     } finally {
@@ -249,6 +260,14 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
               </div>
             </div>
           </Link>
+          {/* 연결 상태 표시 */}
+          <div className="flex items-center">
+            {isConnected ? (
+              <Wifi className="h-4 w-4 text-green-500" />
+            ) : (
+              <WifiOff className="h-4 w-4 text-muted-foreground" />
+            )}
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">

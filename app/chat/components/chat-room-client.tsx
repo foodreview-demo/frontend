@@ -7,7 +7,7 @@ import { ArrowLeft, Send, MapPin, Loader2, MoreVertical, Wifi, WifiOff, Check, C
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -71,7 +71,7 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // WebSocket 연결 상태에서 수신된 메시지 처리
   const handleWebSocketMessage = useCallback((message: ChatMessage) => {
@@ -206,7 +206,7 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
         }
         setMessages((prev) => [...prev, optimisticMessage])
         setIsSending(false)
-        inputRef.current?.focus()
+        textareaRef.current?.focus()
         return
       }
     }
@@ -223,7 +223,7 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
       alert("메시지 전송에 실패했습니다")
     } finally {
       setIsSending(false)
-      inputRef.current?.focus()
+      textareaRef.current?.focus()
     }
   }
 
@@ -433,10 +433,10 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
 
       {/* Input Area */}
       <div className="sticky bottom-0 bg-card px-3 py-3 border-t border-border">
-        <div className="flex items-center gap-2">
+        <div className="flex items-end gap-2">
           <div className="flex-1">
-            <Input
-              ref={inputRef}
+            <Textarea
+              ref={textareaRef}
               placeholder="메시지를 입력하세요"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
@@ -446,15 +446,16 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
                   handleSend()
                 }
               }}
-              className="rounded-full bg-secondary border-0 focus-visible:ring-1 focus-visible:ring-primary"
+              className="min-h-[40px] max-h-[120px] resize-none rounded-2xl bg-secondary border-0 focus-visible:ring-1 focus-visible:ring-primary py-2.5 px-4"
               disabled={isSending}
+              rows={1}
             />
           </div>
           <Button
             onClick={handleSend}
             disabled={!newMessage.trim() || isSending}
             size="icon"
-            className="rounded-full shrink-0"
+            className="rounded-full shrink-0 h-10 w-10"
           >
             {isSending ? (
               <Loader2 className="h-4 w-4 animate-spin" />

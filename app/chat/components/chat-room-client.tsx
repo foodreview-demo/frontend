@@ -158,17 +158,27 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
     scrollToBottom()
   }, [messages, scrollToBottom])
 
-  // WebSocket 연결 시 읽음 알림 전송
+  // WebSocket 연결 시 읽음 알림 전송 (최초 1회)
+  const hasNotifiedRead = useRef(false)
   useEffect(() => {
-    if (isConnected && messages.length > 0) {
-      // 읽지 않은 상대방 메시지가 있으면 읽음 알림 전송
-      const hasUnreadFromOther = messages.some(
-        (msg) => msg.senderId !== currentUser?.id && !msg.isRead
-      )
-      if (hasUnreadFromOther) {
+    if (isConnected && !hasNotifiedRead.current) {
+      // 채팅방 입장 시 읽음 알림 전송
+      sendReadNotification()
+      hasNotifiedRead.current = true
+    }
+  }, [isConnected, sendReadNotification])
+
+  // 새 메시지 수신 시 읽음 알림 전송 (상대방 메시지인 경우)
+  const prevMessagesLengthRef = useRef(0)
+  useEffect(() => {
+    if (isConnected && messages.length > prevMessagesLengthRef.current) {
+      const lastMessage = messages[messages.length - 1]
+      // 상대방이 보낸 새 메시지가 있으면 읽음 알림 전송
+      if (lastMessage && lastMessage.senderId !== currentUser?.id) {
         sendReadNotification()
       }
     }
+    prevMessagesLengthRef.current = messages.length
   }, [isConnected, messages, currentUser?.id, sendReadNotification])
 
   // 메시지 전송

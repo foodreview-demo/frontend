@@ -156,6 +156,19 @@ export default function FriendsPage() {
     }
   }, [currentUser])
 
+  // 채팅방 목록만 갱신하는 함수
+  const refreshChatRooms = useCallback(async () => {
+    try {
+      const chatResult = await api.getChatRooms()
+      if (chatResult.success) {
+        setChatRooms(chatResult.data.content)
+      }
+    } catch (err) {
+      console.error("채팅방 목록 갱신 실패:", err)
+    }
+  }, [])
+
+  // 초기 데이터 로드
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true)
@@ -191,6 +204,16 @@ export default function FriendsPage() {
 
     fetchData()
   }, [currentUser])
+
+  // 페이지 포커스 시 채팅방 목록 갱신 (채팅방에서 돌아왔을 때 읽음 상태 반영)
+  useEffect(() => {
+    const handleFocus = () => {
+      refreshChatRooms()
+    }
+
+    window.addEventListener("focus", handleFocus)
+    return () => window.removeEventListener("focus", handleFocus)
+  }, [refreshChatRooms])
 
   // Debounced search
   const searchUsers = useCallback(async (query: string) => {

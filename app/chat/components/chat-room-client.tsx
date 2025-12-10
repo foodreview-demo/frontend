@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Send, MapPin, Loader2, MoreVertical, Wifi, WifiOff, Check, CheckCheck } from "lucide-react"
+import { ArrowLeft, Send, MapPin, Loader2, MoreVertical, Check, CheckCheck } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -305,14 +305,6 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
               </div>
             </div>
           </Link>
-          {/* 연결 상태 표시 */}
-          <div className="flex items-center">
-            {isConnected ? (
-              <Wifi className="h-4 w-4 text-green-500" />
-            ) : (
-              <WifiOff className="h-4 w-4 text-muted-foreground" />
-            )}
-          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">

@@ -3,20 +3,25 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowLeft, MapPin, Star, Clock, Sparkles, Share2, Phone, Loader2 } from "lucide-react"
+import { ArrowLeft, MapPin, Star, Clock, Sparkles, Share2, Phone, Loader2, Bookmark } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { ReviewCard } from "@/components/review-card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { SaveToPlaylistDialog } from "@/components/save-to-playlist-dialog"
 import { api, Restaurant, Review } from "@/lib/api"
+import { useAuth } from "@/lib/auth-context"
 
 export function RestaurantClient({ id }: { id: string }) {
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState("reviews")
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const [isSaved, setIsSaved] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -35,6 +40,18 @@ export function RestaurantClient({ id }: { id: string }) {
         if (reviewsResult.success) {
           setReviews(reviewsResult.data.content)
         }
+
+        // 저장 상태 확인 (로그인한 경우에만)
+        if (user) {
+          try {
+            const statusResult = await api.getRestaurantSaveStatus(restaurantId)
+            if (statusResult.success) {
+              setIsSaved(statusResult.data.isSaved)
+            }
+          } catch {
+            // 저장 상태 조회 실패는 무시
+          }
+        }
       } catch (err) {
         console.error("음식점 정보 로드 실패:", err)
         setError("음식점 정보를 불러오는데 실패했습니다")
@@ -44,7 +61,7 @@ export function RestaurantClient({ id }: { id: string }) {
     }
 
     fetchData()
-  }, [id])
+  }, [id, user])
 
   if (isLoading) {
     return (
@@ -95,13 +112,25 @@ export function RestaurantClient({ id }: { id: string }) {
           </Button>
         </Link>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-4 right-4 bg-background/50 backdrop-blur-sm rounded-full"
-        >
-          <Share2 className="h-5 w-5" />
-        </Button>
+        <div className="absolute top-4 right-4 flex gap-2">
+          {user && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="bg-background/50 backdrop-blur-sm rounded-full"
+              onClick={() => setShowSaveDialog(true)}
+            >
+              <Bookmark className={`h-5 w-5 ${isSaved ? "fill-primary text-primary" : ""}`} />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="bg-background/50 backdrop-blur-sm rounded-full"
+          >
+            <Share2 className="h-5 w-5" />
+          </Button>
+        </div>
 
         {/* First Review Badge */}
         {isFirstReviewAvailable && (
@@ -208,6 +237,17 @@ export function RestaurantClient({ id }: { id: string }) {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Save to Playlist Dialog */}
+      {restaurant && (
+        <SaveToPlaylistDialog
+          open={showSaveDialog}
+          onOpenChange={setShowSaveDialog}
+          restaurantId={restaurant.id}
+          restaurantName={restaurant.name}
+          onSaved={() => setIsSaved(true)}
+        />
+      )}
     </MobileLayout>
   )
 }

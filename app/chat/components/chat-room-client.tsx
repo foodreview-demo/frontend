@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Send, MapPin, Loader2, MoreVertical, Wifi, WifiOff } from "lucide-react"
+import { ArrowLeft, Send, MapPin, Loader2, MoreVertical, Wifi, WifiOff, Check, CheckCheck } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { api, ChatMessage, ChatRoom } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
-import { useChatSocket } from "@/lib/use-chat-socket"
+import { useChatSocket, ReadNotification } from "@/lib/use-chat-socket"
 import { cn } from "@/lib/utils"
 
 function getTasteLevel(score: number): { label: string; color: string } {
@@ -89,11 +89,28 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
     })
   }, [currentUser?.id])
 
+  // 읽음 알림 수신 처리 - 내가 보낸 메시지들을 읽음으로 표시
+  const handleReadNotification = useCallback((notification: ReadNotification) => {
+    // 상대방이 읽었을 때만 처리 (내가 읽은 건 무시)
+    if (notification.readByUserId === currentUser?.id) return
+
+    setMessages((prev) =>
+      prev.map((msg) => {
+        // 내가 보낸 메시지이고 아직 읽지 않은 경우 읽음으로 변경
+        if (msg.senderId === currentUser?.id && !msg.isRead) {
+          return { ...msg, isRead: true }
+        }
+        return msg
+      })
+    )
+  }, [currentUser?.id])
+
   // WebSocket 연결
-  const { isConnected, sendMessage: sendWebSocketMessage } = useChatSocket({
+  const { isConnected, sendMessage: sendWebSocketMessage, sendReadNotification } = useChatSocket({
     roomUuid: uuid,
     userId: currentUser?.id || 0,
     onMessage: handleWebSocketMessage,
+    onReadNotification: handleReadNotification,
     enabled: !!currentUser && uuid !== "placeholder",
   })
 
@@ -140,6 +157,19 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
   useEffect(() => {
     scrollToBottom()
   }, [messages, scrollToBottom])
+
+  // WebSocket 연결 시 읽음 알림 전송
+  useEffect(() => {
+    if (isConnected && messages.length > 0) {
+      // 읽지 않은 상대방 메시지가 있으면 읽음 알림 전송
+      const hasUnreadFromOther = messages.some(
+        (msg) => msg.senderId !== currentUser?.id && !msg.isRead
+      )
+      if (hasUnreadFromOther) {
+        sendReadNotification()
+      }
+    }
+  }, [isConnected, messages, currentUser?.id, sendReadNotification])
 
   // 메시지 전송
   const handleSend = async () => {
@@ -366,9 +396,19 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
                         </div>
 
                         {showTime && (
-                          <span className="text-[10px] text-muted-foreground mb-1 whitespace-nowrap">
-                            {formatTime(message.createdAt)}
-                          </span>
+                          <div className={cn("flex items-center gap-0.5 mb-1", isMe && "flex-row-reverse")}>
+                            {/* 읽음 표시 - 내 메시지에만 표시 */}
+                            {isMe && (
+                              message.isRead ? (
+                                <CheckCheck className="h-3 w-3 text-blue-500" />
+                              ) : (
+                                <Check className="h-3 w-3 text-muted-foreground" />
+                              )
+                            )}
+                            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                              {formatTime(message.createdAt)}
+                            </span>
+                          </div>
                         )}
                       </div>
                     </div>

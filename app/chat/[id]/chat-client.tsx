@@ -1,13 +1,18 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import Link from "next/link"
-import { ArrowLeft, Send, MapPin, MoreVertical, Loader2 } from "lucide-react"
-import { MobileLayout } from "@/components/mobile-layout"
+import { ArrowLeft, Send, MapPin, MoreVertical, Loader2, Image, Camera, Menu } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { api, User, ChatMessage, ChatRoom } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { cn } from "@/lib/utils"
@@ -20,6 +25,40 @@ function getTasteLevel(score: number): { label: string; color: string } {
   return { label: "입문자", color: "bg-muted text-muted-foreground" }
 }
 
+// Group messages by date
+function groupMessagesByDate(messages: ChatMessage[]) {
+  const groups: { date: string; messages: ChatMessage[] }[] = []
+  let currentDate = ""
+
+  messages.forEach((message) => {
+    const messageDate = new Date(message.createdAt).toLocaleDateString("ko-KR", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      weekday: "long",
+    })
+
+    if (messageDate !== currentDate) {
+      currentDate = messageDate
+      groups.push({ date: messageDate, messages: [message] })
+    } else {
+      groups[groups.length - 1].messages.push(message)
+    }
+  })
+
+  return groups
+}
+
+// Check if messages should be grouped (same sender, within 1 minute)
+function shouldGroupWithPrevious(current: ChatMessage, previous: ChatMessage | null) {
+  if (!previous) return false
+  if (current.senderId !== previous.senderId) return false
+
+  const currentTime = new Date(current.createdAt).getTime()
+  const previousTime = new Date(previous.createdAt).getTime()
+  return currentTime - previousTime < 60000 // 1 minute
+}
+
 export function ChatClient({ id }: { id: string }) {
   const { user: currentUser } = useAuth()
   const [otherUser, setOtherUser] = useState<User | null>(null)
@@ -30,10 +69,11 @@ export function ChatClient({ id }: { id: string }) {
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
+  }, [])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -72,7 +112,26 @@ export function ChatClient({ id }: { id: string }) {
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [messages, scrollToBottom])
+
+  // Poll for new messages every 3 seconds
+  useEffect(() => {
+    if (!chatRoom) return
+
+    const pollMessages = async () => {
+      try {
+        const messagesResult = await api.getMessages(chatRoom.id)
+        if (messagesResult.success) {
+          setMessages(messagesResult.data.content.reverse())
+        }
+      } catch (err) {
+        console.error("메시지 폴링 실패:", err)
+      }
+    }
+
+    const interval = setInterval(pollMessages, 3000)
+    return () => clearInterval(interval)
+  }, [chatRoom])
 
   const handleSend = async () => {
     if (!newMessage.trim() || !chatRoom || isSending) return
@@ -81,17 +140,36 @@ export function ChatClient({ id }: { id: string }) {
     const messageContent = newMessage.trim()
     setNewMessage("")
 
+    // Optimistic update
+    const optimisticMessage: ChatMessage = {
+      id: Date.now(),
+      senderId: currentUser?.id || 0,
+      senderName: currentUser?.name || "",
+      senderAvatar: currentUser?.avatar || "",
+      content: messageContent,
+      createdAt: new Date().toISOString(),
+      isRead: false,
+      isMine: true,
+    }
+    setMessages((prev) => [...prev, optimisticMessage])
+
     try {
       const result = await api.sendMessage(chatRoom.id, messageContent)
       if (result.success) {
-        setMessages([...messages, result.data])
+        // Replace optimistic message with real one
+        setMessages((prev) =>
+          prev.map((m) => (m.id === optimisticMessage.id ? result.data : m))
+        )
       }
     } catch (err) {
       console.error("메시지 전송 실패:", err)
+      // Remove optimistic message on failure
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticMessage.id))
+      setNewMessage(messageContent) // Restore message
       alert("메시지 전송에 실패했습니다")
-      setNewMessage(messageContent) // Restore message on failure
     } finally {
       setIsSending(false)
+      inputRef.current?.focus()
     }
   }
 
@@ -100,140 +178,204 @@ export function ChatClient({ id }: { id: string }) {
     return date.toLocaleTimeString("ko-KR", {
       hour: "2-digit",
       minute: "2-digit",
+      hour12: true,
     })
   }
 
   if (isLoading) {
     return (
-      <MobileLayout>
-        <div className="flex justify-center items-center min-h-screen">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen bg-[#b2c7d9] flex flex-col max-w-md mx-auto">
+        <div className="flex justify-center items-center flex-1">
+          <Loader2 className="w-8 h-8 animate-spin text-white" />
         </div>
-      </MobileLayout>
+      </div>
     )
   }
 
   if (error || !otherUser) {
     return (
-      <MobileLayout>
-        <div className="flex flex-col items-center justify-center min-h-screen p-4">
-          <p className="text-muted-foreground">{error || "사용자를 찾을 수 없습니다"}</p>
+      <div className="min-h-screen bg-[#b2c7d9] flex flex-col max-w-md mx-auto">
+        <div className="flex flex-col items-center justify-center flex-1 p-4">
+          <p className="text-white">{error || "사용자를 찾을 수 없습니다"}</p>
           <Link href="/friends">
-            <Button className="mt-4">돌아가기</Button>
+            <Button className="mt-4 bg-white text-gray-800 hover:bg-gray-100">돌아가기</Button>
           </Link>
         </div>
-      </MobileLayout>
+      </div>
     )
   }
 
   const level = getTasteLevel(otherUser.tasteScore)
+  const messageGroups = groupMessagesByDate(messages)
 
   return (
-    <MobileLayout>
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-card border-b border-border">
-        <div className="flex items-center gap-3 px-4 py-3">
+    <div className="min-h-screen bg-[#b2c7d9] flex flex-col max-w-md mx-auto">
+      {/* Header - KakaoTalk style */}
+      <header className="sticky top-0 z-50 bg-[#b2c7d9] px-2 py-2">
+        <div className="flex items-center gap-2">
           <Link href="/friends">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
+            <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+              <ArrowLeft className="h-6 w-6" />
             </Button>
           </Link>
-          <Link href={`/profile/${otherUser.id}`} className="flex items-center gap-3 flex-1">
-            <Avatar className="h-10 w-10">
-              <AvatarImage src={otherUser.avatar || "/placeholder.svg"} alt={otherUser.name} />
-              <AvatarFallback>{otherUser.name[0]}</AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-foreground">{otherUser.name}</span>
-                <Badge variant="secondary" className={cn("text-xs", level.color)}>
-                  {level.label}
-                </Badge>
-              </div>
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <MapPin className="h-3 w-3" />
-                <span>{otherUser.region}</span>
-              </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-white text-lg">{otherUser.name}</span>
+              <Badge variant="secondary" className={cn("text-xs", level.color)}>
+                {level.label}
+              </Badge>
             </div>
-          </Link>
-          <Button variant="ghost" size="icon">
-            <MoreVertical className="h-5 w-5" />
-          </Button>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link href={`/profile/${otherUser.id}`}>프로필 보기</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem className="text-destructive">채팅방 나가기</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
-      {/* Messages */}
-      <div className="flex-1 p-4 space-y-4 pb-24 overflow-y-auto">
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto px-4 py-2 space-y-4">
         {messages.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">아직 대화가 없습니다</p>
-            <p className="text-sm text-muted-foreground mt-1">먼저 인사해보세요!</p>
+          <div className="flex flex-col items-center justify-center py-20">
+            <Avatar className="h-20 w-20 mb-4">
+              <AvatarImage src={otherUser.avatar || "/placeholder.svg"} alt={otherUser.name} />
+              <AvatarFallback className="text-2xl">{otherUser.name[0]}</AvatarFallback>
+            </Avatar>
+            <p className="text-white font-medium text-lg">{otherUser.name}</p>
+            <div className="flex items-center gap-1 text-white/70 text-sm mt-1">
+              <MapPin className="h-3 w-3" />
+              <span>{otherUser.region}</span>
+            </div>
+            <p className="text-white/60 text-sm mt-4">대화를 시작해보세요!</p>
           </div>
         ) : (
-          <>
-            {/* Date Divider */}
-            <div className="flex items-center gap-4">
-              <div className="flex-1 h-px bg-border" />
-              <span className="text-xs text-muted-foreground">오늘</span>
-              <div className="flex-1 h-px bg-border" />
-            </div>
+          messageGroups.map((group, groupIndex) => (
+            <div key={groupIndex}>
+              {/* Date Divider */}
+              <div className="flex justify-center my-4">
+                <span className="text-xs text-white/70 bg-black/10 px-3 py-1 rounded-full">
+                  {group.date}
+                </span>
+              </div>
 
-            {messages.map((message) => {
-              const isMe = message.isMine
-              return (
-                <div key={message.id} className={cn("flex gap-2", isMe ? "justify-end" : "justify-start")}>
-                  {!isMe && (
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={message.senderAvatar || "/placeholder.svg"} alt={message.senderName} />
-                      <AvatarFallback>{message.senderName[0]}</AvatarFallback>
-                    </Avatar>
-                  )}
-                  <div className={cn("max-w-[70%]", isMe ? "items-end" : "items-start")}>
-                    <div
-                      className={cn(
-                        "px-4 py-2 rounded-2xl",
-                        isMe
-                          ? "bg-primary text-primary-foreground rounded-tr-sm"
-                          : "bg-secondary text-secondary-foreground rounded-tl-sm",
+              {/* Messages */}
+              {group.messages.map((message, messageIndex) => {
+                const isMe = message.isMine
+                const prevMessage = messageIndex > 0 ? group.messages[messageIndex - 1] : null
+                const nextMessage = messageIndex < group.messages.length - 1 ? group.messages[messageIndex + 1] : null
+                const isGroupedWithPrev = shouldGroupWithPrevious(message, prevMessage)
+                const isGroupedWithNext = nextMessage && shouldGroupWithPrevious(nextMessage, message)
+                const showTime = !isGroupedWithNext
+
+                return (
+                  <div
+                    key={message.id}
+                    className={cn(
+                      "flex gap-2",
+                      isMe ? "justify-end" : "justify-start",
+                      isGroupedWithPrev ? "mt-0.5" : "mt-3"
+                    )}
+                  >
+                    {/* Avatar (only for other user, first message in group) */}
+                    {!isMe && !isGroupedWithPrev && (
+                      <Link href={`/profile/${otherUser.id}`}>
+                        <Avatar className="h-9 w-9 mt-1">
+                          <AvatarImage src={message.senderAvatar || "/placeholder.svg"} alt={message.senderName} />
+                          <AvatarFallback>{message.senderName[0]}</AvatarFallback>
+                        </Avatar>
+                      </Link>
+                    )}
+
+                    {/* Spacer when avatar is hidden */}
+                    {!isMe && isGroupedWithPrev && <div className="w-9" />}
+
+                    {/* Message Content */}
+                    <div className={cn("flex flex-col max-w-[70%]", isMe ? "items-end" : "items-start")}>
+                      {/* Sender name (only for other user, first message in group) */}
+                      {!isMe && !isGroupedWithPrev && (
+                        <span className="text-xs text-white/70 mb-1 ml-1">{message.senderName}</span>
                       )}
-                    >
-                      <p className="text-sm">{message.content}</p>
+
+                      <div className={cn("flex items-end gap-1", isMe && "flex-row-reverse")}>
+                        {/* Message bubble */}
+                        <div
+                          className={cn(
+                            "px-3 py-2 rounded-2xl break-words",
+                            isMe
+                              ? "bg-[#fee500] text-gray-900 rounded-br-sm"
+                              : "bg-white text-gray-900 rounded-bl-sm"
+                          )}
+                        >
+                          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                        </div>
+
+                        {/* Time */}
+                        {showTime && (
+                          <span className="text-[10px] text-white/60 mb-1 whitespace-nowrap">
+                            {formatTime(message.createdAt)}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1 px-1">{formatTime(message.createdAt)}</p>
                   </div>
-                </div>
-              )
-            })}
-          </>
+                )
+              })}
+            </div>
+          ))
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <div className="fixed bottom-20 left-1/2 -translate-x-1/2 w-full max-w-md bg-card border-t border-border p-4">
-        <div className="flex gap-2">
-          <Input
-            placeholder="메시지를 입력하세요"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault()
-                handleSend()
-              }
-            }}
-            className="flex-1"
-            disabled={isSending}
-          />
+      {/* Input Area - KakaoTalk style */}
+      <div className="sticky bottom-0 bg-white px-2 py-2 border-t border-gray-200">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" className="text-gray-500 hover:text-gray-700 shrink-0">
+            <Image className="h-6 w-6" />
+          </Button>
+          <div className="flex-1 relative">
+            <Input
+              ref={inputRef}
+              placeholder="메시지 입력"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault()
+                  handleSend()
+                }
+              }}
+              className="bg-gray-100 border-0 rounded-full pr-10 focus-visible:ring-0 focus-visible:ring-offset-0"
+              disabled={isSending}
+            />
+          </div>
           <Button
             onClick={handleSend}
             disabled={!newMessage.trim() || isSending}
-            className="bg-primary text-primary-foreground"
+            size="icon"
+            className={cn(
+              "rounded-full shrink-0 transition-colors",
+              newMessage.trim()
+                ? "bg-[#fee500] hover:bg-[#fdd835] text-gray-900"
+                : "bg-gray-200 text-gray-400"
+            )}
           >
-            {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            {isSending ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Send className="h-5 w-5" />
+            )}
           </Button>
         </div>
       </div>
-    </MobileLayout>
+    </div>
   )
 }

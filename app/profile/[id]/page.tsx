@@ -1,9 +1,9 @@
 import { ProfileClient } from "./profile-client"
 
 export function generateStaticParams() {
-  // Static export에서는 최소 하나의 경로가 필요
-  // 실제 데이터는 클라이언트에서 API를 통해 로드
-  return [{ id: "1" }]
+  // Static export에서는 모든 가능한 경로를 미리 생성해야 함
+  // 1~100까지 ID 생성 (필요에 따라 확장 가능)
+  return Array.from({ length: 100 }, (_, i) => ({ id: String(i + 1) }))
 }
 
 export default async function UserProfilePage({ params }: { params: Promise<{ id: string }> }) {

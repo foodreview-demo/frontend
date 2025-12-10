@@ -75,6 +75,11 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
 
   // WebSocket 연결 상태에서 수신된 메시지 처리
   const handleWebSocketMessage = useCallback((message: ChatMessage) => {
+    // 내가 보낸 메시지는 이미 optimistic update로 추가됨 - 무시
+    if (message.senderId === currentUser?.id) {
+      return
+    }
+
     setMessages((prev) => {
       // 중복 메시지 방지
       if (prev.some((m) => m.id === message.id)) {
@@ -82,7 +87,7 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
       }
       return [...prev, message]
     })
-  }, [])
+  }, [currentUser?.id])
 
   // WebSocket 연결
   const { isConnected, sendMessage: sendWebSocketMessage } = useChatSocket({

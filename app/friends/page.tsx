@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, RecommendedUser, User, ChatRoom } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
+import { useNotificationSocket, NewMessageNotification } from "@/lib/use-notification-socket"
 import { cn } from "@/lib/utils"
 
 function getTasteLevel(score: number): { label: string; color: string } {
@@ -70,6 +71,34 @@ export default function FriendsPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<User[]>([])
   const [isSearching, setIsSearching] = useState(false)
+
+  // 새 메시지 알림 처리
+  const handleNewMessageNotification = useCallback((notification: NewMessageNotification) => {
+    setChatRooms((prev) => {
+      const updatedRooms = prev.map((room) => {
+        if (room.uuid === notification.roomUuid) {
+          return {
+            ...room,
+            lastMessage: notification.message.content,
+            lastMessageAt: notification.message.createdAt,
+            unreadCount: room.unreadCount + 1,
+          }
+        }
+        return room
+      })
+      // 최신 메시지 순으로 정렬
+      return updatedRooms.sort((a, b) =>
+        new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
+      )
+    })
+  }, [])
+
+  // 알림 WebSocket 구독
+  useNotificationSocket({
+    userId: currentUser?.id || 0,
+    onNotification: handleNewMessageNotification,
+    enabled: !!currentUser,
+  })
 
   useEffect(() => {
     const fetchData = async () => {

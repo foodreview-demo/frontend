@@ -180,6 +180,20 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
     })
   }
 
+  const handleLeaveChat = async () => {
+    if (!confirm("채팅방을 나가시겠습니까? 모든 대화 내용이 삭제됩니다.")) {
+      return
+    }
+
+    try {
+      await api.leaveChatRoom(uuid)
+      router.push("/friends")
+    } catch (err) {
+      console.error("채팅방 나가기 실패:", err)
+      alert("채팅방 나가기에 실패했습니다")
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
@@ -245,7 +259,9 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
               <DropdownMenuItem asChild>
                 <Link href={`/profile/${otherUser.id}`}>프로필 보기</Link>
               </DropdownMenuItem>
-              <DropdownMenuItem className="text-destructive">채팅방 나가기</DropdownMenuItem>
+              <DropdownMenuItem className="text-destructive" onClick={handleLeaveChat}>
+                채팅방 나가기
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

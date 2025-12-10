@@ -175,8 +175,14 @@ export default function FriendsPage() {
   const handleStartChat = async (userId: number) => {
     try {
       const result = await api.getOrCreateChatRoom(userId)
+      console.log("채팅방 생성 결과:", result)
       if (result.success && result.data.uuid) {
-        router.push(`/chat/room/${result.data.uuid}`)
+        const chatUrl = `/chat/room/${result.data.uuid}`
+        console.log("이동할 URL:", chatUrl)
+        router.push(chatUrl)
+      } else {
+        console.error("UUID가 없음:", result)
+        alert("채팅방을 열 수 없습니다")
       }
     } catch (err) {
       console.error("채팅방 생성 실패:", err)

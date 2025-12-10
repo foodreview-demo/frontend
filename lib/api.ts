@@ -335,6 +335,13 @@ class ApiClient {
     });
   }
 
+  // UUID 기반 채팅방 나가기
+  async leaveChatRoom(roomUuid: string) {
+    return this.request<ApiResponse<void>>(`/chat/room/${roomUuid}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Image API
   async uploadImages(files: File[]): Promise<ApiResponse<ImageUploadResponse>> {
     const token = this.getToken();

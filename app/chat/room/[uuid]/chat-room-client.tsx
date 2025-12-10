@@ -3,11 +3,12 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Send, MapPin, Loader2, Image, Menu } from "lucide-react"
+import { ArrowLeft, Send, MapPin, Loader2, MoreVertical } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Card } from "@/components/ui/card"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -181,9 +182,9 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#b2c7d9] flex flex-col max-w-md mx-auto">
+      <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
         <div className="flex justify-center items-center flex-1">
-          <Loader2 className="w-8 h-8 animate-spin text-white" />
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       </div>
     )
@@ -191,11 +192,11 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
 
   if (error || !chatRoom) {
     return (
-      <div className="min-h-screen bg-[#b2c7d9] flex flex-col max-w-md mx-auto">
+      <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
         <div className="flex flex-col items-center justify-center flex-1 p-4">
-          <p className="text-white">{error || "채팅방을 찾을 수 없습니다"}</p>
+          <p className="text-muted-foreground">{error || "채팅방을 찾을 수 없습니다"}</p>
           <Link href="/friends">
-            <Button className="mt-4 bg-white text-gray-800 hover:bg-gray-100">돌아가기</Button>
+            <Button className="mt-4">돌아가기</Button>
           </Link>
         </div>
       </div>
@@ -207,27 +208,37 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
   const messageGroups = groupMessagesByDate(messages)
 
   return (
-    <div className="min-h-screen bg-[#b2c7d9] flex flex-col max-w-md mx-auto">
+    <div className="min-h-screen bg-secondary/30 flex flex-col max-w-md mx-auto">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-[#b2c7d9] px-2 py-2">
+      <header className="sticky top-0 z-50 bg-card border-b border-border px-2 py-2">
         <div className="flex items-center gap-2">
           <Link href="/friends">
-            <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
-              <ArrowLeft className="h-6 w-6" />
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-white text-lg">{otherUser.name}</span>
-              <Badge variant="secondary" className={cn("text-xs", level.color)}>
-                {level.label}
-              </Badge>
+          <Link href={`/profile/${otherUser.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+            <Avatar className="h-9 w-9">
+              <AvatarImage src={otherUser.avatar || "/placeholder.svg"} alt={otherUser.name} />
+              <AvatarFallback>{otherUser.name[0]}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-foreground">{otherUser.name}</span>
+                <Badge variant="secondary" className={cn("text-xs", level.color)}>
+                  {level.label}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <MapPin className="h-3 w-3" />
+                <span>{otherUser.region}</span>
+              </div>
             </div>
-          </div>
+          </Link>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
-                <Menu className="h-5 w-5" />
+              <Button variant="ghost" size="icon">
+                <MoreVertical className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -241,26 +252,26 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
       </header>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto px-4 py-2 space-y-4">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <Avatar className="h-20 w-20 mb-4">
+          <div className="flex flex-col items-center justify-center py-16">
+            <Avatar className="h-20 w-20 mb-4 ring-4 ring-primary/20">
               <AvatarImage src={otherUser.avatar || "/placeholder.svg"} alt={otherUser.name} />
-              <AvatarFallback className="text-2xl">{otherUser.name[0]}</AvatarFallback>
+              <AvatarFallback className="text-2xl bg-primary/10">{otherUser.name[0]}</AvatarFallback>
             </Avatar>
-            <p className="text-white font-medium text-lg">{otherUser.name}</p>
-            <div className="flex items-center gap-1 text-white/70 text-sm mt-1">
+            <p className="text-foreground font-semibold text-lg">{otherUser.name}</p>
+            <div className="flex items-center gap-1 text-muted-foreground text-sm mt-1">
               <MapPin className="h-3 w-3" />
               <span>{otherUser.region}</span>
             </div>
-            <p className="text-white/60 text-sm mt-4">대화를 시작해보세요!</p>
+            <p className="text-muted-foreground text-sm mt-4">대화를 시작해보세요!</p>
           </div>
         ) : (
           messageGroups.map((group, groupIndex) => (
             <div key={groupIndex}>
               {/* Date Divider */}
               <div className="flex justify-center my-4">
-                <span className="text-xs text-white/70 bg-black/10 px-3 py-1 rounded-full">
+                <span className="text-xs text-muted-foreground bg-secondary px-3 py-1 rounded-full">
                   {group.date}
                 </span>
               </div>
@@ -280,41 +291,41 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
                     className={cn(
                       "flex gap-2",
                       isMe ? "justify-end" : "justify-start",
-                      isGroupedWithPrev ? "mt-0.5" : "mt-3"
+                      isGroupedWithPrev ? "mt-1" : "mt-3"
                     )}
                   >
                     {/* Avatar */}
                     {!isMe && !isGroupedWithPrev && (
                       <Link href={`/profile/${otherUser.id}`}>
-                        <Avatar className="h-9 w-9 mt-1">
+                        <Avatar className="h-8 w-8 mt-1">
                           <AvatarImage src={message.senderAvatar || "/placeholder.svg"} alt={message.senderName} />
-                          <AvatarFallback>{message.senderName[0]}</AvatarFallback>
+                          <AvatarFallback className="text-xs">{message.senderName[0]}</AvatarFallback>
                         </Avatar>
                       </Link>
                     )}
 
-                    {!isMe && isGroupedWithPrev && <div className="w-9" />}
+                    {!isMe && isGroupedWithPrev && <div className="w-8" />}
 
                     {/* Message Content */}
-                    <div className={cn("flex flex-col max-w-[70%]", isMe ? "items-end" : "items-start")}>
+                    <div className={cn("flex flex-col max-w-[75%]", isMe ? "items-end" : "items-start")}>
                       {!isMe && !isGroupedWithPrev && (
-                        <span className="text-xs text-white/70 mb-1 ml-1">{message.senderName}</span>
+                        <span className="text-xs text-muted-foreground mb-1 ml-1">{message.senderName}</span>
                       )}
 
-                      <div className={cn("flex items-end gap-1", isMe && "flex-row-reverse")}>
+                      <div className={cn("flex items-end gap-1.5", isMe && "flex-row-reverse")}>
                         <div
                           className={cn(
-                            "px-3 py-2 rounded-2xl break-words",
+                            "px-3 py-2 rounded-2xl break-words shadow-sm",
                             isMe
-                              ? "bg-[#fee500] text-gray-900 rounded-br-sm"
-                              : "bg-white text-gray-900 rounded-bl-sm"
+                              ? "bg-primary text-primary-foreground rounded-br-md"
+                              : "bg-card text-card-foreground border border-border rounded-bl-md"
                           )}
                         >
                           <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                         </div>
 
                         {showTime && (
-                          <span className="text-[10px] text-white/60 mb-1 whitespace-nowrap">
+                          <span className="text-[10px] text-muted-foreground mb-1 whitespace-nowrap">
                             {formatTime(message.createdAt)}
                           </span>
                         )}
@@ -330,15 +341,12 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
       </div>
 
       {/* Input Area */}
-      <div className="sticky bottom-0 bg-white px-2 py-2 border-t border-gray-200">
+      <div className="sticky bottom-0 bg-card px-3 py-3 border-t border-border">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="text-gray-500 hover:text-gray-700 shrink-0">
-            <Image className="h-6 w-6" />
-          </Button>
-          <div className="flex-1 relative">
+          <div className="flex-1">
             <Input
               ref={inputRef}
-              placeholder="메시지 입력"
+              placeholder="메시지를 입력하세요"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyDown={(e) => {
@@ -347,7 +355,7 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
                   handleSend()
                 }
               }}
-              className="bg-gray-100 border-0 rounded-full pr-10 focus-visible:ring-0 focus-visible:ring-offset-0"
+              className="rounded-full bg-secondary border-0 focus-visible:ring-1 focus-visible:ring-primary"
               disabled={isSending}
             />
           </div>
@@ -355,17 +363,12 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
             onClick={handleSend}
             disabled={!newMessage.trim() || isSending}
             size="icon"
-            className={cn(
-              "rounded-full shrink-0 transition-colors",
-              newMessage.trim()
-                ? "bg-[#fee500] hover:bg-[#fdd835] text-gray-900"
-                : "bg-gray-200 text-gray-400"
-            )}
+            className="rounded-full shrink-0"
           >
             {isSending ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Send className="h-5 w-5" />
+              <Send className="h-4 w-4" />
             )}
           </Button>
         </div>

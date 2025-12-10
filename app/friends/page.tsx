@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   Sparkles, MessageCircle, UserPlus, MapPin, Check, Users, Loader2,
   Trophy, Search, Crown, Medal, ChevronRight
@@ -55,6 +56,7 @@ function RankBadge({ rank }: { rank: number }) {
 }
 
 export default function FriendsPage() {
+  const router = useRouter()
   const { user: currentUser } = useAuth()
   const [activeTab, setActiveTab] = useState("friends")
   const [recommendations, setRecommendations] = useState<RecommendedUser[]>([])
@@ -168,6 +170,19 @@ export default function FriendsPage() {
 
   // Sort followings by taste score for friend ranking
   const friendRanking = [...followings].sort((a, b) => b.tasteScore - a.tasteScore)
+
+  // Start chat with a user - create or get chat room and navigate to UUID-based route
+  const handleStartChat = async (userId: number) => {
+    try {
+      const result = await api.getOrCreateChatRoom(userId)
+      if (result.success && result.data.uuid) {
+        router.push(`/chat/room/${result.data.uuid}`)
+      }
+    } catch (err) {
+      console.error("채팅방 생성 실패:", err)
+      alert("채팅방을 열 수 없습니다")
+    }
+  }
 
   if (isLoading) {
     return (
@@ -307,11 +322,9 @@ export default function FriendsPage() {
                           <span>{user.tasteScore.toLocaleString()}점</span>
                         </div>
                       </div>
-                      <Link href={`/chat/${user.id}`}>
-                        <Button variant="ghost" size="icon">
-                          <MessageCircle className="h-5 w-5" />
-                        </Button>
-                      </Link>
+                      <Button variant="ghost" size="icon" onClick={() => handleStartChat(user.id)}>
+                        <MessageCircle className="h-5 w-5" />
+                      </Button>
                     </Card>
                   )
                 })
@@ -497,11 +510,9 @@ export default function FriendsPage() {
                             </>
                           )}
                         </Button>
-                        <Link href={`/chat/${user.id}`}>
-                          <Button variant="outline">
-                            <MessageCircle className="h-4 w-4" />
-                          </Button>
-                        </Link>
+                        <Button variant="outline" onClick={() => handleStartChat(user.id)}>
+                          <MessageCircle className="h-4 w-4" />
+                        </Button>
                       </div>
                     </Card>
                   )
@@ -518,7 +529,7 @@ export default function FriendsPage() {
             <TabsContent value="chat" className="mt-4 space-y-3">
               {chatRooms.length > 0 ? (
                 chatRooms.map((room) => (
-                  <Link key={room.id} href={`/chat/${room.otherUser.id}`}>
+                  <Link key={room.id} href={`/chat/room/${room.uuid}`}>
                     <Card className="p-3 flex items-center gap-3 hover:bg-secondary/50 transition-colors border border-border">
                       <div className="relative">
                         <Avatar className="h-12 w-12">

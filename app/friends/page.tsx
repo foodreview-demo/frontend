@@ -171,15 +171,12 @@ export default function FriendsPage() {
   // Sort followings by taste score for friend ranking
   const friendRanking = [...followings].sort((a, b) => b.tasteScore - a.tasteScore)
 
-  // Start chat with a user - create or get chat room and navigate to UUID-based route
+  // Start chat with a user - create or get chat room and navigate
   const handleStartChat = async (userId: number) => {
     try {
       const result = await api.getOrCreateChatRoom(userId)
-      console.log("채팅방 생성 결과:", result)
       if (result.success && result.data.uuid) {
-        const chatUrl = `/chat/room/${result.data.uuid}`
-        console.log("이동할 URL:", chatUrl)
-        router.push(chatUrl)
+        router.push(`/chat?room=${result.data.uuid}`)
       } else {
         console.error("UUID가 없음:", result)
         alert("채팅방을 열 수 없습니다")
@@ -535,7 +532,7 @@ export default function FriendsPage() {
             <TabsContent value="chat" className="mt-4 space-y-3">
               {chatRooms.length > 0 ? (
                 chatRooms.map((room) => (
-                  <Link key={room.id} href={`/chat/room/${room.uuid}`}>
+                  <Link key={room.id} href={`/chat?room=${room.uuid}`}>
                     <Card className="p-3 flex items-center gap-3 hover:bg-secondary/50 transition-colors border border-border">
                       <div className="relative">
                         <Avatar className="h-12 w-12">

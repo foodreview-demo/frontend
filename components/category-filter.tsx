@@ -2,7 +2,7 @@
 
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
-import { categories } from "@/lib/mock-data"
+import { categories } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 
 interface CategoryFilterProps {

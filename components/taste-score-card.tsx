@@ -3,7 +3,7 @@
 import { TrendingUp, Award, Heart, FileText } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import type { User } from "@/lib/mock-data"
+import type { User } from "@/lib/api"
 
 interface TasteScoreCardProps {
   user: User

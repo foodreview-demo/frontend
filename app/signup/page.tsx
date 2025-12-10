@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ChefHat, Loader2 } from "lucide-react"
-import { regions } from "@/lib/mock-data"
+import { regions } from "@/lib/constants"
 
 export default function SignUpPage() {
   const router = useRouter()

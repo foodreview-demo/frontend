@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Trophy, Medal, Crown, ChevronDown, TrendingUp, Calendar } from "lucide-react"
+import { Trophy, Medal, Crown, ChevronDown, TrendingUp, Calendar, Loader2 } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -10,8 +10,22 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { mockUsers, regions, currentUser } from "@/lib/mock-data"
+import { api, RankingUser } from "@/lib/api"
+import { useAuth } from "@/lib/auth-context"
 import { cn } from "@/lib/utils"
+
+const regions = [
+  "전체",
+  "서울",
+  "부산",
+  "인천",
+  "대구",
+  "대전",
+  "광주",
+  "울산",
+  "세종",
+  "경기",
+]
 
 function getTasteLevel(score: number): { label: string; color: string } {
   if (score >= 2000) return { label: "마스터", color: "bg-primary text-primary-foreground" }
@@ -51,16 +65,36 @@ function RankBadge({ rank }: { rank: number }) {
 }
 
 export default function RankingPage() {
+  const { user: currentUser } = useAuth()
   const [selectedRegion, setSelectedRegion] = useState("전체")
   const [period, setPeriod] = useState<"monthly" | "weekly">("monthly")
+  const [users, setUsers] = useState<RankingUser[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Sort users by taste score
-  const sortedUsers = [...mockUsers]
-    .filter((u) => selectedRegion === "전체" || u.region === selectedRegion)
-    .sort((a, b) => b.tasteScore - a.tasteScore)
-    .map((user, index) => ({ ...user, rank: index + 1 }))
+  useEffect(() => {
+    const fetchRanking = async () => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const result = await api.getRanking(
+          selectedRegion !== "전체" ? selectedRegion : undefined
+        )
+        if (result.success) {
+          setUsers(result.data.content)
+        }
+      } catch (err) {
+        console.error("랭킹 로드 실패:", err)
+        setError("랭킹을 불러오는데 실패했습니다")
+      } finally {
+        setIsLoading(false)
+      }
+    }
 
-  const currentUserRank = sortedUsers.findIndex((u) => u.id === currentUser.id) + 1
+    fetchRanking()
+  }, [selectedRegion])
+
+  const currentUserRank = currentUser ? users.findIndex((u) => u.id === currentUser.id) + 1 : 0
 
   return (
     <MobileLayout>
@@ -109,121 +143,133 @@ export default function RankingPage() {
       </header>
 
       <div className="p-4 space-y-4">
-        {/* My Ranking Card */}
-        {currentUserRank > 0 && (
-          <Card className="p-4 bg-primary/5 border-primary/20">
-            <div className="flex items-center gap-3">
-              <RankBadge rank={currentUserRank} />
-              <Avatar className="h-12 w-12 ring-2 ring-primary/30">
-                <AvatarImage src={currentUser.avatar || "/placeholder.svg"} alt={currentUser.name} />
-                <AvatarFallback>{currentUser.name[0]}</AvatarFallback>
-              </Avatar>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-foreground">{currentUser.name}</span>
-                  <Badge className="text-xs bg-primary text-primary-foreground">나</Badge>
-                </div>
-                <p className="text-sm text-muted-foreground">{currentUser.tasteScore.toLocaleString()}점</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-muted-foreground">순위</p>
-                <p className="text-xl font-bold text-primary">#{currentUserRank}</p>
-              </div>
-            </div>
-          </Card>
-        )}
-
-        {/* Top 3 Podium */}
-        {sortedUsers.length >= 3 && (
-          <div className="flex items-end justify-center gap-2 py-4">
-            {/* 2nd Place */}
-            <div className="flex flex-col items-center">
-              <Link href={`/profile/${sortedUsers[1].id}`}>
-                <Avatar className="h-16 w-16 ring-4 ring-gray-300 mb-2">
-                  <AvatarImage src={sortedUsers[1].avatar || "/placeholder.svg"} alt={sortedUsers[1].name} />
-                  <AvatarFallback>{sortedUsers[1].name[0]}</AvatarFallback>
-                </Avatar>
-              </Link>
-              <Medal className="h-6 w-6 text-gray-400 mb-1" />
-              <p className="text-sm font-semibold text-foreground text-center truncate w-20">{sortedUsers[1].name}</p>
-              <p className="text-xs text-muted-foreground">{sortedUsers[1].tasteScore.toLocaleString()}점</p>
-              <div className="h-16 w-20 bg-gray-200 rounded-t-lg mt-2" />
-            </div>
-
-            {/* 1st Place */}
-            <div className="flex flex-col items-center -mt-6">
-              <Link href={`/profile/${sortedUsers[0].id}`}>
-                <Avatar className="h-20 w-20 ring-4 ring-yellow-400 mb-2">
-                  <AvatarImage src={sortedUsers[0].avatar || "/placeholder.svg"} alt={sortedUsers[0].name} />
-                  <AvatarFallback>{sortedUsers[0].name[0]}</AvatarFallback>
-                </Avatar>
-              </Link>
-              <Crown className="h-8 w-8 text-yellow-500 mb-1" />
-              <p className="text-sm font-bold text-foreground text-center truncate w-20">{sortedUsers[0].name}</p>
-              <p className="text-xs text-muted-foreground">{sortedUsers[0].tasteScore.toLocaleString()}점</p>
-              <div className="h-24 w-20 bg-yellow-100 rounded-t-lg mt-2" />
-            </div>
-
-            {/* 3rd Place */}
-            <div className="flex flex-col items-center">
-              <Link href={`/profile/${sortedUsers[2].id}`}>
-                <Avatar className="h-16 w-16 ring-4 ring-amber-600 mb-2">
-                  <AvatarImage src={sortedUsers[2].avatar || "/placeholder.svg"} alt={sortedUsers[2].name} />
-                  <AvatarFallback>{sortedUsers[2].name[0]}</AvatarFallback>
-                </Avatar>
-              </Link>
-              <Medal className="h-6 w-6 text-amber-600 mb-1" />
-              <p className="text-sm font-semibold text-foreground text-center truncate w-20">{sortedUsers[2].name}</p>
-              <p className="text-xs text-muted-foreground">{sortedUsers[2].tasteScore.toLocaleString()}점</p>
-              <div className="h-12 w-20 bg-amber-100 rounded-t-lg mt-2" />
-            </div>
+        {isLoading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
-        )}
-
-        {/* Full Ranking List */}
-        <div className="space-y-2">
-          <h3 className="font-semibold text-foreground">전체 순위</h3>
-          {sortedUsers.map((user) => {
-            const level = getTasteLevel(user.tasteScore)
-            const isCurrentUser = user.id === currentUser.id
-
-            return (
-              <Link key={user.id} href={`/profile/${user.id}`}>
-                <Card
-                  className={cn(
-                    "p-3 flex items-center gap-3 transition-colors border",
-                    isCurrentUser ? "bg-primary/5 border-primary/30" : "hover:bg-secondary/50 border-border",
-                  )}
-                >
-                  <RankBadge rank={user.rank} />
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
-                    <AvatarFallback>{user.name[0]}</AvatarFallback>
+        ) : error ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">{error}</p>
+          </div>
+        ) : (
+          <>
+            {/* My Ranking Card */}
+            {currentUser && currentUserRank > 0 && (
+              <Card className="p-4 bg-primary/5 border-primary/20">
+                <div className="flex items-center gap-3">
+                  <RankBadge rank={currentUserRank} />
+                  <Avatar className="h-12 w-12 ring-2 ring-primary/30">
+                    <AvatarImage src={currentUser.avatar || "/placeholder.svg"} alt={currentUser.name} />
+                    <AvatarFallback>{currentUser.name[0]}</AvatarFallback>
                   </Avatar>
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-foreground truncate">{user.name}</span>
-                      {isCurrentUser && <Badge className="text-xs bg-primary text-primary-foreground">나</Badge>}
-                      <Badge variant="secondary" className={cn("text-xs", level.color)}>
-                        {level.label}
-                      </Badge>
+                      <span className="font-bold text-foreground">{currentUser.name}</span>
+                      <Badge className="text-xs bg-primary text-primary-foreground">나</Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">{user.region}</p>
+                    <p className="text-sm text-muted-foreground">{currentUser.tasteScore.toLocaleString()}점</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold text-foreground">{user.tasteScore.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground">리뷰 {user.reviewCount}개</p>
+                    <p className="text-sm text-muted-foreground">순위</p>
+                    <p className="text-xl font-bold text-primary">#{currentUserRank}</p>
                   </div>
-                </Card>
-              </Link>
-            )
-          })}
-        </div>
+                </div>
+              </Card>
+            )}
 
-        {sortedUsers.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">해당 지역의 맛잘알이 없습니다</p>
-          </div>
+            {/* Top 3 Podium */}
+            {users.length >= 3 && (
+              <div className="flex items-end justify-center gap-2 py-4">
+                {/* 2nd Place */}
+                <div className="flex flex-col items-center">
+                  <Link href={`/profile/${users[1].id}`}>
+                    <Avatar className="h-16 w-16 ring-4 ring-gray-300 mb-2">
+                      <AvatarImage src={users[1].avatar || "/placeholder.svg"} alt={users[1].name} />
+                      <AvatarFallback>{users[1].name[0]}</AvatarFallback>
+                    </Avatar>
+                  </Link>
+                  <Medal className="h-6 w-6 text-gray-400 mb-1" />
+                  <p className="text-sm font-semibold text-foreground text-center truncate w-20">{users[1].name}</p>
+                  <p className="text-xs text-muted-foreground">{users[1].tasteScore.toLocaleString()}점</p>
+                  <div className="h-16 w-20 bg-gray-200 rounded-t-lg mt-2" />
+                </div>
+
+                {/* 1st Place */}
+                <div className="flex flex-col items-center -mt-6">
+                  <Link href={`/profile/${users[0].id}`}>
+                    <Avatar className="h-20 w-20 ring-4 ring-yellow-400 mb-2">
+                      <AvatarImage src={users[0].avatar || "/placeholder.svg"} alt={users[0].name} />
+                      <AvatarFallback>{users[0].name[0]}</AvatarFallback>
+                    </Avatar>
+                  </Link>
+                  <Crown className="h-8 w-8 text-yellow-500 mb-1" />
+                  <p className="text-sm font-bold text-foreground text-center truncate w-20">{users[0].name}</p>
+                  <p className="text-xs text-muted-foreground">{users[0].tasteScore.toLocaleString()}점</p>
+                  <div className="h-24 w-20 bg-yellow-100 rounded-t-lg mt-2" />
+                </div>
+
+                {/* 3rd Place */}
+                <div className="flex flex-col items-center">
+                  <Link href={`/profile/${users[2].id}`}>
+                    <Avatar className="h-16 w-16 ring-4 ring-amber-600 mb-2">
+                      <AvatarImage src={users[2].avatar || "/placeholder.svg"} alt={users[2].name} />
+                      <AvatarFallback>{users[2].name[0]}</AvatarFallback>
+                    </Avatar>
+                  </Link>
+                  <Medal className="h-6 w-6 text-amber-600 mb-1" />
+                  <p className="text-sm font-semibold text-foreground text-center truncate w-20">{users[2].name}</p>
+                  <p className="text-xs text-muted-foreground">{users[2].tasteScore.toLocaleString()}점</p>
+                  <div className="h-12 w-20 bg-amber-100 rounded-t-lg mt-2" />
+                </div>
+              </div>
+            )}
+
+            {/* Full Ranking List */}
+            <div className="space-y-2">
+              <h3 className="font-semibold text-foreground">전체 순위</h3>
+              {users.map((user) => {
+                const level = getTasteLevel(user.tasteScore)
+                const isCurrentUser = currentUser && user.id === currentUser.id
+
+                return (
+                  <Link key={user.id} href={`/profile/${user.id}`}>
+                    <Card
+                      className={cn(
+                        "p-3 flex items-center gap-3 transition-colors border",
+                        isCurrentUser ? "bg-primary/5 border-primary/30" : "hover:bg-secondary/50 border-border",
+                      )}
+                    >
+                      <RankBadge rank={user.rank} />
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
+                        <AvatarFallback>{user.name[0]}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-foreground truncate">{user.name}</span>
+                          {isCurrentUser && <Badge className="text-xs bg-primary text-primary-foreground">나</Badge>}
+                          <Badge variant="secondary" className={cn("text-xs", level.color)}>
+                            {level.label}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">{user.region}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-foreground">{user.tasteScore.toLocaleString()}</p>
+                        <p className="text-xs text-muted-foreground">리뷰 {user.reviewCount}개</p>
+                      </div>
+                    </Card>
+                  </Link>
+                )
+              })}
+            </div>
+
+            {users.length === 0 && (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">해당 지역의 맛잘알이 없습니다</p>
+              </div>
+            )}
+          </>
         )}
       </div>
     </MobileLayout>

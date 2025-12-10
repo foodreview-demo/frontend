@@ -1,28 +1,87 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowLeft, MapPin, Star, Clock, Sparkles, Share2 } from "lucide-react"
+import { ArrowLeft, MapPin, Star, Clock, Sparkles, Share2, Phone, Loader2 } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { ReviewCard } from "@/components/review-card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { mockRestaurants, mockReviews } from "@/lib/mock-data"
+import { api, Restaurant, Review } from "@/lib/api"
 
 export function RestaurantClient({ id }: { id: string }) {
   const [activeTab, setActiveTab] = useState("reviews")
+  const [restaurant, setRestaurant] = useState<Restaurant | null>(null)
+  const [reviews, setReviews] = useState<Review[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const restaurant = mockRestaurants.find((r) => r.id === id) || mockRestaurants[0]
-  const reviews = mockReviews.filter((r) => r.restaurantId === id)
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const restaurantId = Number(id)
+        const [restaurantResult, reviewsResult] = await Promise.all([
+          api.getRestaurant(restaurantId),
+          api.getRestaurantReviews(restaurantId),
+        ])
+
+        if (restaurantResult.success) {
+          setRestaurant(restaurantResult.data)
+        }
+        if (reviewsResult.success) {
+          setReviews(reviewsResult.data.content)
+        }
+      } catch (err) {
+        console.error("음식점 정보 로드 실패:", err)
+        setError("음식점 정보를 불러오는데 실패했습니다")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [id])
+
+  if (isLoading) {
+    return (
+      <MobileLayout>
+        <div className="flex justify-center items-center min-h-screen">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </MobileLayout>
+    )
+  }
+
+  if (error || !restaurant) {
+    return (
+      <MobileLayout>
+        <div className="flex flex-col items-center justify-center min-h-screen p-4">
+          <p className="text-muted-foreground">{error || "음식점을 찾을 수 없습니다"}</p>
+          <Link href="/">
+            <Button className="mt-4">홈으로 돌아가기</Button>
+          </Link>
+        </div>
+      </MobileLayout>
+    )
+  }
+
   const isFirstReviewAvailable = restaurant.reviewCount === 0
 
   return (
     <MobileLayout>
       {/* Header Image */}
       <div className="relative h-64 bg-muted">
-        <Image src={restaurant.thumbnail || "/placeholder.svg"} alt={restaurant.name} fill className="object-cover" />
+        <Image
+          src={restaurant.thumbnail || "/placeholder.svg"}
+          alt={restaurant.name}
+          fill
+          className="object-cover"
+          unoptimized
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
 
         {/* Back Button */}
@@ -59,7 +118,7 @@ export function RestaurantClient({ id }: { id: string }) {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold text-foreground">{restaurant.name}</h1>
-                <Badge variant="outline">{restaurant.category}</Badge>
+                <Badge variant="outline">{restaurant.categoryDisplay || restaurant.category}</Badge>
               </div>
               <div className="flex items-center gap-1 text-muted-foreground text-sm mt-1">
                 <MapPin className="h-4 w-4" />
@@ -71,12 +130,14 @@ export function RestaurantClient({ id }: { id: string }) {
           <div className="flex items-center gap-4 mt-4">
             <div className="flex items-center gap-1">
               <Star className="h-5 w-5 fill-primary text-primary" />
-              <span className="font-bold text-lg text-foreground">{restaurant.averageRating}</span>
+              <span className="font-bold text-lg text-foreground">{restaurant.averageRating || 0}</span>
             </div>
             <div className="text-sm text-muted-foreground">
               리뷰 <span className="font-semibold text-foreground">{restaurant.reviewCount}</span>개
             </div>
-            <div className="text-sm text-muted-foreground">{restaurant.priceRange}</div>
+            {restaurant.priceRange && (
+              <div className="text-sm text-muted-foreground">{restaurant.priceRange}</div>
+            )}
           </div>
 
           {/* Write Review Button */}
@@ -120,10 +181,18 @@ export function RestaurantClient({ id }: { id: string }) {
           <div className="bg-card rounded-xl p-4 border border-border">
             <h3 className="font-semibold text-foreground mb-3">영업 정보</h3>
             <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Clock className="h-4 w-4" />
-                <span>매일 10:00 - 22:00</span>
-              </div>
+              {restaurant.businessHours && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Clock className="h-4 w-4" />
+                  <span>{restaurant.businessHours}</span>
+                </div>
+              )}
+              {restaurant.phone && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Phone className="h-4 w-4" />
+                  <span>{restaurant.phone}</span>
+                </div>
+              )}
               <div className="flex items-center gap-2 text-muted-foreground">
                 <MapPin className="h-4 w-4" />
                 <span>{restaurant.address}</span>
@@ -131,10 +200,12 @@ export function RestaurantClient({ id }: { id: string }) {
             </div>
           </div>
 
-          <div className="bg-card rounded-xl p-4 border border-border">
-            <h3 className="font-semibold text-foreground mb-3">가격대</h3>
-            <p className="text-muted-foreground text-sm">{restaurant.priceRange}</p>
-          </div>
+          {restaurant.priceRange && (
+            <div className="bg-card rounded-xl p-4 border border-border">
+              <h3 className="font-semibold text-foreground mb-3">가격대</h3>
+              <p className="text-muted-foreground text-sm">{restaurant.priceRange}</p>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </MobileLayout>

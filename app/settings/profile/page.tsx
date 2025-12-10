@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Camera } from "lucide-react"
+import { ArrowLeft, Camera, Loader2 } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/hooks/use-toast"
+import { api } from "@/lib/api"
 
 const REGIONS = [
   "서울 강남구", "서울 마포구", "서울 서초구", "서울 송파구", "서울 용산구",
@@ -40,13 +41,51 @@ export default function ProfileEditPage() {
   const router = useRouter()
   const { user, updateProfile } = useAuth()
   const { toast } = useToast()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [formData, setFormData] = useState({
     name: user?.name || "",
     region: user?.region || "",
     favoriteCategories: user?.favoriteCategories || [],
   })
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // 파일 크기 체크 (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "파일 크기는 5MB 이하여야 합니다",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // 이미지 파일 체크
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "이미지 파일만 업로드 가능합니다",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setAvatarFile(file)
+    const reader = new FileReader()
+    reader.onload = () => {
+      setAvatarPreview(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
 
   const toggleCategory = (category: string) => {
     setFormData(prev => ({
@@ -78,10 +117,33 @@ export default function ProfileEditPage() {
 
     setIsLoading(true)
     try {
+      let avatarUrl: string | undefined
+
+      // 이미지가 선택되었으면 먼저 업로드
+      if (avatarFile) {
+        setIsUploadingImage(true)
+        try {
+          const uploadResult = await api.uploadImages([avatarFile])
+          if (uploadResult.success && uploadResult.data.urls.length > 0) {
+            avatarUrl = uploadResult.data.urls[0]
+          }
+        } catch (uploadError) {
+          toast({
+            title: "이미지 업로드에 실패했습니다",
+            variant: "destructive"
+          })
+          setIsUploadingImage(false)
+          setIsLoading(false)
+          return
+        }
+        setIsUploadingImage(false)
+      }
+
       await updateProfile({
         name: formData.name,
         region: formData.region,
         favoriteCategories: formData.favoriteCategories,
+        ...(avatarUrl && { avatar: avatarUrl }),
       })
       toast({
         title: "프로필이 수정되었습니다",
@@ -122,18 +184,36 @@ export default function ProfileEditPage() {
         {/* Avatar */}
         <div className="flex justify-center">
           <div className="relative">
-            <Avatar className="h-24 w-24 ring-4 ring-primary/20">
-              <AvatarImage src={user?.avatar || "/placeholder.svg"} alt={user?.name} />
+            <Avatar className="h-24 w-24 ring-4 ring-primary/20 cursor-pointer" onClick={handleAvatarClick}>
+              <AvatarImage src={avatarPreview || user?.avatar || "/placeholder.svg"} alt={user?.name} />
               <AvatarFallback className="text-2xl">{user?.name?.[0]}</AvatarFallback>
             </Avatar>
             <button
               type="button"
+              onClick={handleAvatarClick}
+              disabled={isUploadingImage}
               className="absolute bottom-0 right-0 h-8 w-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-lg"
             >
-              <Camera className="h-4 w-4" />
+              {isUploadingImage ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Camera className="h-4 w-4" />
+              )}
             </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              className="hidden"
+            />
           </div>
         </div>
+        {avatarPreview && (
+          <p className="text-center text-sm text-muted-foreground">
+            새 프로필 이미지가 선택되었습니다. 저장을 눌러 적용하세요.
+          </p>
+        )}
 
         {/* Name */}
         <div className="space-y-2">

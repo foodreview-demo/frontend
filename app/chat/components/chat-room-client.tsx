@@ -313,7 +313,8 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
 
               {/* Messages */}
               {group.messages.map((message, messageIndex) => {
-                const isMe = message.isMine
+                // senderId로 직접 비교 (WebSocket 브로드캐스트 시 isMine이 sender 기준으로만 설정되므로)
+                const isMe = message.senderId === currentUser?.id
                 const prevMessage = messageIndex > 0 ? group.messages[messageIndex - 1] : null
                 const nextMessage = messageIndex < group.messages.length - 1 ? group.messages[messageIndex + 1] : null
                 const isGroupedWithPrev = shouldGroupWithPrevious(message, prevMessage)

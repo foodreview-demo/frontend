@@ -86,6 +86,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshUser])
 
   const login = async (email: string, password: string) => {
+    // 로그인 전 기존 캐시 클리어
+    localStorage.removeItem('user')
+    setUser(null)
+
     const result = await api.login(email, password)
     if (result.success) {
       await refreshUser()

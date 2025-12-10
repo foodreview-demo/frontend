@@ -4,7 +4,7 @@ import type React from "react"
 
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { Home, Search, PenSquare, Users, User } from "lucide-react"
+import { Home, Search, PenSquare, ListMusic, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface MobileLayoutProps {
@@ -19,7 +19,7 @@ export function MobileLayout({ children, hideNavigation }: MobileLayoutProps) {
     { href: "/", icon: Home, label: "홈" },
     { href: "/search", icon: Search, label: "검색" },
     { href: "/write", icon: PenSquare, label: "리뷰작성" },
-    { href: "/friends", icon: Users, label: "친구" },
+    { href: "/playlists", icon: ListMusic, label: "리스트" },
     { href: "/profile", icon: User, label: "내정보" },
   ]
 

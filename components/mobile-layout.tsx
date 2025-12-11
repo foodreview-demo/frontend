@@ -25,12 +25,12 @@ export function MobileLayout({ children, hideNavigation }: MobileLayoutProps) {
 
   return (
     <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto relative">
-      <main className={cn("flex-1 overflow-y-auto", !hideNavigation && "pb-20")}>{children}</main>
+      <main className={cn("flex-1 overflow-y-auto", !hideNavigation && "pb-[72px]")}>{children}</main>
 
       {/* Bottom Navigation */}
       {!hideNavigation && (
-        <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-card border-t border-border">
-          <div className="flex items-center justify-around py-2">
+        <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-card border-t border-border h-[72px]">
+          <div className="flex items-center justify-around h-full">
             {navItems.map((item) => {
               const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
               return (

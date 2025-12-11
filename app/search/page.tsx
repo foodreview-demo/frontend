@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import Script from "next/script"
-import { Search, Star, MapPin, Sparkles, Loader2, Navigation, X, ChevronUp, ChevronDown } from "lucide-react"
+import { Search, Star, MapPin, Sparkles, Loader2, Navigation, X, ChevronUp, ChevronDown, Home, PenSquare, ListMusic, User } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -398,9 +398,9 @@ export default function SearchPage() {
 
   const getSheetHeight = () => {
     switch (sheetState) {
-      case "collapsed": return "120px"
-      case "half": return "45%"
-      case "full": return "85%"
+      case "collapsed": return "calc(60px + 64px)" // 60px content + 64px nav
+      case "half": return "calc(45% + 64px)"
+      case "full": return "calc(85% + 64px)"
     }
   }
 
@@ -685,32 +685,35 @@ function RestaurantListItem({
   )
 }
 
-// 하단 네비게이션
+// 하단 네비게이션 (MobileLayout과 동일)
 function BottomNav() {
   const navItems = [
-    { href: "/", icon: "🏠", label: "홈" },
-    { href: "/search", icon: "📍", label: "내주변", active: true },
-    { href: "/write", icon: "✏️", label: "리뷰" },
-    { href: "/playlists", icon: "📋", label: "리스트" },
-    { href: "/profile", icon: "👤", label: "MY" },
+    { href: "/", icon: Home, label: "홈" },
+    { href: "/search", icon: Search, label: "검색", active: true },
+    { href: "/write", icon: PenSquare, label: "리뷰작성" },
+    { href: "/playlists", icon: ListMusic, label: "리스트" },
+    { href: "/profile", icon: User, label: "내정보" },
   ]
 
   return (
-    <nav className="absolute bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 pb-safe">
+    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 bg-card border-t border-border">
       <div className="flex items-center justify-around py-2">
-        {navItems.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={cn(
-              "flex flex-col items-center gap-0.5 px-4 py-1",
-              item.active ? "text-orange-500" : "text-gray-400"
-            )}
-          >
-            <span className="text-xl">{item.icon}</span>
-            <span className="text-[10px] font-medium">{item.label}</span>
-          </Link>
-        ))}
+        {navItems.map((item) => {
+          const Icon = item.icon
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors",
+                item.active ? "text-primary" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Icon className="h-5 w-5" />
+              <span className="text-xs font-medium">{item.label}</span>
+            </Link>
+          )
+        })}
       </div>
     </nav>
   )

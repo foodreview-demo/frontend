@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ArrowLeft, MapPin, MessageCircle, UserPlus, Loader2 } from "lucide-react"
+import Image from "next/image"
+import { ArrowLeft, MapPin, MessageCircle, UserPlus, Loader2, ListMusic, Star, ChevronRight } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { TasteScoreCard } from "@/components/taste-score-card"
 import { ReviewCard } from "@/components/review-card"
@@ -10,16 +11,19 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
-import { api, User, Review } from "@/lib/api"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { api, User, Review, Playlist } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 
 export function ProfileClient({ id }: { id: string }) {
   const { user: currentUser } = useAuth()
   const [user, setUser] = useState<User | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
+  const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [isFollowing, setIsFollowing] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState("reviews")
 
   const isOwnProfile = currentUser && user && currentUser.id === user.id
 
@@ -29,9 +33,10 @@ export function ProfileClient({ id }: { id: string }) {
       setError(null)
       try {
         const userId = Number(id)
-        const [userResult, reviewsResult] = await Promise.all([
+        const [userResult, reviewsResult, playlistsResult] = await Promise.all([
           api.getUser(userId),
           api.getUserReviews(userId),
+          api.getUserPublicPlaylists(userId),
         ])
 
         if (userResult.success) {
@@ -39,6 +44,9 @@ export function ProfileClient({ id }: { id: string }) {
         }
         if (reviewsResult.success) {
           setReviews(reviewsResult.data.content)
+        }
+        if (playlistsResult.success) {
+          setPlaylists(playlistsResult.data.content)
         }
 
         // Check if following
@@ -74,8 +82,8 @@ export function ProfileClient({ id }: { id: string }) {
         setIsFollowing(true)
       }
     } catch (err) {
-      console.error("팔로우 처리 실패:", err)
-      alert("팔로우 처리에 실패했습니다")
+      console.error("친구 추가 처리 실패:", err)
+      alert("친구 추가 처리에 실패했습니다")
     }
   }
 
@@ -150,7 +158,7 @@ export function ProfileClient({ id }: { id: string }) {
                 onClick={handleFollow}
               >
                 <UserPlus className="h-4 w-4 mr-2" />
-                {isFollowing ? "팔로잉" : "맛잘알 친구 추가"}
+                {isFollowing ? "친구 추가됨" : "맛잘알 친구 추가"}
               </Button>
               <Link href={`/chat/${user.id}`}>
                 <Button variant="outline">
@@ -164,21 +172,63 @@ export function ProfileClient({ id }: { id: string }) {
         {/* Taste Score Card */}
         <TasteScoreCard user={user} />
 
-        {/* User Reviews */}
-        <div>
-          <h3 className="font-semibold text-foreground mb-3">작성한 리뷰 ({reviews.length})</h3>
-          {reviews.length > 0 ? (
-            <div className="space-y-4">
-              {reviews.map((review) => (
-                <ReviewCard key={review.id} review={review} />
-              ))}
-            </div>
-          ) : (
-            <Card className="p-8 text-center border border-border">
-              <p className="text-muted-foreground">아직 작성한 리뷰가 없어요</p>
-            </Card>
-          )}
-        </div>
+        {/* Tabs: Reviews & Playlists */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-2 bg-secondary/50 p-1 rounded-xl">
+            <TabsTrigger value="reviews" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              리뷰 ({reviews.length})
+            </TabsTrigger>
+            <TabsTrigger value="playlists" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
+              맛집 리스트 ({playlists.length})
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Reviews Tab */}
+          <TabsContent value="reviews" className="mt-4">
+            {reviews.length > 0 ? (
+              <div className="space-y-4">
+                {reviews.map((review) => (
+                  <ReviewCard key={review.id} review={review} />
+                ))}
+              </div>
+            ) : (
+              <Card className="p-8 text-center border border-border">
+                <p className="text-muted-foreground">아직 작성한 리뷰가 없어요</p>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Playlists Tab */}
+          <TabsContent value="playlists" className="mt-4">
+            {playlists.length > 0 ? (
+              <div className="space-y-3">
+                {playlists.map((playlist) => (
+                  <Link key={playlist.id} href={`/playlist?id=${playlist.id}`}>
+                    <Card className="p-4 border border-border hover:bg-secondary/50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="h-14 w-14 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                          <ListMusic className="h-6 w-6 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-foreground truncate">{playlist.name}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {playlist.itemCount}개 맛집
+                          </p>
+                        </div>
+                        <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
+                      </div>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <Card className="p-8 text-center border border-border">
+                <ListMusic className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
+                <p className="text-muted-foreground">공개된 맛집 리스트가 없어요</p>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
     </MobileLayout>
   )

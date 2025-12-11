@@ -112,8 +112,8 @@ export default function SettingsPage() {
               <div className="flex items-center gap-3">
                 <Bell className="h-5 w-5 text-muted-foreground" />
                 <div>
-                  <p className="font-medium">팔로우 알림</p>
-                  <p className="text-sm text-muted-foreground">새로운 팔로워가 생기면 알림</p>
+                  <p className="font-medium">친구 추가 알림</p>
+                  <p className="text-sm text-muted-foreground">새로운 친구가 추가되면 알림</p>
                 </div>
               </div>
               <Switch

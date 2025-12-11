@@ -398,9 +398,9 @@ export default function SearchPage() {
 
   const getSheetHeight = () => {
     switch (sheetState) {
-      case "collapsed": return "calc(60px + 64px)" // 60px content + 64px nav
-      case "half": return "calc(45% + 64px)"
-      case "full": return "calc(85% + 64px)"
+      case "collapsed": return "60px"
+      case "half": return "45%"
+      case "full": return "85%"
     }
   }
 
@@ -452,7 +452,7 @@ export default function SearchPage() {
 
       {/* 선택된 음식점 카드 */}
       {selectedPlace && (
-        <div className="absolute bottom-32 left-3 right-3 z-30 animate-in slide-in-from-bottom-4 duration-200">
+        <div className="absolute left-3 right-3 z-30 animate-in slide-in-from-bottom-4 duration-200" style={{ bottom: "calc(72px + 70px)" }}>
           <SelectedPlaceCard
             restaurant={selectedPlace}
             formatDistance={formatDistance}
@@ -461,11 +461,11 @@ export default function SearchPage() {
         </div>
       )}
 
-      {/* 바텀 시트 */}
+      {/* 바텀 시트 - 네비게이션 위에 위치 */}
       <div
         ref={sheetRef}
-        className="absolute bottom-0 left-0 right-0 z-20 bg-white rounded-t-3xl shadow-2xl transition-all duration-300 ease-out"
-        style={{ height: getSheetHeight() }}
+        className="absolute left-0 right-0 z-20 bg-white rounded-t-3xl shadow-2xl transition-all duration-300 ease-out"
+        style={{ height: getSheetHeight(), bottom: "72px" }}
       >
         {/* 드래그 핸들 */}
         <div
@@ -505,7 +505,7 @@ export default function SearchPage() {
         </div>
 
         {/* 음식점 목록 */}
-        <div className="overflow-y-auto" style={{ height: "calc(100% - 80px)" }}>
+        <div className="overflow-y-auto pb-4" style={{ height: "calc(100% - 70px)" }}>
           {isLoading ? (
             <div className="flex justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-orange-500" />
@@ -696,8 +696,8 @@ function BottomNav() {
   ]
 
   return (
-    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 bg-card border-t border-border">
-      <div className="flex items-center justify-around py-2">
+    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40 bg-card border-t border-border h-[72px]">
+      <div className="flex items-center justify-around h-full">
         {navItems.map((item) => {
           const Icon = item.icon
           return (

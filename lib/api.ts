@@ -159,6 +159,20 @@ class ApiClient {
     return this.request<ApiResponse<User>>('/auth/me');
   }
 
+  async loginWithKakao(code: string) {
+    const result = await this.request<ApiResponse<TokenResponse>>('/auth/oauth/kakao', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+
+    if (result.success) {
+      localStorage.setItem('accessToken', result.data.accessToken);
+      localStorage.setItem('refreshToken', result.data.refreshToken);
+    }
+
+    return result;
+  }
+
   // User API
   async getUser(userId: number) {
     return this.request<ApiResponse<User>>(`/users/${userId}`);

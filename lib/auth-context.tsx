@@ -8,6 +8,7 @@ interface AuthContextType {
   isLoading: boolean
   isAuthenticated: boolean
   login: (email: string, password: string) => Promise<void>
+  loginWithKakao: (code: string) => Promise<void>
   signUp: (data: { email: string; password: string; name: string; region: string }) => Promise<void>
   logout: () => void
   refreshUser: () => Promise<void>
@@ -25,7 +26,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const token = localStorage.getItem('accessToken')
       if (!token) {
         setUser(null)
-        const publicPaths = ['/login', '/signup']
+        const publicPaths = ['/login', '/signup', '/oauth']
         const isPublicPath = publicPaths.some(path => window.location.pathname.startsWith(path))
         if (typeof window !== 'undefined' && !isPublicPath) {
           window.location.href = '/login'
@@ -43,7 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem('refreshToken')
         localStorage.removeItem('user')
         setUser(null)
-        const publicPaths = ['/login', '/signup']
+        const publicPaths = ['/login', '/signup', '/oauth']
         const isPublicPath = publicPaths.some(path => window.location.pathname.startsWith(path))
         if (typeof window !== 'undefined' && !isPublicPath) {
           window.location.href = '/login'
@@ -55,7 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('refreshToken')
       localStorage.removeItem('user')
       setUser(null)
-      const publicPaths = ['/login', '/signup']
+      const publicPaths = ['/login', '/signup', '/oauth']
       const isPublicPath = publicPaths.some(path => window.location.pathname.startsWith(path))
       if (typeof window !== 'undefined' && !isPublicPath) {
         window.location.href = '/login'
@@ -98,6 +99,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const loginWithKakao = async (code: string) => {
+    // 로그인 전 기존 캐시 클리어
+    localStorage.removeItem('user')
+    setUser(null)
+
+    const result = await api.loginWithKakao(code)
+    if (result.success) {
+      await refreshUser()
+    } else {
+      throw new Error(result.message || '카카오 로그인 실패')
+    }
+  }
+
   const signUp = async (data: { email: string; password: string; name: string; region: string }) => {
     const result = await api.signUp(data)
     if (!result.success) {
@@ -129,6 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         isAuthenticated: !!user,
         login,
+        loginWithKakao,
         signUp,
         logout,
         refreshUser,

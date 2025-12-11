@@ -3,11 +3,15 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Loader2, ArrowLeft, Eye, EyeOff } from "lucide-react"
+
+const KAKAO_CLIENT_ID = process.env.NEXT_PUBLIC_KAKAO_CLIENT_ID
+const KAKAO_REDIRECT_URI = process.env.NEXT_PUBLIC_KAKAO_REDIRECT_URI || 'http://localhost:3000/oauth/kakao/callback'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -17,6 +21,11 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+
+  const handleKakaoLogin = () => {
+    const kakaoAuthUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${KAKAO_CLIENT_ID}&redirect_uri=${encodeURIComponent(KAKAO_REDIRECT_URI)}&response_type=code`
+    window.location.href = kakaoAuthUrl
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -109,6 +118,29 @@ export default function LoginPage() {
               "로그인"
             )}
           </Button>
+
+          {/* Divider */}
+          <div className="relative my-2">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-border" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="px-3 bg-background text-muted-foreground">또는</span>
+            </div>
+          </div>
+
+          {/* Kakao Login */}
+          <button
+            type="button"
+            onClick={handleKakaoLogin}
+            className="w-full h-12 rounded-xl text-base font-semibold flex items-center justify-center gap-2 transition-colors"
+            style={{ backgroundColor: '#FEE500', color: '#000000' }}
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path fillRule="evenodd" clipRule="evenodd" d="M10 2C5.029 2 1 5.129 1 8.989C1 11.389 2.558 13.505 4.932 14.764L3.933 18.256C3.845 18.561 4.213 18.806 4.477 18.62L8.601 15.898C9.057 15.952 9.523 15.98 10 15.98C14.971 15.98 19 12.851 19 8.991C19 5.131 14.971 2.002 10 2.002V2Z" fill="black"/>
+            </svg>
+            카카오 로그인
+          </button>
         </form>
 
         {/* Footer */}

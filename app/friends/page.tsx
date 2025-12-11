@@ -271,8 +271,8 @@ export default function FriendsPage() {
         }
       }
     } catch (err) {
-      console.error("팔로우 처리 실패:", err)
-      alert("팔로우 처리에 실패했습니다")
+      console.error("친구 추가 처리 실패:", err)
+      alert("친구 추가 처리에 실패했습니다")
     }
   }
 

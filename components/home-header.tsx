@@ -1,11 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Bell, MapPin, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { regions } from "@/lib/constants"
+import { api } from "@/lib/api"
+import { useAuth } from "@/lib/auth-context"
 
 interface HomeHeaderProps {
   selectedRegion: string
@@ -13,7 +16,31 @@ interface HomeHeaderProps {
 }
 
 export function HomeHeader({ selectedRegion, onRegionChange }: HomeHeaderProps) {
-  const [hasNotification] = useState(true)
+  const { user } = useAuth()
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      if (!user) {
+        setUnreadCount(0)
+        return
+      }
+      try {
+        const result = await api.getChatRooms()
+        if (result.success) {
+          const total = result.data.content.reduce((sum: number, room: any) => sum + room.unreadCount, 0)
+          setUnreadCount(total)
+        }
+      } catch (err) {
+        console.error("알림 수 로드 실패:", err)
+      }
+    }
+
+    fetchUnreadCount()
+    // 30초마다 갱신
+    const interval = setInterval(fetchUnreadCount, 30000)
+    return () => clearInterval(interval)
+  }, [user])
 
   return (
     <header className="sticky top-0 z-50 bg-card border-b border-border">
@@ -47,10 +74,16 @@ export function HomeHeader({ selectedRegion, onRegionChange }: HomeHeaderProps) 
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-5 w-5" />
-            {hasNotification && <span className="absolute top-1 right-1 h-2 w-2 bg-destructive rounded-full" />}
-          </Button>
+          <Link href="/notifications">
+            <Button variant="ghost" size="icon" className="relative">
+              <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </Button>
+          </Link>
         </div>
       </div>
     </header>

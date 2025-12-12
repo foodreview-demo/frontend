@@ -1,13 +1,12 @@
 "use client"
 
-import { Suspense, useEffect, useState, useRef } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useEffect, useState, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { Loader2 } from "lucide-react"
 
 function KakaoCallbackContent() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { loginWithKakao } = useAuth()
   const [error, setError] = useState<string | null>(null)
   const processedRef = useRef(false)
@@ -16,8 +15,13 @@ function KakaoCallbackContent() {
     // 중복 요청 방지 (StrictMode에서 2번 실행 방지)
     if (processedRef.current) return
 
-    const code = searchParams.get('code')
-    const errorParam = searchParams.get('error')
+    // Static Export 환경에서 useSearchParams 대신 window.location.search 직접 사용
+    const urlParams = new URLSearchParams(window.location.search)
+    const code = urlParams.get('code')
+    const errorParam = urlParams.get('error')
+
+    console.log('카카오 콜백 - URL:', window.location.href)
+    console.log('카카오 콜백 - code:', code)
 
     if (errorParam) {
       setError('카카오 로그인이 취소되었습니다')
@@ -45,7 +49,7 @@ function KakaoCallbackContent() {
     }
 
     handleLogin()
-  }, [searchParams, loginWithKakao, router])
+  }, [loginWithKakao, router])
 
   return (
     <div className="text-center">
@@ -71,24 +75,10 @@ function KakaoCallbackContent() {
   )
 }
 
-function LoadingFallback() {
-  return (
-    <div className="text-center">
-      <div className="inline-flex items-center justify-center w-16 h-16 bg-yellow-100 rounded-full mb-6">
-        <Loader2 className="w-8 h-8 animate-spin text-yellow-600" />
-      </div>
-      <h1 className="text-xl font-bold text-foreground mb-2">로딩 중</h1>
-      <p className="text-muted-foreground">잠시만 기다려주세요...</p>
-    </div>
-  )
-}
-
 export default function KakaoCallbackPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center max-w-md mx-auto px-6">
-      <Suspense fallback={<LoadingFallback />}>
-        <KakaoCallbackContent />
-      </Suspense>
+      <KakaoCallbackContent />
     </div>
   )
 }

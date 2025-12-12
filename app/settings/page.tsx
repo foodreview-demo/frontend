@@ -44,13 +44,13 @@ export default function SettingsPage() {
 
   const handleLogout = () => {
     logout()
-    router.push("/")
+    router.push("/login")
   }
 
   const handleDeleteAccount = () => {
     // TODO: API 연동 - 계정 삭제
     logout()
-    router.push("/")
+    router.push("/login")
   }
 
   return (

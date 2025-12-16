@@ -118,7 +118,7 @@ export default function ProfilePage() {
               </div>
             </Card>
           </Link>
-          <Link href="/friends">
+          <Link href="/follows">
             <Card className="p-4 hover:bg-secondary/50 transition-colors border border-border">
               <div className="flex items-center justify-between">
                 <div>

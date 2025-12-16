@@ -22,45 +22,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   const refreshUser = useCallback(async () => {
-    try {
-      const token = localStorage.getItem('accessToken')
-      if (!token) {
-        setUser(null)
-        const publicPaths = ['/login', '/signup', '/oauth']
-        const isPublicPath = publicPaths.some(path => window.location.pathname.startsWith(path))
-        if (typeof window !== 'undefined' && !isPublicPath) {
-          window.location.href = '/login'
+    // accessToken이 없는 경우
+    if (!api.hasAccessToken()) {
+      // refreshToken이 있으면 토큰 갱신 시도
+      if (api.hasRefreshToken()) {
+        console.log('No access token, attempting refresh...')
+        const refreshed = await api.tryRefreshToken()
+        if (!refreshed) {
+          // 갱신 실패 시 로그아웃 상태
+          setUser(null)
+          localStorage.removeItem('user')
+          setIsLoading(false)
+          return
         }
+        // 갱신 성공 시 계속 진행
+        console.log('Token refreshed, fetching user info...')
+      } else {
+        // refreshToken도 없으면 로그아웃 상태
+        setUser(null)
+        localStorage.removeItem('user')
+        setIsLoading(false)
         return
       }
+    }
 
+    try {
       const result = await api.getMe()
       if (result.success) {
         setUser(result.data)
         localStorage.setItem('user', JSON.stringify(result.data))
       } else {
-        // 토큰이 유효하지 않으면 로그아웃 처리 및 로그인 페이지로 이동
-        localStorage.removeItem('accessToken')
-        localStorage.removeItem('refreshToken')
-        localStorage.removeItem('user')
+        // 서버에서 사용자 정보 가져오기 실패 (토큰 만료 등)
         setUser(null)
-        const publicPaths = ['/login', '/signup', '/oauth']
-        const isPublicPath = publicPaths.some(path => window.location.pathname.startsWith(path))
-        if (typeof window !== 'undefined' && !isPublicPath) {
-          window.location.href = '/login'
-        }
+        localStorage.removeItem('user')
       }
     } catch (error) {
       console.error('사용자 정보 로드 실패:', error)
-      localStorage.removeItem('accessToken')
-      localStorage.removeItem('refreshToken')
-      localStorage.removeItem('user')
       setUser(null)
-      const publicPaths = ['/login', '/signup', '/oauth']
-      const isPublicPath = publicPaths.some(path => window.location.pathname.startsWith(path))
-      if (typeof window !== 'undefined' && !isPublicPath) {
-        window.location.href = '/login'
-      }
+      localStorage.removeItem('user')
+    } finally {
+      setIsLoading(false)
     }
   }, [])
 
@@ -68,13 +69,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const initAuth = async () => {
       setIsLoading(true)
       try {
-        // 로컬스토리지에서 캐시된 사용자 정보 로드
+        // 로컬스토리지에서 캐시된 사용자 정보 로드 (SSR 환경에서는 쿠키에서 처리되므로 클라이언트 캐시 용도)
         const cachedUser = localStorage.getItem('user')
         if (cachedUser) {
           setUser(JSON.parse(cachedUser))
         }
 
-        // 서버에서 최신 정보 가져오기
+        // 서버에서 최신 정보 가져오기 (쿠키 기반 인증으로 변경)
         await refreshUser()
       } catch (error) {
         console.error('인증 초기화 실패:', error)
@@ -87,10 +88,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshUser])
 
   const login = async (email: string, password: string) => {
-    // 로그인 전 기존 캐시 클리어
     localStorage.removeItem('user')
     setUser(null)
-
     const result = await api.login(email, password)
     if (result.success) {
       await refreshUser()
@@ -100,10 +99,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const loginWithKakao = async (code: string) => {
-    // 로그인 전 기존 캐시 클리어
     localStorage.removeItem('user')
     setUser(null)
-
     const result = await api.loginWithKakao(code)
     if (result.success) {
       await refreshUser()
@@ -119,12 +116,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const logout = () => {
-    localStorage.removeItem('accessToken')
-    localStorage.removeItem('refreshToken')
-    localStorage.removeItem('user')
-    setUser(null)
-  }
+  const logout = async () => {
+    await api.logout(); // API 클라이언트의 로그아웃 함수 호출 (쿠키 삭제 및 리다이렉션 포함)
+    setUser(null);
+    localStorage.removeItem('user'); // 로컬스토리지 사용자 정보도 삭제
+  };
 
   const updateProfile = async (data: { name?: string; avatar?: string; region?: string; favoriteCategories?: string[] }) => {
     const result = await api.updateProfile(data)
@@ -162,3 +158,4 @@ export function useAuth() {
   }
   return context
 }
+

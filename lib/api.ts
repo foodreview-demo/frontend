@@ -1,6 +1,6 @@
 // API 클라이언트 설정
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -19,18 +19,89 @@ interface PageResponse<T> {
   last: boolean;
 }
 
+// Helper functions for cookie management
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const nameEQ = name + '=';
+  const ca = document.cookie.split(';');
+  for (let i = 0; i < ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+  }
+  return null;
+}
+
+function setCookie(name: string, value: string, days: number) {
+  if (typeof document === 'undefined') return;
+  let expires = '';
+  if (days) {
+    const date = new Date();
+    date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+    expires = '; expires=' + date.toUTCString();
+  }
+  // SameSite=Strict로 CSRF 방어
+  document.cookie = name + '=' + (value || '') + expires + '; path=/; SameSite=Strict';
+}
+
+function deleteCookie(name: string) {
+  if (typeof document === 'undefined') return;
+  document.cookie = name + '=; Max-Age=-99999999; path=/';
+}
+
+// Device ID 관리 (기기 식별용)
+function getDeviceId(): string {
+  if (typeof localStorage === 'undefined') return '';
+
+  let deviceId = localStorage.getItem('deviceId');
+  if (!deviceId) {
+    // 브라우저 fingerprint 기반 Device ID 생성
+    deviceId = generateDeviceId();
+    localStorage.setItem('deviceId', deviceId);
+  }
+  return deviceId;
+}
+
+function generateDeviceId(): string {
+  // 간단한 fingerprint 생성 (실제 프로덕션에서는 fingerprintjs 같은 라이브러리 사용 권장)
+  const nav = typeof navigator !== 'undefined' ? navigator : null;
+  const screen = typeof window !== 'undefined' ? window.screen : null;
+
+  const components = [
+    nav?.userAgent || '',
+    nav?.language || '',
+    screen?.colorDepth || '',
+    screen?.width + 'x' + screen?.height || '',
+    new Date().getTimezoneOffset().toString(),
+    crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
+  ];
+
+  // 간단한 해시 생성
+  const str = components.join('|');
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return 'dev_' + Math.abs(hash).toString(36) + '_' + Date.now().toString(36);
+}
+
 class ApiClient {
   private baseUrl: string;
+  private isRefreshing: boolean = false;
+  private refreshPromise: Promise<boolean> | null = null;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
   }
 
   private getToken(): string | null {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('accessToken');
-    }
-    return null;
+    return getCookie('accessToken');
+  }
+
+  private getRefreshToken(): string | null {
+    return getCookie('refreshToken');
   }
 
   private async request<T>(
@@ -41,6 +112,7 @@ class ApiClient {
 
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      'X-Device-Id': getDeviceId(),
       ...options.headers,
     };
 
@@ -58,8 +130,8 @@ class ApiClient {
       const hasToken = !!token;
 
       if (hasToken && response.status === 401) {
-        // 토큰 만료 시 리프레시 시도
-        const refreshed = await this.refreshToken();
+        // 토큰 만료 시 리프레시 시도 (동시 요청 방지)
+        const refreshed = await this.refreshTokenWithLock();
         if (refreshed) {
           // 재시도
           const newToken = this.getToken();
@@ -103,34 +175,107 @@ class ApiClient {
     return response.json();
   }
 
+  // 동시에 여러 요청이 401을 받았을 때 refresh를 한 번만 실행
+  private async refreshTokenWithLock(): Promise<boolean> {
+    if (this.isRefreshing && this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    this.isRefreshing = true;
+    this.refreshPromise = this.refreshToken();
+
+    try {
+      const result = await this.refreshPromise;
+      return result;
+    } finally {
+      this.isRefreshing = false;
+      this.refreshPromise = null;
+    }
+  }
+
   private async refreshToken(): Promise<boolean> {
-    const refreshToken = localStorage.getItem('refreshToken');
-    if (!refreshToken) return false;
+    return this.tryRefreshToken();
+  }
+
+  // Public method for auth-context to use
+  public async tryRefreshToken(): Promise<boolean> {
+    const refreshToken = this.getRefreshToken();
+    if (!refreshToken) {
+      console.log('No refresh token available');
+      return false;
+    }
 
     try {
       const response = await fetch(`${this.baseUrl}/auth/refresh`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Device-Id': getDeviceId(),
+        },
         body: JSON.stringify({ refreshToken }),
       });
 
       if (response.ok) {
         const result: ApiResponse<{ accessToken: string; refreshToken: string }> = await response.json();
-        localStorage.setItem('accessToken', result.data.accessToken);
-        localStorage.setItem('refreshToken', result.data.refreshToken);
+        setCookie('accessToken', result.data.accessToken, 1); // 1 day
+        setCookie('refreshToken', result.data.refreshToken, 7); // 7 days (새 토큰으로 교체 - Rotation)
+        console.log('Token refreshed successfully');
         return true;
+      } else {
+        // Refresh 실패 시 (토큰 만료, 탈취 감지 등)
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Token refresh failed:', errorData.message || response.status);
+
+        // 보안 이슈 (TOKEN_REUSE_DETECTED 등) 감지 시 즉시 로그아웃
+        if (errorData.errorCode === 'TOKEN_REUSE_DETECTED') {
+          console.warn('Security alert: Token reuse detected, logging out');
+        }
+
+        // 쿠키 삭제
+        deleteCookie('accessToken');
+        deleteCookie('refreshToken');
+        return false;
       }
     } catch (error) {
-      console.error('토큰 갱신 실패:', error);
+      console.error('Token refresh error:', error);
+      return false;
     }
-    return false;
   }
 
-  private logout() {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
-    window.location.href = '/login';
+  // Check if refresh token exists
+  public hasRefreshToken(): boolean {
+    return !!this.getRefreshToken();
+  }
+
+  // Check if access token exists
+  public hasAccessToken(): boolean {
+    return !!this.getToken();
+  }
+
+  public async logout(allDevices: boolean = false) {
+    const refreshToken = this.getRefreshToken();
+
+    try {
+      const token = this.getToken();
+      if (token) {
+        await fetch(`${this.baseUrl}/auth/logout`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            'X-Device-Id': getDeviceId(),
+          },
+          body: JSON.stringify({ refreshToken, allDevices }),
+        });
+      }
+    } catch (error) {
+      console.error('Logout API call failed, proceeding with client-side logout:', error);
+    } finally {
+      deleteCookie('accessToken');
+      deleteCookie('refreshToken');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
   }
 
   // Auth API
@@ -144,30 +289,36 @@ class ApiClient {
   async login(email: string, password: string) {
     const result = await this.request<ApiResponse<TokenResponse>>('/auth/login', {
       method: 'POST',
+      headers: {
+        'X-Device-Id': getDeviceId(),
+      },
       body: JSON.stringify({ email, password }),
     });
 
     if (result.success) {
-      localStorage.setItem('accessToken', result.data.accessToken);
-      localStorage.setItem('refreshToken', result.data.refreshToken);
+      setCookie('accessToken', result.data.accessToken, 1);
+      setCookie('refreshToken', result.data.refreshToken, 7);
     }
 
     return result;
   }
 
   async getMe() {
-    return this.request<ApiResponse<User>>('/auth/me');
+    return this.request<ApiResponse<User>>('/users/me');
   }
 
   async loginWithKakao(code: string) {
     const result = await this.request<ApiResponse<TokenResponse>>('/auth/oauth/kakao', {
       method: 'POST',
+      headers: {
+        'X-Device-Id': getDeviceId(),
+      },
       body: JSON.stringify({ code }),
     });
 
     if (result.success) {
-      localStorage.setItem('accessToken', result.data.accessToken);
-      localStorage.setItem('refreshToken', result.data.refreshToken);
+      setCookie('accessToken', result.data.accessToken, 1);
+      setCookie('refreshToken', result.data.refreshToken, 7);
     }
 
     return result;
@@ -267,11 +418,11 @@ class ApiClient {
   }
 
   async getRestaurantReviews(restaurantId: number, page = 0, size = 20) {
-    return this.request<ApiResponse<PageResponse<Review>>>(`/reviews/restaurant/${restaurantId}?page=${page}&size=${size}`);
+    return this.request<ApiResponse<PageResponse<Review>>>(`/restaurants/${restaurantId}/reviews?page=${page}&size=${size}`);
   }
 
   async getUserReviews(userId: number, page = 0, size = 20) {
-    return this.request<ApiResponse<PageResponse<Review>>>(`/reviews/user/${userId}?page=${page}&size=${size}`);
+    return this.request<ApiResponse<PageResponse<Review>>>(`/users/${userId}/reviews?page=${page}&size=${size}`);
   }
 
   async createReview(data: CreateReviewRequest) {
@@ -295,13 +446,13 @@ class ApiClient {
   }
 
   async addSympathy(reviewId: number) {
-    return this.request<ApiResponse<void>>(`/reviews/${reviewId}/sympathy`, {
+    return this.request<ApiResponse<SympathyResponse>>(`/reviews/${reviewId}/sympathize`, {
       method: 'POST',
     });
   }
 
   async removeSympathy(reviewId: number) {
-    return this.request<ApiResponse<void>>(`/reviews/${reviewId}/sympathy`, {
+    return this.request<ApiResponse<SympathyResponse>>(`/reviews/${reviewId}/sympathize`, {
       method: 'DELETE',
     });
   }
@@ -354,6 +505,35 @@ class ApiClient {
     return this.request<ApiResponse<void>>(`/chat/room/${roomUuid}`, {
       method: 'DELETE',
     });
+  }
+
+  // 단체톡방 생성
+  async createGroupChatRoom(name: string | null, memberIds: number[]) {
+    return this.request<ApiResponse<ChatRoom>>('/chat/rooms/group', {
+      method: 'POST',
+      body: JSON.stringify({ name, memberIds }),
+    });
+  }
+
+  // 채팅방에 사용자 초대
+  async inviteToRoom(roomUuid: string, userIds: number[]) {
+    return this.request<ApiResponse<ChatRoom>>(`/chat/room/${roomUuid}/invite`, {
+      method: 'POST',
+      body: JSON.stringify({ userIds }),
+    });
+  }
+
+  // 채팅방 이름 변경
+  async updateRoomName(roomUuid: string, name: string) {
+    return this.request<ApiResponse<ChatRoom>>(`/chat/room/${roomUuid}/name`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    });
+  }
+
+  // 채팅방 멤버 목록 조회
+  async getRoomMembers(roomUuid: string) {
+    return this.request<ApiResponse<ChatRoomMember[]>>(`/chat/room/${roomUuid}/members`);
   }
 
   // Image API
@@ -472,6 +652,7 @@ export interface User {
   tasteScore: number;
   tasteGrade: string;
   reviewCount: number;
+  receivedSympathyCount: number;
   favoriteCategories: string[];
   rank?: number;
 }
@@ -499,6 +680,9 @@ export interface Restaurant {
   phone?: string;
   businessHours?: string;
   isFirstReviewAvailable?: boolean;
+  kakaoPlaceId?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface Review {
@@ -539,10 +723,21 @@ export interface UpdateReviewRequest {
 export interface ChatRoom {
   id: number;
   uuid: string;
-  otherUser: User;
+  roomType: 'DIRECT' | 'GROUP';
+  name?: string;
+  otherUser?: User;  // 1:1 채팅용
+  members?: ChatRoomMember[];  // 단체톡용
+  memberCount: number;
   lastMessage: string;
   lastMessageAt: string;
   unreadCount: number;
+}
+
+export interface ChatRoomMember {
+  id: number;
+  user: User;
+  role: 'OWNER' | 'MEMBER';
+  joinedAt: string;
 }
 
 export interface ChatMessage {
@@ -554,6 +749,8 @@ export interface ChatMessage {
   createdAt: string;
   isRead: boolean;
   isMine: boolean;
+  readCount?: number;    // 단체톡용: 읽은 사람 수 (본인 제외)
+  memberCount?: number;  // 단체톡용: 전체 멤버 수 (본인 제외)
 }
 
 export interface ScoreEvent {
@@ -574,6 +771,12 @@ export interface TokenResponse {
   expiresIn: number;
 }
 
+export interface SympathyResponse {
+  reviewId: number;
+  sympathyCount: number;
+  hasSympathized: boolean;
+}
+
 export interface ImageUploadResponse {
   urls: string[];
   count: number;
@@ -588,6 +791,9 @@ export interface CreateRestaurantRequest {
   priceRange?: string;
   phone?: string;
   businessHours?: string;
+  kakaoPlaceId?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface Playlist {

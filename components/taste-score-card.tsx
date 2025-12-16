@@ -105,7 +105,7 @@ export function TasteScoreCard({ user, showDetails = true }: TasteScoreCardProps
           <div className="text-center">
             <div className="flex items-center justify-center gap-1 text-primary mb-1">
               <Heart className="h-4 w-4" />
-              <span className="font-bold">892</span>
+              <span className="font-bold">{user.receivedSympathyCount ?? 0}</span>
             </div>
             <p className="text-xs text-muted-foreground">받은 공감</p>
           </div>

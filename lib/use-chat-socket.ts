@@ -10,6 +10,8 @@ const WS_URL = process.env.NEXT_PUBLIC_API_URL?.replace("/api", "/ws") || "http:
 export interface ReadNotification {
   roomUuid: string
   readByUserId: number
+  messageId?: number    // 단체톡용: 마지막으로 읽은 메시지 ID
+  readCount?: number    // 단체톡용: 해당 메시지를 읽은 총 인원
 }
 
 interface UseChatSocketOptions {

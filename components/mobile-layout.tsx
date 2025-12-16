@@ -6,13 +6,15 @@ import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { Home, Search, PenSquare, ListMusic, User } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { RequireAuth } from "./require-auth"
 
 interface MobileLayoutProps {
   children: React.ReactNode
   hideNavigation?: boolean
+  requireAuth?: boolean
 }
 
-export function MobileLayout({ children, hideNavigation }: MobileLayoutProps) {
+export function MobileLayout({ children, hideNavigation, requireAuth = true }: MobileLayoutProps) {
   const pathname = usePathname()
 
   const navItems = [
@@ -23,7 +25,7 @@ export function MobileLayout({ children, hideNavigation }: MobileLayoutProps) {
     { href: "/profile", icon: User, label: "내정보" },
   ]
 
-  return (
+  const content = (
     <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto relative">
       <main className={cn("flex-1 overflow-y-auto", !hideNavigation && "pb-[72px]")}>{children}</main>
 
@@ -52,4 +54,10 @@ export function MobileLayout({ children, hideNavigation }: MobileLayoutProps) {
       )}
     </div>
   )
+
+  if (requireAuth) {
+    return <RequireAuth>{content}</RequireAuth>
+  }
+
+  return content
 }

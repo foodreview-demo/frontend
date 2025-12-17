@@ -34,9 +34,9 @@ export function showBrowserNotification(
   if (Notification.permission === "granted") {
     const notification = new Notification(title, {
       body: options?.body,
-      icon: options?.icon || "/icon-192x192.png",
+      icon: options?.icon || "/apple-icon.png",
       tag: options?.tag,
-      badge: "/icon-192x192.png",
+      badge: "/apple-icon.png",
     })
 
     if (options?.onClick) {

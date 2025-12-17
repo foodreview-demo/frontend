@@ -21,6 +21,15 @@ function WriteReviewContent() {
   const searchParams = useSearchParams()
   const restaurantIdParam = searchParams.get("restaurantId")
 
+  // 검색 페이지에서 전달된 카카오 장소 정보
+  const kakaoPlaceIdParam = searchParams.get("kakaoPlaceId")
+  const kakaoNameParam = searchParams.get("name")
+  const kakaoAddressParam = searchParams.get("address")
+  const kakaoCategoryParam = searchParams.get("category")
+  const kakaoPhoneParam = searchParams.get("phone")
+  const kakaoXParam = searchParams.get("x")
+  const kakaoYParam = searchParams.get("y")
+
   const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null)
   const [selectedKakaoPlace, setSelectedKakaoPlace] = useState<KakaoPlace | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
@@ -37,9 +46,10 @@ function WriteReviewContent() {
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Load preselected restaurant if restaurantId is provided
+  // Load preselected restaurant or kakao place
   useEffect(() => {
-    const fetchPreselectedRestaurant = async () => {
+    const loadPreselected = async () => {
+      // DB 음식점 ID가 있으면 해당 음식점 로드
       if (restaurantIdParam) {
         try {
           const result = await api.getRestaurant(Number(restaurantIdParam))
@@ -50,9 +60,25 @@ function WriteReviewContent() {
           console.error("음식점 로드 실패:", err)
         }
       }
+      // 카카오 장소 정보가 있으면 KakaoPlace 객체 생성
+      else if (kakaoPlaceIdParam && kakaoNameParam && kakaoAddressParam) {
+        const kakaoPlace: KakaoPlace = {
+          id: kakaoPlaceIdParam,
+          name: kakaoNameParam,
+          address: kakaoAddressParam,
+          roadAddress: kakaoAddressParam,
+          category: kakaoCategoryParam || '음식점',
+          categoryCode: '',
+          phone: kakaoPhoneParam || '',
+          x: kakaoXParam || '0',
+          y: kakaoYParam || '0',
+          placeUrl: '',
+        }
+        setSelectedKakaoPlace(kakaoPlace)
+      }
     }
-    fetchPreselectedRestaurant()
-  }, [restaurantIdParam])
+    loadPreselected()
+  }, [restaurantIdParam, kakaoPlaceIdParam, kakaoNameParam, kakaoAddressParam, kakaoCategoryParam, kakaoPhoneParam, kakaoXParam, kakaoYParam])
 
   // Search restaurants
   const searchRestaurants = useCallback(async (query: string) => {
@@ -195,6 +221,9 @@ function WriteReviewContent() {
           address: selectedKakaoPlace.roadAddress || selectedKakaoPlace.address,
           region,
           phone: selectedKakaoPlace.phone || undefined,
+          kakaoPlaceId: selectedKakaoPlace.id,
+          latitude: parseFloat(selectedKakaoPlace.y),
+          longitude: parseFloat(selectedKakaoPlace.x),
         })
 
         if (!restaurantResult.success) {

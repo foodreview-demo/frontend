@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { api, PlaylistDetail } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
+import { RequireAuth } from "@/components/require-auth"
 
 function PlaylistDetailContent() {
   const searchParams = useSearchParams()
@@ -389,16 +390,18 @@ function PlaylistDetailContent() {
 
 export default function PlaylistDetailPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
-          <div className="flex justify-center items-center flex-1">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+    <RequireAuth>
+      <Suspense
+        fallback={
+          <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
+            <div className="flex justify-center items-center flex-1">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
           </div>
-        </div>
-      }
-    >
-      <PlaylistDetailContent />
-    </Suspense>
+        }
+      >
+        <PlaylistDetailContent />
+      </Suspense>
+    </RequireAuth>
   )
 }

@@ -5,14 +5,18 @@ import Image from "next/image"
 import Link from "next/link"
 import Script from "next/script"
 import { Search, Star, MapPin, Sparkles, Loader2, Navigation, X, ChevronUp, ChevronDown, Home, PenSquare, ListMusic, User } from "lucide-react"
-import { MobileLayout } from "@/components/mobile-layout"
+import { RequireAuth } from "@/components/require-auth"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { api, Restaurant } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 const KAKAO_MAP_API_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_API_KEY
+
+// 하단 네비게이션 높이, 최소/최대 시트 높이 (px)
+const BOTTOM_NAV_HEIGHT = 72
+const MIN_SHEET_HEIGHT = 60
+const MAX_SHEET_RATIO = 0.85
 
 interface KakaoPlace {
   id: string
@@ -32,7 +36,6 @@ interface NearbyRestaurant {
 }
 
 type SortType = "distance" | "rating" | "reviews"
-type SheetState = "collapsed" | "half" | "full"
 
 export default function SearchPage() {
   const mapRef = useRef<HTMLDivElement>(null)
@@ -50,7 +53,16 @@ export default function SearchPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [sortType, setSortType] = useState<SortType>("distance")
   const [selectedPlace, setSelectedPlace] = useState<NearbyRestaurant | null>(null)
-  const [sheetState, setSheetState] = useState<SheetState>("half")
+  const [sheetHeight, setSheetHeight] = useState(0) // px 단위
+  const [isDragging, setIsDragging] = useState(false)
+  const [locationError, setLocationError] = useState<string | null>(null)
+  const [isDbLoaded, setIsDbLoaded] = useState(false)
+
+  // 초기 시트 높이 설정 (화면의 45%)
+  useEffect(() => {
+    const initialHeight = (window.innerHeight - BOTTOM_NAV_HEIGHT) * 0.45
+    setSheetHeight(initialHeight)
+  }, [])
 
   // DB에서 모든 음식점 가져오기
   useEffect(() => {
@@ -62,10 +74,164 @@ export default function SearchPage() {
         }
       } catch (err) {
         console.error("DB 음식점 로드 실패:", err)
+      } finally {
+        setIsDbLoaded(true)
       }
     }
     fetchDbRestaurants()
   }, [])
+
+  // 현재 위치 마커 ref
+  const currentLocationMarkerRef = useRef<any>(null)
+
+  // 지도 보이는 영역의 중앙으로 마커 위치 설정 (바텀 시트 제외)
+  const setCenterWithOffset = useCallback((lat: number, lng: number, currentSheetHeight?: number) => {
+    const kakao = (window as any).kakao
+    const map = mapInstanceRef.current
+    if (!kakao || !map) return
+
+    // 현재 바텀 시트 높이 (전달받은 값 또는 state 값 사용)
+    const effectiveSheetHeight = currentSheetHeight ?? sheetHeight
+
+    // 지도 영역 = 전체 화면 - 하단 네비게이션 - 바텀 시트
+    const mapVisibleHeight = window.innerHeight - BOTTOM_NAV_HEIGHT - effectiveSheetHeight
+
+    // 바텀 시트가 있으므로 마커를 지도 보이는 영역의 중앙으로 이동
+    // 지도 보이는 영역의 중앙 = 화면 상단에서 (mapVisibleHeight / 2) 위치
+    const projection = map.getProjection()
+    const center = new kakao.maps.LatLng(lat, lng)
+    const centerPoint = projection.pointFromCoords(center)
+
+    // 오프셋 계산: 바텀 시트 높이의 절반만큼 위로 이동
+    const offsetY = effectiveSheetHeight / 2
+    const offsetPoint = new kakao.maps.Point(centerPoint.x, centerPoint.y + offsetY)
+    const offsetCoords = projection.coordsFromPoint(offsetPoint)
+
+    map.setCenter(offsetCoords)
+  }, [sheetHeight])
+
+  // 위치 마커 업데이트 함수
+  const updateLocationMarker = useCallback((latitude: number, longitude: number) => {
+    const kakao = (window as any).kakao
+    const map = mapInstanceRef.current
+    if (!kakao || !map) return
+
+    const currentPos = new kakao.maps.LatLng(latitude, longitude)
+
+    // 기존 위치 마커 제거
+    if (currentLocationMarkerRef.current) {
+      currentLocationMarkerRef.current.setMap(null)
+    }
+
+    // 현재 위치 마커 추가 (눈에 잘 띄는 펄스 애니메이션 마커)
+    const marker = new kakao.maps.CustomOverlay({
+      position: currentPos,
+      content: `
+        <div style="position:relative;width:40px;height:40px;display:flex;align-items:center;justify-content:center;">
+          <div style="position:absolute;width:40px;height:40px;background:rgba(59,130,246,0.2);border-radius:50%;animation:pulse 2s infinite;"></div>
+          <div style="position:absolute;width:24px;height:24px;background:rgba(59,130,246,0.3);border-radius:50%;animation:pulse 2s infinite 0.3s;"></div>
+          <div style="width:14px;height:14px;background:#3B82F6;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(59,130,246,0.5);z-index:1;"></div>
+        </div>
+        <style>
+          @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(2); opacity: 0; }
+          }
+        </style>
+      `,
+      yAnchor: 0.5,
+      xAnchor: 0.5,
+      zIndex: 100,
+      map: map
+    })
+    currentLocationMarkerRef.current = marker
+  }, [])
+
+  // 현재 위치 가져오기 (2단계 전략: 빠른 저정밀 → 정확한 고정밀)
+  const getCurrentLocation = useCallback(() => {
+    return new Promise<{ lat: number; lng: number }>((resolve, reject) => {
+      if (!navigator.geolocation) {
+        setLocationError("이 브라우저에서는 위치 서비스를 지원하지 않습니다")
+        reject(new Error("Geolocation not supported"))
+        return
+      }
+
+      setLocationError(null)
+      let resolved = false
+
+      // 성공 핸들러
+      const handleSuccess = (position: GeolocationPosition, isHighAccuracy: boolean) => {
+        const { latitude, longitude } = position.coords
+
+        // 이미 resolve된 경우 마커만 업데이트
+        if (resolved) {
+          // 고정밀 위치로 마커 업데이트
+          setCurrentPosition({ lat: latitude, lng: longitude })
+          updateLocationMarker(latitude, longitude)
+          setCenterWithOffset(latitude, longitude)
+          return
+        }
+
+        resolved = true
+        setCurrentPosition({ lat: latitude, lng: longitude })
+        updateLocationMarker(latitude, longitude)
+        setCenterWithOffset(latitude, longitude)
+        resolve({ lat: latitude, lng: longitude })
+
+        // 저정밀로 먼저 성공한 경우, 백그라운드에서 고정밀 위치 획득 시도
+        if (!isHighAccuracy) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => handleSuccess(pos, true),
+            () => {}, // 고정밀 실패 시 무시 (이미 저정밀로 성공함)
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          )
+        }
+      }
+
+      // 에러 핸들러
+      const handleError = (error: GeolocationPositionError) => {
+        if (resolved) return // 이미 성공한 경우 무시
+
+        console.error("위치 정보 오류:", error)
+        let errorMessage = "위치를 가져올 수 없습니다"
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = "위치 권한이 거부되었습니다. 브라우저 설정에서 위치 권한을 허용해주세요."
+            break
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = "위치 정보를 사용할 수 없습니다"
+            break
+          case error.TIMEOUT:
+            errorMessage = "위치 요청 시간이 초과되었습니다"
+            break
+        }
+        setLocationError(errorMessage)
+        reject(error)
+      }
+
+      // 1단계: 빠른 저정밀 위치 (캐시 활용, 셀 타워/WiFi 기반)
+      navigator.geolocation.getCurrentPosition(
+        (pos) => handleSuccess(pos, false),
+        (error) => {
+          // 저정밀 실패 시 고정밀로 재시도
+          if (error.code === error.TIMEOUT) {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => handleSuccess(pos, true),
+              handleError,
+              { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            )
+          } else {
+            handleError(error)
+          }
+        },
+        {
+          enableHighAccuracy: false, // 저정밀 = 빠름
+          timeout: 5000, // 5초 타임아웃
+          maximumAge: 300000 // 5분 캐시 허용
+        }
+      )
+    })
+  }, [setCenterWithOffset, updateLocationMarker])
 
   // 지도 초기화
   const initializeMap = useCallback(() => {
@@ -84,42 +250,13 @@ export default function SearchPage() {
       mapInstanceRef.current = mapInstance
       placesServiceRef.current = placesService
       setIsMapLoaded(true)
-
-      // 현재 위치 가져오기
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const { latitude, longitude } = position.coords
-            setCurrentPosition({ lat: latitude, lng: longitude })
-            const currentPos = new kakao.maps.LatLng(latitude, longitude)
-            mapInstance.setCenter(currentPos)
-
-            // 현재 위치 마커
-            new kakao.maps.CustomOverlay({
-              position: currentPos,
-              content: `<div style="width:16px;height:16px;background:#3B82F6;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(59,130,246,0.5);"></div>`,
-              yAnchor: 0.5,
-              map: mapInstance
-            })
-
-            searchNearbyPlaces(latitude, longitude)
-          },
-          () => {
-            setIsLoading(false)
-            searchNearbyPlaces(37.5665, 126.9780)
-          },
-          { enableHighAccuracy: true, timeout: 10000 }
-        )
-      } else {
-        setIsLoading(false)
-        searchNearbyPlaces(37.5665, 126.9780)
-      }
     } catch (err) {
       console.error("지도 초기화 오류:", err)
       setIsLoading(false)
     }
   }, [])
 
+  // 카카오맵 스크립트 로드 후 지도 초기화
   useEffect(() => {
     const kakao = (window as any).kakao
     if (kakao && kakao.maps) {
@@ -136,6 +273,25 @@ export default function SearchPage() {
       }
     }
   }, [isScriptLoaded, initializeMap])
+
+  // 지도와 DB 모두 로드된 후 위치 가져오기 및 주변 검색
+  useEffect(() => {
+    if (!isMapLoaded || !isDbLoaded) return
+
+    const initLocation = async () => {
+      try {
+        const pos = await getCurrentLocation()
+        searchNearbyPlaces(pos.lat, pos.lng)
+      } catch {
+        // 위치 가져오기 실패 시 서울 중심으로 검색
+        setIsLoading(false)
+        searchNearbyPlaces(37.5665, 126.9780)
+      }
+    }
+
+    initLocation()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMapLoaded, isDbLoaded])
 
   // 주변 음식점 검색 (내 주변)
   const searchNearbyPlaces = useCallback((lat: number, lng: number) => {
@@ -309,7 +465,7 @@ export default function SearchPage() {
       `
       content.onclick = () => {
         setSelectedPlace(restaurant)
-        setSheetState("collapsed")
+        setSheetHeight(MIN_SHEET_HEIGHT)
         map.panTo(position)
       }
 
@@ -348,40 +504,28 @@ export default function SearchPage() {
     }
   }
 
-  const moveToCurrentLocation = () => {
+  const moveToCurrentLocation = async () => {
     const kakao = (window as any).kakao
     const map = mapInstanceRef.current
     if (!kakao || !map) return
 
     setSearchQuery("") // 검색어 초기화
+    setIsLoading(true)
 
-    // GPS 위치 새로 요청
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords
-          setCurrentPosition({ lat: latitude, lng: longitude })
-          const pos = new kakao.maps.LatLng(latitude, longitude)
-          map.setCenter(pos)
-          map.setLevel(4)
-          searchNearbyPlaces(latitude, longitude)
-        },
-        () => {
-          // 실패 시 기존 위치 사용
-          if (currentPosition) {
-            const pos = new kakao.maps.LatLng(currentPosition.lat, currentPosition.lng)
-            map.setCenter(pos)
-            map.setLevel(4)
-            searchNearbyPlaces(currentPosition.lat, currentPosition.lng)
-          }
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-      )
-    } else if (currentPosition) {
-      const pos = new kakao.maps.LatLng(currentPosition.lat, currentPosition.lng)
-      map.setCenter(pos)
+    try {
+      const pos = await getCurrentLocation()
       map.setLevel(4)
-      searchNearbyPlaces(currentPosition.lat, currentPosition.lng)
+      // 바텀 시트를 고려하여 지도 중심 이동
+      setCenterWithOffset(pos.lat, pos.lng)
+      searchNearbyPlaces(pos.lat, pos.lng)
+    } catch {
+      // 실패 시 기존 위치 사용
+      setIsLoading(false)
+      if (currentPosition) {
+        map.setLevel(4)
+        setCenterWithOffset(currentPosition.lat, currentPosition.lng)
+        searchNearbyPlaces(currentPosition.lat, currentPosition.lng)
+      }
     }
   }
 
@@ -390,21 +534,110 @@ export default function SearchPage() {
     return d >= 1000 ? `${(d / 1000).toFixed(1)}km` : `${d}m`
   }
 
-  const toggleSheet = () => {
-    if (sheetState === "collapsed") setSheetState("half")
-    else if (sheetState === "half") setSheetState("full")
-    else setSheetState("half")
-  }
+  // 드래그 시작 위치 저장용 ref
+  const dragStartY = useRef(0)
+  const dragStartHeight = useRef(0)
 
-  const getSheetHeight = () => {
-    switch (sheetState) {
-      case "collapsed": return "60px"
-      case "half": return "45%"
-      case "full": return "85%"
+  // 드래그 핸들러
+  const handleDragStart = useCallback((clientY: number) => {
+    setIsDragging(true)
+    dragStartY.current = clientY
+    dragStartHeight.current = sheetHeight
+  }, [sheetHeight])
+
+  const handleDragMove = useCallback((clientY: number) => {
+    if (!isDragging) return
+
+    const deltaY = dragStartY.current - clientY
+    const maxHeight = (window.innerHeight - BOTTOM_NAV_HEIGHT) * MAX_SHEET_RATIO
+    const newHeight = Math.max(MIN_SHEET_HEIGHT, Math.min(maxHeight, dragStartHeight.current + deltaY))
+
+    setSheetHeight(newHeight)
+  }, [isDragging])
+
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false)
+
+    // 스냅 포인트로 이동 (최소, 중간, 최대)
+    const maxHeight = (window.innerHeight - BOTTOM_NAV_HEIGHT) * MAX_SHEET_RATIO
+    const midHeight = (window.innerHeight - BOTTOM_NAV_HEIGHT) * 0.45
+
+    if (sheetHeight < MIN_SHEET_HEIGHT + 50) {
+      setSheetHeight(MIN_SHEET_HEIGHT)
+    } else if (sheetHeight < (midHeight + MIN_SHEET_HEIGHT) / 2) {
+      setSheetHeight(MIN_SHEET_HEIGHT)
+    } else if (sheetHeight < (maxHeight + midHeight) / 2) {
+      setSheetHeight(midHeight)
+    } else {
+      setSheetHeight(maxHeight)
+    }
+  }, [sheetHeight])
+
+  // 터치/마우스 이벤트 핸들러
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    handleDragStart(e.touches[0].clientY)
+  }, [handleDragStart])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    handleDragMove(e.touches[0].clientY)
+  }, [handleDragMove])
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    handleDragStart(e.clientY)
+  }, [handleDragStart])
+
+  // 전역 마우스 이벤트 (드래그 중)
+  useEffect(() => {
+    if (!isDragging) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      handleDragMove(e.clientY)
+    }
+
+    const handleMouseUp = () => {
+      handleDragEnd()
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    window.addEventListener('touchmove', (e) => handleDragMove(e.touches[0].clientY))
+    window.addEventListener('touchend', handleDragEnd)
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isDragging, handleDragMove, handleDragEnd])
+
+  // 토글 (탭 시)
+  const toggleSheet = () => {
+    const maxHeight = (window.innerHeight - BOTTOM_NAV_HEIGHT) * MAX_SHEET_RATIO
+    const midHeight = (window.innerHeight - BOTTOM_NAV_HEIGHT) * 0.45
+
+    if (sheetHeight <= MIN_SHEET_HEIGHT + 10) {
+      setSheetHeight(midHeight)
+    } else if (sheetHeight < maxHeight - 10) {
+      setSheetHeight(maxHeight)
+    } else {
+      setSheetHeight(midHeight)
     }
   }
 
-  return (
+  // 시트가 최소/최대 상태인지 확인
+  const isSheetCollapsed = sheetHeight <= MIN_SHEET_HEIGHT + 10
+  const [windowHeight, setWindowHeight] = useState(0)
+
+  useEffect(() => {
+    setWindowHeight(window.innerHeight)
+    const handleResize = () => setWindowHeight(window.innerHeight)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  const isSheetFull = windowHeight > 0 && sheetHeight >= (windowHeight - BOTTOM_NAV_HEIGHT) * MAX_SHEET_RATIO - 10
+
+  const content = (
     <div className="h-screen w-full max-w-md mx-auto relative overflow-hidden bg-background">
       <Script
         src={`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_MAP_API_KEY}&libraries=services&autoload=false`}
@@ -450,6 +683,18 @@ export default function SearchPage() {
         </div>
       )}
 
+      {/* 위치 에러 메시지 */}
+      {locationError && (
+        <div className="absolute top-16 left-3 right-3 z-30">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm flex items-center justify-between">
+            <span>{locationError}</span>
+            <button onClick={() => setLocationError(null)} className="ml-2 text-red-500 hover:text-red-700">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 선택된 음식점 카드 */}
       {selectedPlace && (
         <div className="absolute left-3 right-3 z-30 animate-in slide-in-from-bottom-4 duration-200" style={{ bottom: "calc(72px + 70px)" }}>
@@ -464,17 +709,29 @@ export default function SearchPage() {
       {/* 바텀 시트 - 네비게이션 위에 위치 */}
       <div
         ref={sheetRef}
-        className="absolute left-0 right-0 z-20 bg-white rounded-t-3xl shadow-2xl transition-all duration-300 ease-out"
-        style={{ height: getSheetHeight(), bottom: "72px" }}
+        className={cn(
+          "absolute left-0 right-0 z-20 bg-white rounded-t-3xl shadow-2xl",
+          isDragging ? "" : "transition-all duration-300 ease-out"
+        )}
+        style={{ height: `${sheetHeight}px`, bottom: `${BOTTOM_NAV_HEIGHT}px` }}
       >
         {/* 드래그 핸들 */}
         <div
-          className="flex flex-col items-center pt-3 pb-2 cursor-pointer"
-          onClick={toggleSheet}
+          className="flex flex-col items-center pt-3 pb-2 cursor-grab active:cursor-grabbing touch-none select-none"
+          onMouseDown={handleMouseDown}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleDragEnd}
+          onClick={(e) => {
+            // 드래그가 아닌 경우에만 토글
+            if (!isDragging && Math.abs(dragStartY.current - (e as any).clientY || 0) < 5) {
+              toggleSheet()
+            }
+          }}
         >
           <div className="w-10 h-1 bg-gray-300 rounded-full mb-2" />
           <div className="flex items-center gap-1 text-xs text-gray-500">
-            {sheetState === "full" ? (
+            {isSheetFull ? (
               <><ChevronDown className="h-3 w-3" /> 지도 보기</>
             ) : (
               <><ChevronUp className="h-3 w-3" /> {nearbyRestaurants.length}개 음식점</>
@@ -519,7 +776,7 @@ export default function SearchPage() {
                   formatDistance={formatDistance}
                   onSelect={() => {
                     setSelectedPlace(restaurant)
-                    setSheetState("collapsed")
+                    setSheetHeight(MIN_SHEET_HEIGHT)
                     const kakao = (window as any).kakao
                     if (kakao && mapInstanceRef.current) {
                       const pos = new kakao.maps.LatLng(
@@ -545,6 +802,8 @@ export default function SearchPage() {
       <BottomNav />
     </div>
   )
+
+  return <RequireAuth>{content}</RequireAuth>
 }
 
 // 선택된 음식점 카드
@@ -560,58 +819,104 @@ function SelectedPlaceCard({
   const { kakaoPlace, dbRestaurant } = restaurant
   const hasReview = dbRestaurant && dbRestaurant.reviewCount > 0
   const isFirstReview = dbRestaurant?.reviewCount === 0
+  const isNewRestaurant = !dbRestaurant // DB에 없는 음식점
+
+  // 리뷰 작성 페이지로 이동할 URL 생성 (카카오 장소 정보를 쿼리로 전달)
+  const getWriteReviewUrl = () => {
+    if (dbRestaurant) {
+      return `/write?restaurantId=${dbRestaurant.id}`
+    }
+    // DB에 없는 음식점: 카카오 장소 정보를 쿼리 파라미터로 전달
+    const params = new URLSearchParams({
+      kakaoPlaceId: kakaoPlace.id,
+      name: kakaoPlace.name,
+      address: kakaoPlace.roadAddress || kakaoPlace.address,
+      category: kakaoPlace.category,
+      phone: kakaoPlace.phone || '',
+      x: kakaoPlace.x,
+      y: kakaoPlace.y,
+    })
+    return `/write?${params.toString()}`
+  }
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl p-4 border border-gray-100">
+    <div className="bg-white rounded-2xl shadow-xl p-4 border border-gray-100 relative">
       <button
         onClick={onClose}
-        className="absolute top-3 right-3 p-1 rounded-full hover:bg-gray-100"
+        className="absolute top-3 right-3 p-1 rounded-full hover:bg-gray-100 z-10"
       >
         <X className="h-4 w-4 text-gray-400" />
       </button>
 
-      <Link href={dbRestaurant ? `/restaurant/${dbRestaurant.id}` : '#'}>
-        <div className="flex gap-3">
-          {dbRestaurant?.thumbnail && (
-            <div className="relative h-20 w-20 rounded-xl overflow-hidden bg-gray-100 shrink-0">
-              <Image
-                src={dbRestaurant.thumbnail}
-                alt={kakaoPlace.name}
-                fill
-                className="object-cover"
-                unoptimized
-              />
-            </div>
-          )}
-          <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-gray-900 text-lg mb-1">{kakaoPlace.name}</h3>
+      <div className="flex gap-3">
+        {dbRestaurant?.thumbnail ? (
+          <div className="relative h-20 w-20 rounded-xl overflow-hidden bg-gray-100 shrink-0">
+            <Image
+              src={dbRestaurant.thumbnail}
+              alt={kakaoPlace.name}
+              fill
+              className="object-cover"
+              unoptimized
+            />
+          </div>
+        ) : (
+          <div className="h-20 w-20 rounded-xl bg-gradient-to-br from-orange-100 to-orange-50 shrink-0 flex items-center justify-center">
+            <MapPin className="h-8 w-8 text-orange-300" />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <h3 className="font-bold text-gray-900 text-lg mb-1 pr-8">{kakaoPlace.name}</h3>
 
-            <div className="flex items-center gap-2 mb-2">
-              {hasReview ? (
-                <>
-                  <div className="flex items-center gap-1 bg-orange-50 px-2 py-0.5 rounded-full">
-                    <Star className="h-3.5 w-3.5 fill-orange-500 text-orange-500" />
-                    <span className="text-sm font-semibold text-orange-600">{dbRestaurant.averageRating}</span>
-                  </div>
-                  <span className="text-sm text-gray-500">리뷰 {dbRestaurant.reviewCount}</span>
-                </>
-              ) : isFirstReview ? (
-                <Badge className="bg-violet-500 text-white text-xs gap-1">
-                  <Sparkles className="h-3 w-3" />첫 리뷰 2배 포인트!
-                </Badge>
-              ) : (
-                <span className="text-sm text-gray-400">리뷰 없음</span>
-              )}
-            </div>
+          <div className="flex items-center gap-2 mb-2">
+            {hasReview ? (
+              <>
+                <div className="flex items-center gap-1 bg-orange-50 px-2 py-0.5 rounded-full">
+                  <Star className="h-3.5 w-3.5 fill-orange-500 text-orange-500" />
+                  <span className="text-sm font-semibold text-orange-600">{dbRestaurant.averageRating}</span>
+                </div>
+                <span className="text-sm text-gray-500">리뷰 {dbRestaurant.reviewCount}</span>
+              </>
+            ) : isFirstReview || isNewRestaurant ? (
+              <Badge className="bg-violet-500 text-white text-xs gap-1">
+                <Sparkles className="h-3 w-3" />첫 리뷰 2배 포인트!
+              </Badge>
+            ) : (
+              <span className="text-sm text-gray-400">리뷰 없음</span>
+            )}
+          </div>
 
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <span>{formatDistance(kakaoPlace.distance)}</span>
-              <span>·</span>
-              <span className="truncate">{kakaoPlace.roadAddress || kakaoPlace.address}</span>
-            </div>
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <span>{formatDistance(kakaoPlace.distance)}</span>
+            <span>·</span>
+            <span className="truncate">{kakaoPlace.roadAddress || kakaoPlace.address}</span>
           </div>
         </div>
-      </Link>
+      </div>
+
+      {/* 하단 버튼 영역 */}
+      <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2">
+        {dbRestaurant ? (
+          <>
+            <Link href={`/restaurant/${dbRestaurant.id}`} className="flex-1">
+              <button className="w-full py-2 px-4 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors">
+                상세보기
+              </button>
+            </Link>
+            <Link href={getWriteReviewUrl()} className="flex-1">
+              <button className="w-full py-2 px-4 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 transition-colors">
+                리뷰 쓰기
+              </button>
+            </Link>
+          </>
+        ) : (
+          <Link href={getWriteReviewUrl()} className="flex-1">
+            <button className="w-full py-2.5 px-4 bg-gradient-to-r from-violet-500 to-orange-500 text-white rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              첫 리뷰 작성하고 2배 포인트 받기
+            </button>
+          </Link>
+        )}
+      </div>
     </div>
   )
 }

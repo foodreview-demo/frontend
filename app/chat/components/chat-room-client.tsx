@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Send, MapPin, Loader2, MoreVertical, Check, CheckCheck } from "lucide-react"
+import { ArrowLeft, Send, MapPin, Loader2, MoreVertical, Check, CheckCheck, Users, UserPlus } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -14,7 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { api, ChatMessage, ChatRoom } from "@/lib/api"
+import { api, ChatMessage, ChatRoom, User } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { useChatSocket, ReadNotification } from "@/lib/use-chat-socket"
 import { cn } from "@/lib/utils"
@@ -96,8 +96,30 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
 
     setMessages((prev) =>
       prev.map((msg) => {
-        // 내가 보낸 메시지이고 아직 읽지 않은 경우 읽음으로 변경
-        if (msg.senderId === currentUser?.id && !msg.isRead) {
+        // 내가 보낸 메시지만 업데이트
+        if (msg.senderId !== currentUser?.id) return msg
+
+        // 단체톡용: 특정 메시지의 읽음 수 업데이트
+        if (notification.messageId && notification.readCount !== undefined) {
+          if (msg.id === notification.messageId) {
+            return {
+              ...msg,
+              isRead: notification.readCount > 0,
+              readCount: notification.readCount
+            }
+          }
+          // 해당 메시지 이전 메시지들도 읽음 수 증가 (최소 같은 readCount)
+          if (msg.id < notification.messageId && msg.readCount !== undefined) {
+            return {
+              ...msg,
+              isRead: true,
+              readCount: Math.max(msg.readCount, notification.readCount)
+            }
+          }
+        }
+
+        // 1:1 채팅용: 아직 읽지 않은 메시지를 읽음으로 변경
+        if (!msg.isRead) {
           return { ...msg, isRead: true }
         }
         return msg
@@ -243,7 +265,7 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
 
     try {
       await api.leaveChatRoom(uuid)
-      router.push("/friends")
+      router.push("/follows")
     } catch (err) {
       console.error("채팅방 나가기 실패:", err)
       alert("채팅방 나가기에 실패했습니다")
@@ -265,7 +287,7 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
       <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
         <div className="flex flex-col items-center justify-center flex-1 p-4">
           <p className="text-muted-foreground">{error || "채팅방을 찾을 수 없습니다"}</p>
-          <Link href="/friends">
+          <Link href="/follows">
             <Button className="mt-4">돌아가기</Button>
           </Link>
         </div>
@@ -273,38 +295,80 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
     )
   }
 
+  const isGroupChat = chatRoom.roomType === 'GROUP'
   const otherUser = chatRoom.otherUser
-  const level = getTasteLevel(otherUser.tasteScore)
+  const level = otherUser ? getTasteLevel(otherUser.tasteScore) : null
   const messageGroups = groupMessagesByDate(messages)
+
+  // 단체톡 방 이름 표시 (이름이 없으면 멤버 이름 나열)
+  const getRoomDisplayName = () => {
+    if (!isGroupChat && otherUser) return otherUser.name
+    if (chatRoom.name) return chatRoom.name
+    if (chatRoom.members && chatRoom.members.length > 0) {
+      const names = chatRoom.members
+        .filter(m => m.user.id !== currentUser?.id)
+        .slice(0, 3)
+        .map(m => m.user.name)
+      if (chatRoom.memberCount > 4) {
+        return `${names.join(', ')} 외 ${chatRoom.memberCount - 4}명`
+      }
+      return names.join(', ')
+    }
+    return '단체 채팅방'
+  }
 
   return (
     <div className="min-h-screen bg-secondary/30 flex flex-col max-w-md mx-auto">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-card border-b border-border px-2 py-2">
         <div className="flex items-center gap-2">
-          <Link href="/friends">
+          <Link href="/follows">
             <Button variant="ghost" size="icon">
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
-          <Link href={`/profile/${otherUser.id}`} className="flex items-center gap-3 flex-1 min-w-0">
-            <Avatar className="h-9 w-9">
-              <AvatarImage src={otherUser.avatar || "/placeholder.svg"} alt={otherUser.name} />
-              <AvatarFallback>{otherUser.name[0]}</AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-foreground">{otherUser.name}</span>
-                <Badge variant="secondary" className={cn("text-xs", level.color)}>
-                  {level.label}
-                </Badge>
+
+          {/* 1:1 채팅 헤더 */}
+          {!isGroupChat && otherUser && (
+            <Link href={`/profile/${otherUser.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+              <Avatar className="h-9 w-9">
+                <AvatarImage src={otherUser.avatar || "/placeholder.svg"} alt={otherUser.name} />
+                <AvatarFallback>{otherUser.name[0]}</AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-foreground">{otherUser.name}</span>
+                  {level && (
+                    <Badge variant="secondary" className={cn("text-xs", level.color)}>
+                      {level.label}
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <MapPin className="h-3 w-3" />
+                  <span>{otherUser.region}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <MapPin className="h-3 w-3" />
-                <span>{otherUser.region}</span>
+            </Link>
+          )}
+
+          {/* 단체톡 헤더 */}
+          {isGroupChat && (
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
+                <Users className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-foreground truncate">{getRoomDisplayName()}</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {chatRoom.memberCount}명
+                  </Badge>
+                </div>
               </div>
             </div>
-          </Link>
+          )}
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">
@@ -312,9 +376,17 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild>
-                <Link href={`/profile/${otherUser.id}`}>프로필 보기</Link>
-              </DropdownMenuItem>
+              {!isGroupChat && otherUser && (
+                <DropdownMenuItem asChild>
+                  <Link href={`/profile/${otherUser.id}`}>프로필 보기</Link>
+                </DropdownMenuItem>
+              )}
+              {isGroupChat && (
+                <DropdownMenuItem>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  초대하기
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem className="text-destructive" onClick={handleLeaveChat}>
                 채팅방 나가기
               </DropdownMenuItem>
@@ -327,15 +399,27 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
-            <Avatar className="h-20 w-20 mb-4 ring-4 ring-primary/20">
-              <AvatarImage src={otherUser.avatar || "/placeholder.svg"} alt={otherUser.name} />
-              <AvatarFallback className="text-2xl bg-primary/10">{otherUser.name[0]}</AvatarFallback>
-            </Avatar>
-            <p className="text-foreground font-semibold text-lg">{otherUser.name}</p>
-            <div className="flex items-center gap-1 text-muted-foreground text-sm mt-1">
-              <MapPin className="h-3 w-3" />
-              <span>{otherUser.region}</span>
-            </div>
+            {!isGroupChat && otherUser ? (
+              <>
+                <Avatar className="h-20 w-20 mb-4 ring-4 ring-primary/20">
+                  <AvatarImage src={otherUser.avatar || "/placeholder.svg"} alt={otherUser.name} />
+                  <AvatarFallback className="text-2xl bg-primary/10">{otherUser.name[0]}</AvatarFallback>
+                </Avatar>
+                <p className="text-foreground font-semibold text-lg">{otherUser.name}</p>
+                <div className="flex items-center gap-1 text-muted-foreground text-sm mt-1">
+                  <MapPin className="h-3 w-3" />
+                  <span>{otherUser.region}</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="h-20 w-20 mb-4 rounded-full bg-primary/10 flex items-center justify-center ring-4 ring-primary/20">
+                  <Users className="h-10 w-10 text-primary" />
+                </div>
+                <p className="text-foreground font-semibold text-lg">{getRoomDisplayName()}</p>
+                <p className="text-muted-foreground text-sm mt-1">{chatRoom.memberCount}명 참여</p>
+              </>
+            )}
             <p className="text-muted-foreground text-sm mt-4">대화를 시작해보세요!</p>
           </div>
         ) : (
@@ -369,7 +453,7 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
                   >
                     {/* Avatar */}
                     {!isMe && !isGroupedWithPrev && (
-                      <Link href={`/profile/${otherUser.id}`}>
+                      <Link href={`/profile/${message.senderId}`}>
                         <Avatar className="h-8 w-8 mt-1">
                           <AvatarImage src={message.senderAvatar || "/placeholder.svg"} alt={message.senderName} />
                           <AvatarFallback className="text-xs">{message.senderName[0]}</AvatarFallback>
@@ -401,11 +485,32 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
                           <div className={cn("flex items-center gap-0.5 mb-1", isMe && "flex-row-reverse")}>
                             {/* 읽음 표시 - 내 메시지에만 표시 */}
                             {isMe && (
-                              message.isRead ? (
-                                <CheckCheck className="h-3 w-3 text-blue-500" />
-                              ) : (
-                                <Check className="h-3 w-3 text-muted-foreground" />
-                              )
+                              <>
+                                {/* 단체톡: 읽은 사람 수 표시 (예: ✓✓ 3) */}
+                                {isGroupChat && message.memberCount !== undefined && message.memberCount > 0 ? (
+                                  <div className="flex items-center gap-0.5">
+                                    {message.readCount && message.readCount > 0 ? (
+                                      <>
+                                        <CheckCheck className="h-3 w-3 text-blue-500" />
+                                        {message.readCount < message.memberCount && (
+                                          <span className="text-[10px] text-blue-500 font-medium">
+                                            {message.readCount}
+                                          </span>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <Check className="h-3 w-3 text-muted-foreground" />
+                                    )}
+                                  </div>
+                                ) : (
+                                  /* 1:1 채팅: 기존 방식 */
+                                  message.isRead ? (
+                                    <CheckCheck className="h-3 w-3 text-blue-500" />
+                                  ) : (
+                                    <Check className="h-3 w-3 text-muted-foreground" />
+                                  )
+                                )}
+                              </>
                             )}
                             <span className="text-[10px] text-muted-foreground whitespace-nowrap">
                               {formatTime(message.createdAt)}

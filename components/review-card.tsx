@@ -95,7 +95,6 @@ export function ReviewCard({ review }: ReviewCardProps) {
             alt={`${review.restaurant.name} 리뷰 이미지`}
             fill
             className="object-cover"
-            unoptimized
           />
         </div>
       )}

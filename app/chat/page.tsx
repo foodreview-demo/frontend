@@ -18,7 +18,7 @@ function ChatContent() {
         <div className="flex flex-col items-center justify-center min-h-screen p-4">
           <MessageCircle className="h-16 w-16 text-muted-foreground mb-4" />
           <p className="text-muted-foreground mb-4">채팅방을 선택해주세요</p>
-          <Link href="/friends">
+          <Link href="/follows">
             <Button>친구 목록으로 이동</Button>
           </Link>
         </div>

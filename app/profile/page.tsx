@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Settings, MapPin, Edit2, ChevronRight, Loader2 } from "lucide-react"
+import { Settings, MapPin, Edit2, ChevronRight, Loader2, ListMusic } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { TasteScoreCard } from "@/components/taste-score-card"
 import { ScoreHistory } from "@/components/score-history"
@@ -106,26 +106,28 @@ export default function ProfilePage() {
         <TasteScoreCard user={currentUser} />
 
         {/* Quick Links */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <Link href="/ranking">
-            <Card className="p-4 hover:bg-secondary/50 transition-colors border border-border">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">지역 랭킹</p>
-                  <p className="text-lg font-bold text-primary">#{currentUser.rank || '-'}</p>
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            <Card className="p-3 hover:bg-secondary/50 transition-colors border border-border">
+              <div className="flex flex-col items-center text-center">
+                <p className="text-xs text-muted-foreground mb-1">지역 랭킹</p>
+                <p className="text-lg font-bold text-primary">#{currentUser.rank || '-'}</p>
               </div>
             </Card>
           </Link>
           <Link href="/follows">
-            <Card className="p-4 hover:bg-secondary/50 transition-colors border border-border">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">맛잘알 친구</p>
-                  <p className="text-lg font-bold text-primary">{followingCount}명</p>
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            <Card className="p-3 hover:bg-secondary/50 transition-colors border border-border">
+              <div className="flex flex-col items-center text-center">
+                <p className="text-xs text-muted-foreground mb-1">친구</p>
+                <p className="text-lg font-bold text-primary">{followingCount}명</p>
+              </div>
+            </Card>
+          </Link>
+          <Link href="/playlists">
+            <Card className="p-3 hover:bg-secondary/50 transition-colors border border-border">
+              <div className="flex flex-col items-center text-center">
+                <p className="text-xs text-muted-foreground mb-1">내 리스트</p>
+                <ListMusic className="h-5 w-5 text-primary mt-1" />
               </div>
             </Card>
           </Link>

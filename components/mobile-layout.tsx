@@ -4,24 +4,26 @@ import type React from "react"
 
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { Home, Search, PenSquare, ListMusic, User } from "lucide-react"
+import { Home, Search, PenSquare, ListMusic, User, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { RequireAuth } from "./require-auth"
+import { ChatButton } from "./chat-sidebar"
 
 interface MobileLayoutProps {
   children: React.ReactNode
   hideNavigation?: boolean
   requireAuth?: boolean
+  showChatButton?: boolean
 }
 
-export function MobileLayout({ children, hideNavigation, requireAuth = true }: MobileLayoutProps) {
+export function MobileLayout({ children, hideNavigation, requireAuth = true, showChatButton = true }: MobileLayoutProps) {
   const pathname = usePathname()
 
   const navItems = [
     { href: "/", icon: Home, label: "홈" },
     { href: "/search", icon: Search, label: "검색" },
-    { href: "/write", icon: PenSquare, label: "리뷰작성" },
-    { href: "/playlists", icon: ListMusic, label: "리스트" },
+    { href: "/write", icon: PenSquare, label: "리뷰" },
+    { href: "/follows", icon: Users, label: "친구" },
     { href: "/profile", icon: User, label: "내정보" },
   ]
 
@@ -40,7 +42,7 @@ export function MobileLayout({ children, hideNavigation, requireAuth = true }: M
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors",
+                    "flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors",
                     isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
                   )}
                 >
@@ -51,6 +53,13 @@ export function MobileLayout({ children, hideNavigation, requireAuth = true }: M
             })}
           </div>
         </nav>
+      )}
+
+      {/* 플로팅 채팅 버튼 */}
+      {showChatButton && !hideNavigation && (
+        <div className="fixed bottom-[88px] right-4 z-40">
+          <ChatButton />
+        </div>
       )}
     </div>
   )

@@ -742,15 +742,16 @@ export interface ChatRoomMember {
 
 export interface ChatMessage {
   id: number;
-  senderId: number;
-  senderName: string;
-  senderAvatar: string;
+  senderId: number | null;
+  senderName: string | null;
+  senderAvatar: string | null;
   content: string;
   createdAt: string;
   isRead: boolean;
   isMine: boolean;
   readCount?: number;    // 단체톡용: 읽은 사람 수 (본인 제외)
   memberCount?: number;  // 단체톡용: 전체 멤버 수 (본인 제외)
+  messageType?: 'NORMAL' | 'SYSTEM';  // 메시지 타입
 }
 
 export interface ScoreEvent {

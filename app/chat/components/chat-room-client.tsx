@@ -3,17 +3,24 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Send, MapPin, Loader2, MoreVertical, Check, CheckCheck, Users, UserPlus } from "lucide-react"
+import { ArrowLeft, Send, MapPin, Loader2, MoreVertical, Check, CheckCheck, Users, UserPlus, X } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { api, ChatMessage, ChatRoom, User } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { useChatSocket, ReadNotification } from "@/lib/use-chat-socket"
@@ -72,6 +79,12 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // 초대 모달 관련 상태
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
+  const [followingList, setFollowingList] = useState<User[]>([])
+  const [selectedUsers, setSelectedUsers] = useState<User[]>([])
+  const [isInviting, setIsInviting] = useState(false)
 
   // WebSocket 연결 상태에서 수신된 메시지 처리
   const handleWebSocketMessage = useCallback((message: ChatMessage) => {
@@ -272,6 +285,56 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
     }
   }
 
+  // 초대 모달 열기
+  const openInviteModal = async () => {
+    if (!currentUser) return
+    setIsInviteModalOpen(true)
+    try {
+      const result = await api.getFollowings(currentUser.id)
+      if (result.success) {
+        // 이미 채팅방에 있는 멤버 제외
+        const memberIds = chatRoom?.members?.map(m => m.user.id) || []
+        const filteredList = result.data.content.filter((u: User) => !memberIds.includes(u.id))
+        setFollowingList(filteredList)
+      }
+    } catch (err) {
+      console.error("팔로잉 목록 로드 실패:", err)
+    }
+  }
+
+  // 초대할 사용자 선택/해제
+  const toggleUserSelection = (user: User) => {
+    setSelectedUsers((prev) => {
+      const isSelected = prev.some((u) => u.id === user.id)
+      if (isSelected) {
+        return prev.filter((u) => u.id !== user.id)
+      }
+      return [...prev, user]
+    })
+  }
+
+  // 초대 실행
+  const handleInvite = async () => {
+    if (selectedUsers.length === 0) return
+    setIsInviting(true)
+    try {
+      const userIds = selectedUsers.map((u) => u.id)
+      const result = await api.inviteToChatRoom(uuid, userIds)
+      if (result.success) {
+        setChatRoom(result.data)
+        setIsInviteModalOpen(false)
+        setSelectedUsers([])
+      } else {
+        alert("초대에 실패했습니다")
+      }
+    } catch (err) {
+      console.error("초대 실패:", err)
+      alert("초대에 실패했습니다")
+    } finally {
+      setIsInviting(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
@@ -382,7 +445,7 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
                 </DropdownMenuItem>
               )}
               {isGroupChat && (
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={openInviteModal}>
                   <UserPlus className="h-4 w-4 mr-2" />
                   초대하기
                 </DropdownMenuItem>
@@ -434,6 +497,18 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
 
               {/* Messages */}
               {group.messages.map((message, messageIndex) => {
+                // 시스템 메시지 처리
+                const isSystemMessage = message.messageType === 'SYSTEM'
+                if (isSystemMessage) {
+                  return (
+                    <div key={message.id} className="flex justify-center my-3">
+                      <span className="text-xs text-muted-foreground bg-secondary/70 px-3 py-1.5 rounded-full">
+                        {message.content}
+                      </span>
+                    </div>
+                  )
+                }
+
                 // senderId로 직접 비교 (WebSocket 브로드캐스트 시 isMine이 sender 기준으로만 설정되므로)
                 const isMe = message.senderId === currentUser?.id
                 const prevMessage = messageIndex > 0 ? group.messages[messageIndex - 1] : null
@@ -452,11 +527,11 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
                     )}
                   >
                     {/* Avatar */}
-                    {!isMe && !isGroupedWithPrev && (
+                    {!isMe && !isGroupedWithPrev && message.senderId && (
                       <Link href={`/profile/${message.senderId}`}>
                         <Avatar className="h-8 w-8 mt-1">
-                          <AvatarImage src={message.senderAvatar || "/placeholder.svg"} alt={message.senderName} />
-                          <AvatarFallback className="text-xs">{message.senderName[0]}</AvatarFallback>
+                          <AvatarImage src={message.senderAvatar || "/placeholder.svg"} alt={message.senderName || ''} />
+                          <AvatarFallback className="text-xs">{message.senderName?.[0] || '?'}</AvatarFallback>
                         </Avatar>
                       </Link>
                     )}
@@ -465,7 +540,7 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
 
                     {/* Message Content */}
                     <div className={cn("flex flex-col max-w-[75%]", isMe ? "items-end" : "items-start")}>
-                      {!isMe && !isGroupedWithPrev && (
+                      {!isMe && !isGroupedWithPrev && message.senderName && (
                         <span className="text-xs text-muted-foreground mb-1 ml-1">{message.senderName}</span>
                       )}
 
@@ -483,34 +558,29 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
 
                         {showTime && (
                           <div className={cn("flex items-center gap-0.5 mb-1", isMe && "flex-row-reverse")}>
-                            {/* 읽음 표시 - 내 메시지에만 표시 */}
-                            {isMe && (
-                              <>
-                                {/* 단체톡: 읽은 사람 수 표시 (예: ✓✓ 3) */}
-                                {isGroupChat && message.memberCount !== undefined && message.memberCount > 0 ? (
-                                  <div className="flex items-center gap-0.5">
-                                    {message.readCount && message.readCount > 0 ? (
-                                      <>
-                                        <CheckCheck className="h-3 w-3 text-blue-500" />
-                                        {message.readCount < message.memberCount && (
-                                          <span className="text-[10px] text-blue-500 font-medium">
-                                            {message.readCount}
-                                          </span>
-                                        )}
-                                      </>
-                                    ) : (
-                                      <Check className="h-3 w-3 text-muted-foreground" />
-                                    )}
-                                  </div>
-                                ) : (
-                                  /* 1:1 채팅: 기존 방식 */
-                                  message.isRead ? (
-                                    <CheckCheck className="h-3 w-3 text-blue-500" />
-                                  ) : (
-                                    <Check className="h-3 w-3 text-muted-foreground" />
-                                  )
-                                )}
-                              </>
+                            {/* 단체톡: 안 읽은 사람 수 표시 */}
+                            {isGroupChat && message.memberCount !== undefined && message.memberCount > 0 && (
+                              <div className="flex items-center gap-0.5">
+                                {(() => {
+                                  const unreadCount = message.memberCount - (message.readCount || 0)
+                                  if (unreadCount > 0) {
+                                    return (
+                                      <span className="text-[10px] text-primary font-medium">
+                                        {unreadCount}
+                                      </span>
+                                    )
+                                  }
+                                  return null
+                                })()}
+                              </div>
+                            )}
+                            {/* 1:1 채팅: 내 메시지에만 읽음 표시 */}
+                            {!isGroupChat && isMe && (
+                              message.isRead ? (
+                                <CheckCheck className="h-3 w-3 text-blue-500" />
+                              ) : (
+                                <Check className="h-3 w-3 text-muted-foreground" />
+                              )
                             )}
                             <span className="text-[10px] text-muted-foreground whitespace-nowrap">
                               {formatTime(message.createdAt)}
@@ -562,6 +632,111 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
           </Button>
         </div>
       </div>
+
+      {/* 초대 모달 */}
+      <Dialog open={isInviteModalOpen} onOpenChange={setIsInviteModalOpen}>
+        <DialogContent className="max-w-md max-h-[70vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>멤버 초대하기</DialogTitle>
+          </DialogHeader>
+
+          {selectedUsers.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground">
+                선택된 멤버 ({selectedUsers.length}명)
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {selectedUsers.map((user) => (
+                  <Badge
+                    key={user.id}
+                    variant="secondary"
+                    className="pl-2 pr-1 py-1 flex items-center gap-1"
+                  >
+                    <Avatar className="h-5 w-5">
+                      <AvatarImage src={user.avatar || "/placeholder.svg"} />
+                      <AvatarFallback className="text-[10px]">{user.name[0]}</AvatarFallback>
+                    </Avatar>
+                    <span className="text-xs">{user.name}</span>
+                    <button
+                      onClick={() => toggleUserSelection(user)}
+                      className="ml-1 hover:bg-secondary-foreground/20 rounded-full p-0.5"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+            <label className="text-sm font-medium text-muted-foreground mb-2">
+              팔로잉 목록에서 선택
+            </label>
+            <div className="flex-1 overflow-y-auto space-y-1 pr-2">
+              {followingList.length > 0 ? (
+                followingList.map((user) => {
+                  const isSelected = selectedUsers.some((u) => u.id === user.id)
+                  const level = getTasteLevel(user.tasteScore)
+                  return (
+                    <div
+                      key={user.id}
+                      onClick={() => toggleUserSelection(user)}
+                      className={cn(
+                        "flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors",
+                        isSelected ? "bg-primary/10 ring-1 ring-primary" : "hover:bg-secondary/50"
+                      )}
+                    >
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
+                        <AvatarFallback className="bg-primary/10 text-primary">{user.name[0]}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-foreground truncate">{user.name}</span>
+                          <Badge variant="secondary" className={cn("text-[10px] px-1.5 py-0", level.color)}>
+                            {level.label}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{user.region}</p>
+                      </div>
+                      <div className={cn(
+                        "h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors",
+                        isSelected ? "bg-primary border-primary" : "border-muted-foreground/30"
+                      )}>
+                        {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                      </div>
+                    </div>
+                  )
+                })
+              ) : (
+                <div className="text-center py-8">
+                  <Users className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">초대할 수 있는 사용자가 없습니다</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-4 border-t">
+            <Button variant="outline" className="flex-1" onClick={() => setIsInviteModalOpen(false)}>
+              취소
+            </Button>
+            <Button
+              className="flex-1"
+              onClick={handleInvite}
+              disabled={selectedUsers.length === 0 || isInviting}
+            >
+              {isInviting ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <UserPlus className="h-4 w-4 mr-2" />
+              )}
+              {selectedUsers.length === 0 ? "선택해주세요" : `${selectedUsers.length}명 초대`}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

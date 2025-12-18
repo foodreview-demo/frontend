@@ -129,6 +129,14 @@ class ApiClient {
       // 토큰이 없거나 만료된 경우
       const hasToken = !!token;
 
+      // 에러 메시지 먼저 파싱
+      const errorData = await response.json().catch(() => ({}));
+
+      // 토큰이 없는 상태에서 401 (로그인 실패 등)
+      if (!hasToken && response.status === 401) {
+        throw new Error(errorData.message || '이메일 또는 비밀번호가 올바르지 않습니다');
+      }
+
       if (hasToken && response.status === 401) {
         // 토큰 만료 시 리프레시 시도 (동시 요청 방지)
         const refreshed = await this.refreshTokenWithLock();
@@ -164,7 +172,7 @@ class ApiClient {
       if (hasToken) {
         this.logout();
       }
-      throw new Error('인증이 만료되었습니다');
+      throw new Error(errorData.message || '인증이 만료되었습니다');
     }
 
     if (!response.ok) {
@@ -329,7 +337,7 @@ class ApiClient {
     return this.request<ApiResponse<User>>(`/users/${userId}`);
   }
 
-  async updateProfile(data: { name?: string; avatar?: string; region?: string; favoriteCategories?: string[] }) {
+  async updateProfile(data: { name?: string; avatar?: string; region?: string; district?: string; neighborhood?: string; favoriteCategories?: string[] }) {
     return this.request<ApiResponse<User>>('/users/me', {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -376,9 +384,11 @@ class ApiClient {
   }
 
   // Restaurant API
-  async getRestaurants(region?: string, category?: string, page = 0, size = 20) {
+  async getRestaurants(region?: string, district?: string, neighborhood?: string, category?: string, page = 0, size = 20) {
     const params = new URLSearchParams({ page: String(page), size: String(size) });
     if (region && region !== '전체') params.append('region', region);
+    if (district) params.append('district', district);
+    if (neighborhood) params.append('neighborhood', neighborhood);
     if (category && category !== '전체') params.append('category', categoryToEnum(category));
     return this.request<ApiResponse<PageResponse<Restaurant>>>(`/restaurants?${params}`);
   }
@@ -387,9 +397,11 @@ class ApiClient {
     return this.request<ApiResponse<Restaurant>>(`/restaurants/${restaurantId}`);
   }
 
-  async searchRestaurants(keyword: string, region?: string, category?: string, page = 0, size = 20) {
+  async searchRestaurants(keyword: string, region?: string, district?: string, neighborhood?: string, category?: string, page = 0, size = 20) {
     const params = new URLSearchParams({ keyword, page: String(page), size: String(size) });
     if (region && region !== '전체') params.append('region', region);
+    if (district) params.append('district', district);
+    if (neighborhood) params.append('neighborhood', neighborhood);
     if (category && category !== '전체') params.append('category', categoryToEnum(category));
     return this.request<ApiResponse<PageResponse<Restaurant>>>(`/restaurants/search?${params}`);
   }
@@ -649,6 +661,8 @@ export interface User {
   name: string;
   avatar: string;
   region: string;
+  district?: string;
+  neighborhood?: string;
   tasteScore: number;
   tasteGrade: string;
   reviewCount: number;
@@ -673,6 +687,8 @@ export interface Restaurant {
   categoryDisplay: string;
   address: string;
   region: string;
+  district?: string;
+  neighborhood?: string;
   thumbnail: string;
   averageRating: number;
   reviewCount: number;
@@ -788,6 +804,8 @@ export interface CreateRestaurantRequest {
   category: string;
   address: string;
   region: string;
+  district?: string;
+  neighborhood?: string;
   thumbnail?: string;
   priceRange?: string;
   phone?: string;

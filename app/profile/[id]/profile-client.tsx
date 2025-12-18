@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 import { ArrowLeft, MapPin, MessageCircle, UserPlus, Loader2, ListMusic, Star, ChevronRight } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { TasteScoreCard } from "@/components/taste-score-card"
@@ -16,6 +17,7 @@ import { api, User, Review, Playlist } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 
 export function ProfileClient({ id }: { id: string }) {
+  const router = useRouter()
   const { user: currentUser } = useAuth()
   const [user, setUser] = useState<User | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
@@ -84,6 +86,22 @@ export function ProfileClient({ id }: { id: string }) {
     } catch (err) {
       console.error("친구 추가 처리 실패:", err)
       alert("친구 추가 처리에 실패했습니다")
+    }
+  }
+
+  const handleStartChat = async () => {
+    if (!user) return
+    try {
+      const result = await api.getOrCreateChatRoom(user.id)
+      if (result.success && result.data.uuid) {
+        router.push(`/chat?room=${result.data.uuid}`)
+      } else {
+        console.error("UUID가 없음:", result)
+        alert("채팅방을 열 수 없습니다")
+      }
+    } catch (err) {
+      console.error("채팅방 생성 실패:", err)
+      alert("채팅방을 열 수 없습니다")
     }
   }
 
@@ -160,11 +178,9 @@ export function ProfileClient({ id }: { id: string }) {
                 <UserPlus className="h-4 w-4 mr-2" />
                 {isFollowing ? "친구 추가됨" : "맛잘알 친구 추가"}
               </Button>
-              <Link href={`/chat/${user.id}`}>
-                <Button variant="outline">
-                  <MessageCircle className="h-4 w-4" />
-                </Button>
-              </Link>
+              <Button variant="outline" onClick={handleStartChat}>
+                <MessageCircle className="h-4 w-4" />
+              </Button>
             </div>
           )}
         </Card>

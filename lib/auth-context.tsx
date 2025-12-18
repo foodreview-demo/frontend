@@ -12,7 +12,7 @@ interface AuthContextType {
   signUp: (data: { email: string; password: string; name: string; region: string }) => Promise<void>
   logout: () => void
   refreshUser: () => Promise<void>
-  updateProfile: (data: { name?: string; avatar?: string; region?: string; favoriteCategories?: string[] }) => Promise<void>
+  updateProfile: (data: { name?: string; avatar?: string; region?: string; district?: string; neighborhood?: string; favoriteCategories?: string[] }) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -122,7 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('user'); // 로컬스토리지 사용자 정보도 삭제
   };
 
-  const updateProfile = async (data: { name?: string; avatar?: string; region?: string; favoriteCategories?: string[] }) => {
+  const updateProfile = async (data: { name?: string; avatar?: string; region?: string; district?: string; neighborhood?: string; favoriteCategories?: string[] }) => {
     const result = await api.updateProfile(data)
     if (result.success) {
       setUser(result.data)

@@ -13,8 +13,10 @@ import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { KakaoMapSearch, KakaoPlace } from "@/components/kakao-map-search"
+import { RegionSelector } from "@/components/region-selector"
 import { cn } from "@/lib/utils"
 import { api, Restaurant } from "@/lib/api"
+import { parseAddress } from "@/lib/regions"
 
 function WriteReviewContent() {
   const router = useRouter()
@@ -34,8 +36,6 @@ function WriteReviewContent() {
   const [selectedKakaoPlace, setSelectedKakaoPlace] = useState<KakaoPlace | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [searchMode, setSearchMode] = useState<"app" | "kakao">("kakao")
-  const [searchResults, setSearchResults] = useState<Restaurant[]>([])
-  const [isSearching, setIsSearching] = useState(false)
   const [rating, setRating] = useState(0)
   const [hoverRating, setHoverRating] = useState(0)
   const [content, setContent] = useState("")
@@ -45,6 +45,18 @@ function WriteReviewContent() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // 지역 정보 (카카오 주소에서 파싱 후 사용자 수정 가능)
+  const [region, setRegion] = useState("")
+  const [district, setDistrict] = useState("")
+  const [neighborhood, setNeighborhood] = useState("")
+
+  // 앱 내 검색용 지역 필터
+  const [appSearchRegion, setAppSearchRegion] = useState("")
+  const [appSearchDistrict, setAppSearchDistrict] = useState("")
+  const [appSearchNeighborhood, setAppSearchNeighborhood] = useState("")
+  const [appRestaurants, setAppRestaurants] = useState<Restaurant[]>([])
+  const [isLoadingAppRestaurants, setIsLoadingAppRestaurants] = useState(false)
 
   // Load preselected restaurant or kakao place
   useEffect(() => {
@@ -80,37 +92,54 @@ function WriteReviewContent() {
     loadPreselected()
   }, [restaurantIdParam, kakaoPlaceIdParam, kakaoNameParam, kakaoAddressParam, kakaoCategoryParam, kakaoPhoneParam, kakaoXParam, kakaoYParam])
 
-  // Search restaurants
-  const searchRestaurants = useCallback(async (query: string) => {
-    if (!query.trim()) {
-      setSearchResults([])
-      return
-    }
+  // 앱 내 검색 지역 변경 핸들러
+  const handleAppSearchRegionChange = (newRegion: string, newDistrict: string, newNeighborhood: string) => {
+    setAppSearchRegion(newRegion)
+    setAppSearchDistrict(newDistrict)
+    setAppSearchNeighborhood(newNeighborhood)
+  }
 
-    setIsSearching(true)
-    try {
-      const result = await api.searchRestaurants(query)
-      if (result.success) {
-        setSearchResults(result.data.content)
-      }
-    } catch (err) {
-      console.error("음식점 검색 실패:", err)
-    } finally {
-      setIsSearching(false)
-    }
-  }, [])
-
+  // 지역 선택 시 음식점 목록 로드
   useEffect(() => {
-    const debounce = setTimeout(() => {
-      if (searchQuery) {
-        searchRestaurants(searchQuery)
-      } else {
-        setSearchResults([])
+    const loadRestaurants = async () => {
+      if (!appSearchRegion) {
+        setAppRestaurants([])
+        return
       }
-    }, 300)
 
-    return () => clearTimeout(debounce)
-  }, [searchQuery, searchRestaurants])
+      setIsLoadingAppRestaurants(true)
+      try {
+        const result = await api.getRestaurants(
+          appSearchRegion,
+          appSearchDistrict || undefined,
+          appSearchNeighborhood || undefined,
+          undefined,
+          0,
+          50
+        )
+        if (result.success) {
+          setAppRestaurants(result.data.content)
+        }
+      } catch (err) {
+        console.error("음식점 로드 실패:", err)
+      } finally {
+        setIsLoadingAppRestaurants(false)
+      }
+    }
+
+    loadRestaurants()
+  }, [appSearchRegion, appSearchDistrict, appSearchNeighborhood])
+
+  // 검색어로 음식점 필터링 (로컬 필터링)
+  const filteredRestaurants = appRestaurants.filter((restaurant) => {
+    if (!searchQuery.trim()) return true
+    const query = searchQuery.toLowerCase()
+    return (
+      restaurant.name.toLowerCase().includes(query) ||
+      restaurant.address.toLowerCase().includes(query) ||
+      restaurant.categoryDisplay?.toLowerCase().includes(query)
+    )
+  })
 
   const isFirstReview = selectedRestaurant?.reviewCount === 0
   const hasSelectedPlace = selectedRestaurant || selectedKakaoPlace
@@ -119,12 +148,28 @@ function WriteReviewContent() {
   const handleKakaoPlaceSelect = (place: KakaoPlace) => {
     setSelectedKakaoPlace(place)
     setSelectedRestaurant(null)
+
+    // 주소에서 지역 정보 파싱 (지번 주소 사용 - 동 정보 포함)
+    const parsed = parseAddress(place.address)
+    setRegion(parsed.region)
+    setDistrict(parsed.district)
+    setNeighborhood(parsed.neighborhood)
+  }
+
+  // 지역 변경 핸들러
+  const handleRegionChange = (newRegion: string, newDistrict: string, newNeighborhood: string) => {
+    setRegion(newRegion)
+    setDistrict(newDistrict)
+    setNeighborhood(newNeighborhood)
   }
 
   // 장소 선택 초기화
   const clearSelectedPlace = () => {
     setSelectedRestaurant(null)
     setSelectedKakaoPlace(null)
+    setRegion("")
+    setDistrict("")
+    setNeighborhood("")
   }
 
   const handleImageButtonClick = () => {
@@ -212,14 +257,13 @@ function WriteReviewContent() {
           }
         }
 
-        // 주소에서 지역 추출 (예: "서울 강남구..." -> "서울")
-        const region = selectedKakaoPlace.address.split(' ')[0] || '서울'
-
         const restaurantResult = await api.createRestaurant({
           name: selectedKakaoPlace.name,
           category,
           address: selectedKakaoPlace.roadAddress || selectedKakaoPlace.address,
-          region,
+          region: region || '서울',
+          district: district || undefined,
+          neighborhood: neighborhood || undefined,
           phone: selectedKakaoPlace.phone || undefined,
           kakaoPlaceId: selectedKakaoPlace.id,
           latitude: parseFloat(selectedKakaoPlace.y),
@@ -352,6 +396,19 @@ function WriteReviewContent() {
                   <X className="h-4 w-4" />
                 </Button>
               </div>
+              {/* 지역 선택 */}
+              <div className="mt-3 pt-3 border-t border-border">
+                <label className="text-xs font-medium text-muted-foreground mb-2 block">
+                  지역 설정 (수정 가능)
+                </label>
+                <RegionSelector
+                  region={region}
+                  district={district}
+                  neighborhood={neighborhood}
+                  onChange={handleRegionChange}
+                  size="sm"
+                />
+              </div>
             </Card>
           ) : (
             <Tabs value={searchMode} onValueChange={(v) => setSearchMode(v as "app" | "kakao")}>
@@ -374,24 +431,46 @@ function WriteReviewContent() {
                 />
               </TabsContent>
 
-              <TabsContent value="app" className="mt-0 space-y-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="등록된 음식점 검색"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
+              <TabsContent value="app" className="mt-0 space-y-3">
+                {/* 지역 선택 */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-2 block">
+                    지역을 선택하세요
+                  </label>
+                  <RegionSelector
+                    region={appSearchRegion}
+                    district={appSearchDistrict}
+                    neighborhood={appSearchNeighborhood}
+                    onChange={handleAppSearchRegionChange}
+                    showAllOption={true}
+                    size="sm"
                   />
                 </div>
-                {isSearching && (
+
+                {/* 검색 필터 */}
+                {appSearchRegion && (
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="음식점 이름으로 필터링"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 h-9 text-sm"
+                    />
+                  </div>
+                )}
+
+                {/* 로딩 */}
+                {isLoadingAppRestaurants && (
                   <div className="flex justify-center py-4">
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
                   </div>
                 )}
-                {!isSearching && searchResults.length > 0 && (
+
+                {/* 음식점 목록 */}
+                {!isLoadingAppRestaurants && appSearchRegion && filteredRestaurants.length > 0 && (
                   <div className="bg-card border border-border rounded-xl overflow-hidden max-h-60 overflow-y-auto">
-                    {searchResults.map((restaurant) => (
+                    {filteredRestaurants.map((restaurant) => (
                       <button
                         key={restaurant.id}
                         className="w-full p-3 flex items-center gap-3 hover:bg-secondary transition-colors text-left border-b border-border last:border-0"
@@ -399,7 +478,6 @@ function WriteReviewContent() {
                           setSelectedRestaurant(restaurant)
                           setSelectedKakaoPlace(null)
                           setSearchQuery("")
-                          setSearchResults([])
                         }}
                       >
                         <div className="relative h-12 w-12 rounded-lg overflow-hidden bg-muted">
@@ -414,6 +492,9 @@ function WriteReviewContent() {
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-foreground">{restaurant.name}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {restaurant.categoryDisplay || restaurant.category}
+                            </Badge>
                             {restaurant.reviewCount === 0 && (
                               <Badge className="bg-primary text-primary-foreground text-xs">첫 리뷰</Badge>
                             )}
@@ -424,9 +505,16 @@ function WriteReviewContent() {
                     ))}
                   </div>
                 )}
-                {searchQuery && !isSearching && searchResults.length === 0 && (
+
+                {/* 안내 메시지 */}
+                {!appSearchRegion && (
                   <p className="text-sm text-muted-foreground text-center py-4">
-                    검색 결과가 없습니다. 지도 검색을 이용해보세요.
+                    지역을 선택하면 등록된 음식점 목록이 표시됩니다
+                  </p>
+                )}
+                {appSearchRegion && !isLoadingAppRestaurants && filteredRestaurants.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    {searchQuery ? "검색 결과가 없습니다" : "등록된 음식점이 없습니다"}. 지도 검색을 이용해보세요.
                   </p>
                 )}
               </TabsContent>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { Heart, MessageCircle, Star, Sparkles } from "lucide-react"
@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { CommentSection } from "@/components/comment-section"
 import { api, type Review } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
@@ -26,8 +27,25 @@ function getTasteLevel(score: number): { label: string; color: string } {
 export function ReviewCard({ review }: ReviewCardProps) {
   const [sympathyCount, setSympathyCount] = useState(review.sympathyCount)
   const [hasSympathized, setHasSympathized] = useState(review.hasSympathized)
+  const [showComments, setShowComments] = useState(false)
+  const [commentCount, setCommentCount] = useState(0)
 
   const tasteLevel = getTasteLevel(review.user.tasteScore)
+
+  // 댓글 수 로드
+  useEffect(() => {
+    const loadCommentCount = async () => {
+      try {
+        const result = await api.getCommentCount(review.id)
+        if (result.success) {
+          setCommentCount(result.data)
+        }
+      } catch (error) {
+        // 무시
+      }
+    }
+    loadCommentCount()
+  }, [review.id])
 
   const handleSympathy = async () => {
     try {
@@ -133,9 +151,14 @@ export function ReviewCard({ review }: ReviewCardProps) {
           <Button
             variant="ghost"
             size="sm"
-            className="gap-2 px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
+            className={cn(
+              "gap-2 px-0 hover:bg-transparent hover:text-foreground",
+              showComments ? "text-primary" : "text-muted-foreground"
+            )}
+            onClick={() => setShowComments(!showComments)}
           >
-            <MessageCircle className="h-5 w-5" />
+            <MessageCircle className={cn("h-5 w-5", showComments && "fill-primary")} />
+            {commentCount > 0 && <span className="font-semibold">{commentCount}</span>}
             <span className="text-sm">댓글</span>
           </Button>
         </div>
@@ -145,6 +168,13 @@ export function ReviewCard({ review }: ReviewCardProps) {
           방문일 {review.visitDate} · 작성일 {review.createdAt}
         </p>
       </div>
+
+      {/* Comments Section */}
+      {showComments && (
+        <div className="border-t border-border">
+          <CommentSection reviewId={review.id} reviewUserId={review.user.id} />
+        </div>
+      )}
     </Card>
   )
 }

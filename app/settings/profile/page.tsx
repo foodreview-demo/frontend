@@ -8,24 +8,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { RegionSelector } from "@/components/region-selector"
 import { useAuth } from "@/lib/auth-context"
 import { useToast } from "@/hooks/use-toast"
 import { api } from "@/lib/api"
-
-const REGIONS = [
-  "서울 강남구", "서울 마포구", "서울 서초구", "서울 송파구", "서울 용산구",
-  "서울 성동구", "서울 종로구", "서울 중구", "서울 동작구", "서울 영등포구",
-  "부산 해운대구", "부산 중구", "인천 중구", "대구 중구", "대전 중구"
-]
 
 const CATEGORIES = [
   { value: "KOREAN", label: "한식" },
@@ -46,6 +33,8 @@ export default function ProfileEditPage() {
   const [formData, setFormData] = useState({
     name: user?.name || "",
     region: user?.region || "",
+    district: user?.district || "",
+    neighborhood: user?.neighborhood || "",
     favoriteCategories: user?.favoriteCategories || [],
   })
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
@@ -142,6 +131,8 @@ export default function ProfileEditPage() {
       await updateProfile({
         name: formData.name,
         region: formData.region,
+        district: formData.district,
+        neighborhood: formData.neighborhood,
         favoriteCategories: formData.favoriteCategories,
         ...(avatarUrl && { avatar: avatarUrl }),
       })
@@ -233,21 +224,15 @@ export default function ProfileEditPage() {
         {/* Region */}
         <div className="space-y-2">
           <Label>활동 지역</Label>
-          <Select
-            value={formData.region}
-            onValueChange={(value) => setFormData(prev => ({ ...prev, region: value }))}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="지역을 선택하세요" />
-            </SelectTrigger>
-            <SelectContent>
-              {REGIONS.map((region) => (
-                <SelectItem key={region} value={region}>
-                  {region}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <p className="text-sm text-muted-foreground mb-2">지역을 선택하면 해당 지역의 맛집 정보를 볼 수 있습니다</p>
+          <RegionSelector
+            region={formData.region}
+            district={formData.district}
+            neighborhood={formData.neighborhood}
+            onChange={(region, district, neighborhood) =>
+              setFormData(prev => ({ ...prev, region, district, neighborhood }))
+            }
+          />
         </div>
 
         {/* Favorite Categories */}

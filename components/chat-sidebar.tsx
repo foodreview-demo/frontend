@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import {
   MessageCircle, Loader2, UsersRound, Plus, X, Check, Users
 } from "lucide-react"
@@ -446,8 +446,18 @@ export function ChatSidebar({ children }: ChatSidebarProps) {
 
 // 채팅 버튼 컴포넌트 (다른 곳에서 사용할 수 있게 export)
 export function ChatButton() {
+  const pathname = usePathname()
   const { user: currentUser } = useAuth()
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([])
+
+  const fetchChatRooms = useCallback(() => {
+    if (!currentUser) return
+    api.getChatRooms().then((result) => {
+      if (result.success) {
+        setChatRooms(result.data.content)
+      }
+    }).catch(console.error)
+  }, [currentUser])
 
   const handleNewMessageNotification = useCallback((notification: NewMessageNotification) => {
     setChatRooms((prev) => {
@@ -466,14 +476,17 @@ export function ChatButton() {
     enabled: !!currentUser,
   })
 
+  // 초기 로드 및 페이지 이동 시 새로고침 (채팅방 나간 후 목록 갱신)
   useEffect(() => {
-    if (!currentUser) return
-    api.getChatRooms().then((result) => {
-      if (result.success) {
-        setChatRooms(result.data.content)
-      }
-    }).catch(console.error)
-  }, [currentUser])
+    fetchChatRooms()
+  }, [fetchChatRooms, pathname])
+
+  // 페이지 포커스 시 새로고침
+  useEffect(() => {
+    const handleFocus = () => fetchChatRooms()
+    window.addEventListener("focus", handleFocus)
+    return () => window.removeEventListener("focus", handleFocus)
+  }, [fetchChatRooms])
 
   const totalUnreadCount = chatRooms.reduce((sum, room) => sum + room.unreadCount, 0)
 

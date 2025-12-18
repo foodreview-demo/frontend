@@ -638,6 +638,39 @@ class ApiClient {
   async getRestaurantSaveStatus(restaurantId: number) {
     return this.request<ApiResponse<SaveStatusResponse>>(`/playlists/restaurant/${restaurantId}/status`);
   }
+
+  // Comment API
+  async getComments(reviewId: number, page = 0, size = 20) {
+    return this.request<ApiResponse<PageResponse<Comment>>>(`/reviews/${reviewId}/comments?page=${page}&size=${size}`);
+  }
+
+  async getReplies(commentId: number, page = 0, size = 20) {
+    return this.request<ApiResponse<PageResponse<Comment>>>(`/comments/${commentId}/replies?page=${page}&size=${size}`);
+  }
+
+  async createComment(reviewId: number, data: CreateCommentRequest) {
+    return this.request<ApiResponse<Comment>>(`/reviews/${reviewId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateComment(commentId: number, content: string) {
+    return this.request<ApiResponse<Comment>>(`/comments/${commentId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ content }),
+    });
+  }
+
+  async deleteComment(commentId: number) {
+    return this.request<ApiResponse<void>>(`/comments/${commentId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getCommentCount(reviewId: number) {
+    return this.request<ApiResponse<number>>(`/reviews/${reviewId}/comments/count`);
+  }
 }
 
 // 카테고리 한글 -> Enum 변환
@@ -843,6 +876,31 @@ export interface SaveStatusResponse {
   restaurantId: number;
   savedPlaylistIds: number[];
   isSaved: boolean;
+}
+
+export interface Comment {
+  id: number;
+  reviewId: number;
+  user: {
+    id: number;
+    name: string;
+    avatar: string;
+    region: string;
+    tasteScore: number;
+    tasteGrade: string;
+  };
+  content: string;
+  parentId: number | null;
+  replyCount: number;
+  createdAt: string;
+  updatedAt: string;
+  isMine: boolean;
+  isDeleted: boolean;
+}
+
+export interface CreateCommentRequest {
+  content: string;
+  parentId?: number;
 }
 
 export const api = new ApiClient(API_BASE_URL);

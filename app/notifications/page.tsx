@@ -2,76 +2,85 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ArrowLeft, Bell, Heart, UserPlus, MessageCircle, Star, Loader2 } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { ArrowLeft, Bell, Heart, UserPlus, MessageCircle, Star, Loader2, CheckCheck } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth } from "@/lib/auth-context"
-import { api, ChatRoom } from "@/lib/api"
+import { api, Notification as NotificationType } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
-interface Notification {
-  id: string
-  type: "follow" | "sympathy" | "chat" | "score"
-  message: string
-  fromUser?: {
-    id: number
-    name: string
-    avatar: string
-  }
-  link?: string
-  createdAt: string
-  isRead: boolean
-}
-
 export default function NotificationsPage() {
+  const router = useRouter()
   const { user } = useAuth()
-  const [notifications, setNotifications] = useState<Notification[]>([])
-  const [chatRooms, setChatRooms] = useState<ChatRoom[]>([])
+  const [notifications, setNotifications] = useState<NotificationType[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [hasMore, setHasMore] = useState(true)
+  const [page, setPage] = useState(0)
+
+  const fetchNotifications = async (pageNum: number, append = false) => {
+    if (!user) {
+      setIsLoading(false)
+      return
+    }
+
+    try {
+      const result = await api.getNotifications(pageNum)
+      if (result.success) {
+        if (append) {
+          setNotifications(prev => [...prev, ...result.data.content])
+        } else {
+          setNotifications(result.data.content)
+        }
+        setHasMore(!result.data.last)
+      }
+    } catch (err) {
+      console.error("알림 로드 실패:", err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const fetchNotifications = async () => {
-      if (!user) {
-        setIsLoading(false)
-        return
+    fetchNotifications(0)
+  }, [user])
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      const result = await api.markAllNotificationsAsRead()
+      if (result.success) {
+        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })))
       }
+    } catch (err) {
+      console.error("모두 읽음 처리 실패:", err)
+    }
+  }
 
-      setIsLoading(true)
+  const handleNotificationClick = async (notification: NotificationType) => {
+    // 읽음 처리
+    if (!notification.isRead) {
       try {
-        // 채팅방에서 읽지 않은 메시지 가져오기
-        const chatResult = await api.getChatRooms()
-        if (chatResult.success) {
-          setChatRooms(chatResult.data.content.filter((room: ChatRoom) => room.unreadCount > 0))
-
-          // 채팅 알림 생성
-          const chatNotifications: Notification[] = chatResult.data.content
-            .filter((room: ChatRoom) => room.unreadCount > 0)
-            .map((room: ChatRoom) => ({
-              id: `chat-${room.id}`,
-              type: "chat" as const,
-              message: `${room.otherUser.name}님이 메시지를 보냈습니다`,
-              fromUser: {
-                id: room.otherUser.id,
-                name: room.otherUser.name,
-                avatar: room.otherUser.avatar
-              },
-              link: `/chat?room=${room.uuid}`,
-              createdAt: room.lastMessageAt,
-              isRead: false
-            }))
-
-          setNotifications(chatNotifications)
-        }
+        await api.markNotificationAsRead(notification.id)
+        setNotifications(prev =>
+          prev.map(n => n.id === notification.id ? { ...n, isRead: true } : n)
+        )
       } catch (err) {
-        console.error("알림 로드 실패:", err)
-      } finally {
-        setIsLoading(false)
+        console.error("읽음 처리 실패:", err)
       }
     }
 
-    fetchNotifications()
-  }, [user])
+    // 해당 리뷰로 이동
+    if (notification.referenceId) {
+      router.push(`/restaurant/${notification.referenceId}`)
+    }
+  }
+
+  const loadMore = () => {
+    const nextPage = page + 1
+    setPage(nextPage)
+    fetchNotifications(nextPage, true)
+  }
 
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr)
@@ -90,18 +99,19 @@ export default function NotificationsPage() {
 
   const getIcon = (type: string) => {
     switch (type) {
-      case "follow":
+      case "FOLLOW":
         return <UserPlus className="h-4 w-4 text-blue-500" />
-      case "sympathy":
+      case "SYMPATHY":
         return <Heart className="h-4 w-4 text-red-500" />
-      case "chat":
+      case "COMMENT":
+      case "REPLY":
         return <MessageCircle className="h-4 w-4 text-green-500" />
-      case "score":
-        return <Star className="h-4 w-4 text-yellow-500" />
       default:
         return <Bell className="h-4 w-4 text-gray-500" />
     }
   }
+
+  const unreadCount = notifications.filter(n => !n.isRead).length
 
   if (!user) {
     return (
@@ -130,13 +140,31 @@ export default function NotificationsPage() {
   return (
     <MobileLayout>
       <header className="sticky top-0 z-50 bg-card border-b border-border">
-        <div className="flex items-center px-4 py-3">
-          <Link href="/">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center">
+            <Link href="/">
+              <Button variant="ghost" size="icon">
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            </Link>
+            <h1 className="font-bold text-lg text-foreground ml-2">알림</h1>
+            {unreadCount > 0 && (
+              <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-primary text-primary-foreground rounded-full">
+                {unreadCount}
+              </span>
+            )}
+          </div>
+          {unreadCount > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleMarkAllAsRead}
+              className="text-xs"
+            >
+              <CheckCheck className="h-4 w-4 mr-1" />
+              모두 읽음
             </Button>
-          </Link>
-          <h1 className="font-bold text-lg text-foreground ml-2">알림</h1>
+          )}
         </div>
       </header>
 
@@ -148,18 +176,18 @@ export default function NotificationsPage() {
         ) : notifications.length > 0 ? (
           <div className="space-y-2">
             {notifications.map((notification) => (
-              <Link
+              <div
                 key={notification.id}
-                href={notification.link || "#"}
+                onClick={() => handleNotificationClick(notification)}
                 className={cn(
-                  "flex items-start gap-3 p-3 rounded-xl transition-colors",
+                  "flex items-start gap-3 p-3 rounded-xl transition-colors cursor-pointer",
                   notification.isRead ? "bg-background" : "bg-primary/5"
                 )}
               >
-                {notification.fromUser ? (
+                {notification.actor ? (
                   <Avatar className="h-10 w-10">
-                    <AvatarImage src={notification.fromUser.avatar || "/placeholder.svg"} />
-                    <AvatarFallback>{notification.fromUser.name[0]}</AvatarFallback>
+                    <AvatarImage src={notification.actor.avatar || "/placeholder.svg"} />
+                    <AvatarFallback>{notification.actor.name[0]}</AvatarFallback>
                   </Avatar>
                 ) : (
                   <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center">
@@ -175,8 +203,15 @@ export default function NotificationsPage() {
                 <div className="shrink-0">
                   {getIcon(notification.type)}
                 </div>
-              </Link>
+              </div>
             ))}
+            {hasMore && (
+              <div className="flex justify-center pt-4">
+                <Button variant="outline" onClick={loadMore}>
+                  더 보기
+                </Button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-16">

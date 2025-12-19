@@ -26,10 +26,9 @@ export function HomeHeader({ selectedRegion, onRegionChange }: HomeHeaderProps) 
         return
       }
       try {
-        const result = await api.getChatRooms()
+        const result = await api.getUnreadNotificationCount()
         if (result.success) {
-          const total = result.data.content.reduce((sum: number, room: any) => sum + room.unreadCount, 0)
-          setUnreadCount(total)
+          setUnreadCount(result.data.count)
         }
       } catch (err) {
         console.error("알림 수 로드 실패:", err)

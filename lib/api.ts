@@ -671,6 +671,27 @@ class ApiClient {
   async getCommentCount(reviewId: number) {
     return this.request<ApiResponse<number>>(`/reviews/${reviewId}/comments/count`);
   }
+
+  // Notification API
+  async getNotifications(page = 0, size = 20) {
+    return this.request<ApiResponse<PageResponse<Notification>>>(`/notifications?page=${page}&size=${size}`);
+  }
+
+  async getUnreadNotificationCount() {
+    return this.request<ApiResponse<UnreadCountResponse>>('/notifications/unread-count');
+  }
+
+  async markNotificationAsRead(notificationId: number) {
+    return this.request<ApiResponse<void>>(`/notifications/${notificationId}/read`, {
+      method: 'POST',
+    });
+  }
+
+  async markAllNotificationsAsRead() {
+    return this.request<ApiResponse<void>>('/notifications/read-all', {
+      method: 'POST',
+    });
+  }
 }
 
 // 카테고리 한글 -> Enum 변환
@@ -724,6 +745,10 @@ export interface Restaurant {
   neighborhood?: string;
   thumbnail: string;
   averageRating: number;
+  averageTasteRating?: number;
+  averagePriceRating?: number;
+  averageAtmosphereRating?: number;
+  averageServiceRating?: number;
   reviewCount: number;
   priceRange?: string;
   phone?: string;
@@ -740,6 +765,10 @@ export interface Review {
   restaurant: Restaurant;
   content: string;
   rating: number;
+  tasteRating?: number;
+  priceRating?: number;
+  atmosphereRating?: number;
+  serviceRating?: number;
   images: string[];
   menu: string;
   price: string;
@@ -754,6 +783,10 @@ export interface CreateReviewRequest {
   restaurantId: number;
   content: string;
   rating: number;
+  tasteRating?: number;
+  priceRating?: number;
+  atmosphereRating?: number;
+  serviceRating?: number;
   images?: string[];
   menu?: string;
   price?: string;
@@ -763,6 +796,10 @@ export interface CreateReviewRequest {
 export interface UpdateReviewRequest {
   content?: string;
   rating?: number;
+  tasteRating?: number;
+  priceRating?: number;
+  atmosphereRating?: number;
+  serviceRating?: number;
   images?: string[];
   menu?: string;
   price?: string;
@@ -901,6 +938,24 @@ export interface Comment {
 export interface CreateCommentRequest {
   content: string;
   parentId?: number;
+}
+
+export interface Notification {
+  id: number;
+  type: 'COMMENT' | 'REPLY' | 'SYMPATHY' | 'FOLLOW';
+  message: string;
+  referenceId: number | null;
+  actor: {
+    id: number;
+    name: string;
+    avatar: string;
+  } | null;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface UnreadCountResponse {
+  count: number;
 }
 
 export const api = new ApiClient(API_BASE_URL);

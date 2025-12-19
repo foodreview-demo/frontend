@@ -38,6 +38,16 @@ function WriteReviewContent() {
   const [searchMode, setSearchMode] = useState<"app" | "kakao">("kakao")
   const [rating, setRating] = useState(0)
   const [hoverRating, setHoverRating] = useState(0)
+  const [isRatingManual, setIsRatingManual] = useState(false) // 수동으로 종합 평점을 설정했는지
+  // 세부 별점
+  const [tasteRating, setTasteRating] = useState(0)
+  const [hoverTasteRating, setHoverTasteRating] = useState(0)
+  const [priceRating, setPriceRating] = useState(0)
+  const [hoverPriceRating, setHoverPriceRating] = useState(0)
+  const [atmosphereRating, setAtmosphereRating] = useState(0)
+  const [hoverAtmosphereRating, setHoverAtmosphereRating] = useState(0)
+  const [serviceRating, setServiceRating] = useState(0)
+  const [hoverServiceRating, setHoverServiceRating] = useState(0)
   const [content, setContent] = useState("")
   const [menu, setMenu] = useState("")
   const [price, setPrice] = useState("")
@@ -91,6 +101,17 @@ function WriteReviewContent() {
     }
     loadPreselected()
   }, [restaurantIdParam, kakaoPlaceIdParam, kakaoNameParam, kakaoAddressParam, kakaoCategoryParam, kakaoPhoneParam, kakaoXParam, kakaoYParam])
+
+  // 세부 별점 변경 시 종합 평점 자동 계산
+  useEffect(() => {
+    if (isRatingManual) return // 수동 설정 시 자동 계산 안함
+
+    const ratings = [tasteRating, priceRating, atmosphereRating, serviceRating].filter(r => r > 0)
+    if (ratings.length > 0) {
+      const avg = ratings.reduce((sum, r) => sum + r, 0) / ratings.length
+      setRating(Math.round(avg))
+    }
+  }, [tasteRating, priceRating, atmosphereRating, serviceRating, isRatingManual])
 
   // 앱 내 검색 지역 변경 핸들러
   const handleAppSearchRegionChange = (newRegion: string, newDistrict: string, newNeighborhood: string) => {
@@ -285,6 +306,10 @@ function WriteReviewContent() {
         restaurantId,
         content,
         rating,
+        tasteRating: tasteRating > 0 ? tasteRating : undefined,
+        priceRating: priceRating > 0 ? priceRating : undefined,
+        atmosphereRating: atmosphereRating > 0 ? atmosphereRating : undefined,
+        serviceRating: serviceRating > 0 ? serviceRating : undefined,
         images: images.length > 0 ? images : undefined,
         menu,
         price: price || undefined,
@@ -524,14 +549,22 @@ function WriteReviewContent() {
 
         {/* Rating */}
         <div>
-          <label className="text-sm font-medium text-foreground mb-2 block">평점 *</label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-medium text-foreground">종합 평점 *</label>
+            {!isRatingManual && rating > 0 && (
+              <span className="text-xs text-muted-foreground">세부 평점 평균으로 자동 계산됨</span>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             {[1, 2, 3, 4, 5].map((star) => (
               <button
                 key={star}
                 onMouseEnter={() => setHoverRating(star)}
                 onMouseLeave={() => setHoverRating(0)}
-                onClick={() => setRating(star)}
+                onClick={() => {
+                  setRating(star)
+                  setIsRatingManual(true)
+                }}
                 className="transition-transform hover:scale-110"
               >
                 <Star
@@ -543,6 +576,119 @@ function WriteReviewContent() {
               </button>
             ))}
             {rating > 0 && <span className="ml-2 text-lg font-semibold text-foreground">{rating}점</span>}
+            {isRatingManual && (
+              <button
+                onClick={() => setIsRatingManual(false)}
+                className="ml-2 text-xs text-primary hover:underline"
+              >
+                자동 계산
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Detail Ratings */}
+        <div className="bg-secondary/30 rounded-xl p-4 space-y-4">
+          <label className="text-sm font-medium text-foreground block">세부 평점 (선택)</label>
+
+          {/* 맛 */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground w-16">맛</span>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onMouseEnter={() => setHoverTasteRating(star)}
+                  onMouseLeave={() => setHoverTasteRating(0)}
+                  onClick={() => setTasteRating(tasteRating === star ? 0 : star)}
+                  className="transition-transform hover:scale-110"
+                >
+                  <Star
+                    className={cn(
+                      "h-5 w-5 transition-colors",
+                      star <= (hoverTasteRating || tasteRating) ? "fill-primary text-primary" : "fill-muted text-muted",
+                    )}
+                  />
+                </button>
+              ))}
+              {tasteRating > 0 && <span className="ml-2 text-sm font-medium text-foreground w-8">{tasteRating}점</span>}
+              {tasteRating === 0 && <span className="ml-2 text-sm text-muted-foreground w-8">-</span>}
+            </div>
+          </div>
+
+          {/* 가격 */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground w-16">가격</span>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onMouseEnter={() => setHoverPriceRating(star)}
+                  onMouseLeave={() => setHoverPriceRating(0)}
+                  onClick={() => setPriceRating(priceRating === star ? 0 : star)}
+                  className="transition-transform hover:scale-110"
+                >
+                  <Star
+                    className={cn(
+                      "h-5 w-5 transition-colors",
+                      star <= (hoverPriceRating || priceRating) ? "fill-primary text-primary" : "fill-muted text-muted",
+                    )}
+                  />
+                </button>
+              ))}
+              {priceRating > 0 && <span className="ml-2 text-sm font-medium text-foreground w-8">{priceRating}점</span>}
+              {priceRating === 0 && <span className="ml-2 text-sm text-muted-foreground w-8">-</span>}
+            </div>
+          </div>
+
+          {/* 분위기 */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground w-16">분위기</span>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onMouseEnter={() => setHoverAtmosphereRating(star)}
+                  onMouseLeave={() => setHoverAtmosphereRating(0)}
+                  onClick={() => setAtmosphereRating(atmosphereRating === star ? 0 : star)}
+                  className="transition-transform hover:scale-110"
+                >
+                  <Star
+                    className={cn(
+                      "h-5 w-5 transition-colors",
+                      star <= (hoverAtmosphereRating || atmosphereRating) ? "fill-primary text-primary" : "fill-muted text-muted",
+                    )}
+                  />
+                </button>
+              ))}
+              {atmosphereRating > 0 && <span className="ml-2 text-sm font-medium text-foreground w-8">{atmosphereRating}점</span>}
+              {atmosphereRating === 0 && <span className="ml-2 text-sm text-muted-foreground w-8">-</span>}
+            </div>
+          </div>
+
+          {/* 친절도 */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground w-16">친절도</span>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onMouseEnter={() => setHoverServiceRating(star)}
+                  onMouseLeave={() => setHoverServiceRating(0)}
+                  onClick={() => setServiceRating(serviceRating === star ? 0 : star)}
+                  className="transition-transform hover:scale-110"
+                >
+                  <Star
+                    className={cn(
+                      "h-5 w-5 transition-colors",
+                      star <= (hoverServiceRating || serviceRating) ? "fill-primary text-primary" : "fill-muted text-muted",
+                    )}
+                  />
+                </button>
+              ))}
+              {serviceRating > 0 && <span className="ml-2 text-sm font-medium text-foreground w-8">{serviceRating}점</span>}
+              {serviceRating === 0 && <span className="ml-2 text-sm text-muted-foreground w-8">-</span>}
+            </div>
           </div>
         </div>
 

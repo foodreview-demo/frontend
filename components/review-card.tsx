@@ -133,6 +133,40 @@ export function ReviewCard({ review }: ReviewCardProps) {
           <span className="text-sm text-muted-foreground">{review.price}</span>
         </div>
 
+        {/* Detail Ratings */}
+        {(review.tasteRating || review.priceRating || review.atmosphereRating || review.serviceRating) && (
+          <div className="flex flex-wrap gap-3 mb-3 text-xs text-muted-foreground">
+            {review.tasteRating && (
+              <span className="flex items-center gap-1">
+                <span>맛</span>
+                <Star className="h-3 w-3 fill-primary text-primary" />
+                <span className="font-medium text-foreground">{review.tasteRating}</span>
+              </span>
+            )}
+            {review.priceRating && (
+              <span className="flex items-center gap-1">
+                <span>가격</span>
+                <Star className="h-3 w-3 fill-primary text-primary" />
+                <span className="font-medium text-foreground">{review.priceRating}</span>
+              </span>
+            )}
+            {review.atmosphereRating && (
+              <span className="flex items-center gap-1">
+                <span>분위기</span>
+                <Star className="h-3 w-3 fill-primary text-primary" />
+                <span className="font-medium text-foreground">{review.atmosphereRating}</span>
+              </span>
+            )}
+            {review.serviceRating && (
+              <span className="flex items-center gap-1">
+                <span>친절</span>
+                <Star className="h-3 w-3 fill-primary text-primary" />
+                <span className="font-medium text-foreground">{review.serviceRating}</span>
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Content */}
         <p className="text-foreground leading-relaxed mb-4">{review.content}</p>
 

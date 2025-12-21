@@ -417,6 +417,10 @@ class ApiClient {
     });
   }
 
+  async getRestaurantByKakaoPlaceId(kakaoPlaceId: string) {
+    return this.request<ApiResponse<Restaurant | null>>(`/restaurants/kakao/${kakaoPlaceId}`);
+  }
+
   // Review API
   async getReviews(region?: string, category?: string, page = 0, size = 20) {
     const params = new URLSearchParams({ page: String(page), size: String(size) });
@@ -692,6 +696,11 @@ class ApiClient {
       method: 'POST',
     });
   }
+
+  // Influence API
+  async getInfluenceStats(userId: number) {
+    return this.request<ApiResponse<InfluenceStats>>(`/users/${userId}/influence`);
+  }
 }
 
 // 카테고리 한글 -> Enum 변환
@@ -759,6 +768,11 @@ export interface Restaurant {
   longitude?: number;
 }
 
+export interface ReferenceInfo {
+  reviewId: number;
+  user: User;
+}
+
 export interface Review {
   id: number;
   user: User;
@@ -777,6 +791,8 @@ export interface Review {
   sympathyCount: number;
   isFirstReview: boolean;
   hasSympathized: boolean;
+  referenceInfo?: ReferenceInfo;
+  referenceCount?: number;
 }
 
 export interface CreateReviewRequest {
@@ -791,6 +807,12 @@ export interface CreateReviewRequest {
   menu?: string;
   price?: string;
   visitDate?: string;
+  referenceReviewId?: number;
+}
+
+export interface InfluenceStats {
+  totalReferenceCount: number;
+  totalInfluencePoints: number;
 }
 
 export interface UpdateReviewRequest {

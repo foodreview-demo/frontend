@@ -57,6 +57,8 @@ export default function SearchPage() {
   const [isDragging, setIsDragging] = useState(false)
   const [locationError, setLocationError] = useState<string | null>(null)
   const [isDbLoaded, setIsDbLoaded] = useState(false)
+  const [showLocationPrompt, setShowLocationPrompt] = useState(false)
+  const [locationPermissionChecked, setLocationPermissionChecked] = useState(false)
 
   // 초기 시트 높이 설정 (화면의 45%)
   useEffect(() => {
@@ -274,25 +276,6 @@ export default function SearchPage() {
     }
   }, [isScriptLoaded, initializeMap])
 
-  // 지도와 DB 모두 로드된 후 위치 가져오기 및 주변 검색
-  useEffect(() => {
-    if (!isMapLoaded || !isDbLoaded) return
-
-    const initLocation = async () => {
-      try {
-        const pos = await getCurrentLocation()
-        searchNearbyPlaces(pos.lat, pos.lng)
-      } catch {
-        // 위치 가져오기 실패 시 서울 중심으로 검색
-        setIsLoading(false)
-        searchNearbyPlaces(37.5665, 126.9780)
-      }
-    }
-
-    initLocation()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMapLoaded, isDbLoaded])
-
   // 주변 음식점 검색 (내 주변)
   const searchNearbyPlaces = useCallback((lat: number, lng: number) => {
     const places = placesServiceRef.current
@@ -479,6 +462,81 @@ export default function SearchPage() {
       overlaysRef.current.push(overlay)
     })
   }, [])
+
+  // 위치 권한 상태 확인
+  const checkLocationPermission = useCallback(async () => {
+    // permissions API 지원 여부 확인
+    if (!navigator.permissions) {
+      // permissions API가 없으면 바로 위치 요청
+      setShowLocationPrompt(true)
+      setLocationPermissionChecked(true)
+      return
+    }
+
+    try {
+      const permission = await navigator.permissions.query({ name: 'geolocation' })
+
+      if (permission.state === 'granted') {
+        // 이미 허용됨 - 바로 위치 가져오기
+        setLocationPermissionChecked(true)
+        const pos = await getCurrentLocation()
+        searchNearbyPlaces(pos.lat, pos.lng)
+      } else if (permission.state === 'denied') {
+        // 거부됨 - 안내 메시지 표시
+        setLocationError("위치 권한이 거부되었습니다. 브라우저 설정에서 위치 권한을 허용해주세요.")
+        setLocationPermissionChecked(true)
+        setIsLoading(false)
+        searchNearbyPlaces(37.5665, 126.9780) // 서울 중심으로 검색
+      } else {
+        // prompt 상태 - 사용자에게 동의 UI 표시
+        setShowLocationPrompt(true)
+        setLocationPermissionChecked(true)
+      }
+
+      // 권한 상태 변경 감지
+      permission.addEventListener('change', () => {
+        if (permission.state === 'granted') {
+          setShowLocationPrompt(false)
+          setLocationError(null)
+        } else if (permission.state === 'denied') {
+          setShowLocationPrompt(false)
+          setLocationError("위치 권한이 거부되었습니다. 브라우저 설정에서 위치 권한을 허용해주세요.")
+        }
+      })
+    } catch {
+      // permissions API 실패 시 프롬프트 표시
+      setShowLocationPrompt(true)
+      setLocationPermissionChecked(true)
+    }
+  }, [getCurrentLocation, searchNearbyPlaces])
+
+  // 사용자가 위치 공유 동의 버튼 클릭
+  const handleLocationConsent = async () => {
+    setShowLocationPrompt(false)
+    setIsLoading(true)
+    try {
+      const pos = await getCurrentLocation()
+      searchNearbyPlaces(pos.lat, pos.lng)
+    } catch {
+      setIsLoading(false)
+      searchNearbyPlaces(37.5665, 126.9780)
+    }
+  }
+
+  // 사용자가 위치 공유 거부
+  const handleLocationDeny = () => {
+    setShowLocationPrompt(false)
+    setIsLoading(false)
+    searchNearbyPlaces(37.5665, 126.9780) // 서울 중심으로 검색
+  }
+
+  // 지도와 DB 모두 로드된 후 위치 권한 확인
+  useEffect(() => {
+    if (!isMapLoaded || !isDbLoaded || locationPermissionChecked) return
+
+    checkLocationPermission()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMapLoaded, isDbLoaded, locationPermissionChecked])
 
   const sortedRestaurants = [...nearbyRestaurants].sort((a, b) => {
     switch (sortType) {
@@ -683,6 +741,39 @@ export default function SearchPage() {
         </div>
       )}
 
+      {/* 위치 공유 동의 프롬프트 */}
+      {showLocationPrompt && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="mx-4 bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full animate-in zoom-in-95 duration-200">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center mb-4">
+                <Navigation className="h-8 w-8 text-blue-500" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">위치 정보 이용 동의</h3>
+              <p className="text-sm text-gray-600 mb-6">
+                주변 맛집을 찾기 위해 현재 위치가 필요해요.
+                <br />
+                위치 정보는 음식점 검색에만 사용됩니다.
+              </p>
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={handleLocationDeny}
+                  className="flex-1 py-3 px-4 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors"
+                >
+                  다음에 하기
+                </button>
+                <button
+                  onClick={handleLocationConsent}
+                  className="flex-1 py-3 px-4 bg-blue-500 text-white rounded-xl text-sm font-medium hover:bg-blue-600 transition-colors"
+                >
+                  위치 공유
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 위치 에러 메시지 */}
       {locationError && (
         <div className="absolute top-16 left-3 right-3 z-30">
@@ -831,6 +922,7 @@ function SelectedPlaceCard({
       kakaoPlaceId: kakaoPlace.id,
       name: kakaoPlace.name,
       address: kakaoPlace.roadAddress || kakaoPlace.address,
+      jibunAddress: kakaoPlace.address, // 지번 주소 (지역 파싱용)
       category: kakaoPlace.category,
       phone: kakaoPlace.phone || '',
       x: kakaoPlace.x,

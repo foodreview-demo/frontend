@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Heart, MessageCircle, Star, Sparkles } from "lucide-react"
+import { Heart, MessageCircle, Star, Sparkles, Users } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -168,7 +168,30 @@ export function ReviewCard({ review }: ReviewCardProps) {
         )}
 
         {/* Content */}
-        <p className="text-foreground leading-relaxed mb-4">{review.content}</p>
+        <p className="text-foreground leading-relaxed mb-3">{review.content}</p>
+
+        {/* Reference Info - 나중에 필요할 수 있어서 주석 처리 */}
+        {/* {review.referenceInfo && (
+          <Link href={`/profile/${review.referenceInfo.user.id}`}>
+            <div className="flex items-center gap-2 mb-3 p-2 bg-secondary/50 rounded-lg">
+              <Avatar className="h-5 w-5">
+                <AvatarImage src={review.referenceInfo.user.avatar} />
+                <AvatarFallback className="text-xs">{review.referenceInfo.user.name[0]}</AvatarFallback>
+              </Avatar>
+              <span className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">{review.referenceInfo.user.name}</span>님의 리뷰를 참고했어요
+              </span>
+            </div>
+          </Link>
+        )} */}
+
+        {/* Reference Count Badge */}
+        {review.referenceCount !== undefined && review.referenceCount > 0 && (
+          <div className="flex items-center gap-1 mb-3 text-xs text-muted-foreground">
+            <Users className="h-3 w-3" />
+            <span>{review.referenceCount}명이 이 리뷰를 참고했어요</span>
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex items-center gap-4">
@@ -199,7 +222,7 @@ export function ReviewCard({ review }: ReviewCardProps) {
 
         {/* Date */}
         <p className="text-xs text-muted-foreground mt-3">
-          방문일 {review.visitDate} · 작성일 {review.createdAt}
+          방문일 {review.visitDate} · 작성일 {new Date(review.createdAt).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })}
         </p>
       </div>
 

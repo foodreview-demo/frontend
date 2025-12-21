@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense, useRef, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowLeft, Camera, Star, X, Sparkles, Search, MapPin, Loader2 } from "lucide-react"
+import { ArrowLeft, Camera, Star, X, Sparkles, Search, MapPin, Loader2, Eye, Users, Navigation } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,8 +15,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { KakaoMapSearch, KakaoPlace } from "@/components/kakao-map-search"
 import { RegionSelector } from "@/components/region-selector"
 import { cn } from "@/lib/utils"
-import { api, Restaurant } from "@/lib/api"
+import { api, Restaurant, Review } from "@/lib/api"
 import { parseAddress } from "@/lib/regions"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 function WriteReviewContent() {
   const router = useRouter()
@@ -27,6 +34,7 @@ function WriteReviewContent() {
   const kakaoPlaceIdParam = searchParams.get("kakaoPlaceId")
   const kakaoNameParam = searchParams.get("name")
   const kakaoAddressParam = searchParams.get("address")
+  const kakaoJibunAddressParam = searchParams.get("jibunAddress") // 지번 주소 (지역 파싱용)
   const kakaoCategoryParam = searchParams.get("category")
   const kakaoPhoneParam = searchParams.get("phone")
   const kakaoXParam = searchParams.get("x")
@@ -38,6 +46,16 @@ function WriteReviewContent() {
   const [searchMode, setSearchMode] = useState<"app" | "kakao">("kakao")
   const [rating, setRating] = useState(0)
   const [hoverRating, setHoverRating] = useState(0)
+  const [isRatingManual, setIsRatingManual] = useState(false) // 수동으로 종합 평점을 설정했는지
+  // 세부 별점
+  const [tasteRating, setTasteRating] = useState(0)
+  const [hoverTasteRating, setHoverTasteRating] = useState(0)
+  const [priceRating, setPriceRating] = useState(0)
+  const [hoverPriceRating, setHoverPriceRating] = useState(0)
+  const [atmosphereRating, setAtmosphereRating] = useState(0)
+  const [hoverAtmosphereRating, setHoverAtmosphereRating] = useState(0)
+  const [serviceRating, setServiceRating] = useState(0)
+  const [hoverServiceRating, setHoverServiceRating] = useState(0)
   const [content, setContent] = useState("")
   const [menu, setMenu] = useState("")
   const [price, setPrice] = useState("")
@@ -58,6 +76,18 @@ function WriteReviewContent() {
   const [appRestaurants, setAppRestaurants] = useState<Restaurant[]>([])
   const [isLoadingAppRestaurants, setIsLoadingAppRestaurants] = useState(false)
 
+  // 참고 리뷰 관련 상태
+  const [existingReviews, setExistingReviews] = useState<Review[]>([])
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false)
+  const [selectedReferenceReview, setSelectedReferenceReview] = useState<Review | null>(null)
+  const [showReferenceModal, setShowReferenceModal] = useState(false)
+  const [showReviewListModal, setShowReviewListModal] = useState(false)
+  const [referenceType, setReferenceType] = useState<"none" | "passing" | "friend" | "review" | null>(null)
+  const [reviewSearchQuery, setReviewSearchQuery] = useState("")
+  const [reviewPage, setReviewPage] = useState(0)
+  const [reviewTotalPages, setReviewTotalPages] = useState(0)
+  const [reviewTotalElements, setReviewTotalElements] = useState(0)
+
   // Load preselected restaurant or kakao place
   useEffect(() => {
     const loadPreselected = async () => {
@@ -77,7 +107,7 @@ function WriteReviewContent() {
         const kakaoPlace: KakaoPlace = {
           id: kakaoPlaceIdParam,
           name: kakaoNameParam,
-          address: kakaoAddressParam,
+          address: kakaoJibunAddressParam || kakaoAddressParam, // 지번 주소 우선
           roadAddress: kakaoAddressParam,
           category: kakaoCategoryParam || '음식점',
           categoryCode: '',
@@ -87,10 +117,83 @@ function WriteReviewContent() {
           placeUrl: '',
         }
         setSelectedKakaoPlace(kakaoPlace)
+
+        // 지번 주소에서 지역 정보 파싱
+        const addressToParse = kakaoJibunAddressParam || kakaoAddressParam
+        const parsed = parseAddress(addressToParse)
+        setRegion(parsed.region)
+        setDistrict(parsed.district)
+        setNeighborhood(parsed.neighborhood)
       }
     }
     loadPreselected()
-  }, [restaurantIdParam, kakaoPlaceIdParam, kakaoNameParam, kakaoAddressParam, kakaoCategoryParam, kakaoPhoneParam, kakaoXParam, kakaoYParam])
+  }, [restaurantIdParam, kakaoPlaceIdParam, kakaoNameParam, kakaoAddressParam, kakaoJibunAddressParam, kakaoCategoryParam, kakaoPhoneParam, kakaoXParam, kakaoYParam])
+
+  // 리뷰 목록을 가져올 음식점 ID (DB에 등록된 경우)
+  const [existingRestaurantId, setExistingRestaurantId] = useState<number | null>(null)
+
+  // 음식점 선택 시 기존 리뷰 목록 로드
+  useEffect(() => {
+    const loadExistingReviews = async () => {
+      if (!selectedRestaurant) {
+        if (!existingRestaurantId) {
+          setExistingReviews([])
+          setReviewTotalPages(0)
+          setReviewTotalElements(0)
+        }
+        return
+      }
+
+      setExistingRestaurantId(selectedRestaurant.id)
+      setIsLoadingReviews(true)
+      try {
+        const result = await api.getRestaurantReviews(selectedRestaurant.id, 0, 10)
+        if (result.success) {
+          setExistingReviews(result.data.content)
+          setReviewTotalPages(result.data.totalPages)
+          setReviewTotalElements(result.data.totalElements)
+        }
+      } catch (err) {
+        console.error("기존 리뷰 로드 실패:", err)
+      } finally {
+        setIsLoadingReviews(false)
+      }
+    }
+
+    loadExistingReviews()
+  }, [selectedRestaurant, existingRestaurantId])
+
+  // 리뷰 목록 로드 함수 (페이지네이션용)
+  const loadReviews = useCallback(async (page: number) => {
+    const restaurantId = selectedRestaurant?.id || existingRestaurantId
+    if (!restaurantId) return
+
+    setIsLoadingReviews(true)
+    try {
+      const result = await api.getRestaurantReviews(restaurantId, page, 10)
+      if (result.success) {
+        setExistingReviews(result.data.content)
+        setReviewPage(page)
+        setReviewTotalPages(result.data.totalPages)
+        setReviewTotalElements(result.data.totalElements)
+      }
+    } catch (err) {
+      console.error("리뷰 로드 실패:", err)
+    } finally {
+      setIsLoadingReviews(false)
+    }
+  }, [selectedRestaurant, existingRestaurantId])
+
+  // 세부 별점 변경 시 종합 평점 자동 계산
+  useEffect(() => {
+    if (isRatingManual) return // 수동 설정 시 자동 계산 안함
+
+    const ratings = [tasteRating, priceRating, atmosphereRating, serviceRating].filter(r => r > 0)
+    if (ratings.length > 0) {
+      const avg = ratings.reduce((sum, r) => sum + r, 0) / ratings.length
+      setRating(Math.round(avg))
+    }
+  }, [tasteRating, priceRating, atmosphereRating, serviceRating, isRatingManual])
 
   // 앱 내 검색 지역 변경 핸들러
   const handleAppSearchRegionChange = (newRegion: string, newDistrict: string, newNeighborhood: string) => {
@@ -145,15 +248,38 @@ function WriteReviewContent() {
   const hasSelectedPlace = selectedRestaurant || selectedKakaoPlace
 
   // 카카오 장소 선택 핸들러
-  const handleKakaoPlaceSelect = (place: KakaoPlace) => {
+  const handleKakaoPlaceSelect = async (place: KakaoPlace) => {
     setSelectedKakaoPlace(place)
     setSelectedRestaurant(null)
+    setExistingReviews([])
+    setSelectedReferenceReview(null)
+    setExistingRestaurantId(null)
+    setReviewPage(0)
+    setReviewTotalPages(0)
+    setReviewTotalElements(0)
 
     // 주소에서 지역 정보 파싱 (지번 주소 사용 - 동 정보 포함)
     const parsed = parseAddress(place.address)
     setRegion(parsed.region)
     setDistrict(parsed.district)
     setNeighborhood(parsed.neighborhood)
+
+    // 카카오 Place ID로 기존 등록된 음식점인지 확인하고 리뷰 로드
+    try {
+      const result = await api.getRestaurantByKakaoPlaceId(place.id)
+      if (result.success && result.data) {
+        // 기존 등록된 음식점이면 ID 저장 및 리뷰 로드
+        setExistingRestaurantId(result.data.id)
+        const reviewsResult = await api.getRestaurantReviews(result.data.id, 0, 10)
+        if (reviewsResult.success) {
+          setExistingReviews(reviewsResult.data.content)
+          setReviewTotalPages(reviewsResult.data.totalPages)
+          setReviewTotalElements(reviewsResult.data.totalElements)
+        }
+      }
+    } catch (err) {
+      console.error("기존 음식점 조회 실패:", err)
+    }
   }
 
   // 지역 변경 핸들러
@@ -170,6 +296,14 @@ function WriteReviewContent() {
     setRegion("")
     setDistrict("")
     setNeighborhood("")
+    setSelectedReferenceReview(null)
+    setExistingReviews([])
+    setReferenceType(null)
+    setExistingRestaurantId(null)
+    setReviewPage(0)
+    setReviewTotalPages(0)
+    setReviewTotalElements(0)
+    setReviewSearchQuery("")
   }
 
   const handleImageButtonClick = () => {
@@ -285,9 +419,14 @@ function WriteReviewContent() {
         restaurantId,
         content,
         rating,
+        tasteRating: tasteRating > 0 ? tasteRating : undefined,
+        priceRating: priceRating > 0 ? priceRating : undefined,
+        atmosphereRating: atmosphereRating > 0 ? atmosphereRating : undefined,
+        serviceRating: serviceRating > 0 ? serviceRating : undefined,
         images: images.length > 0 ? images : undefined,
         menu,
         price: price || undefined,
+        referenceReviewId: selectedReferenceReview?.id,
       })
 
       if (!reviewResult.success) {
@@ -296,7 +435,7 @@ function WriteReviewContent() {
 
       const isFirst = reviewResult.data.isFirstReview
       alert(isFirst ? "첫 리뷰 작성 완료! 맛잘알 점수가 2배로 적용됩니다!" : "리뷰가 등록되었습니다!")
-      router.push("/")
+      router.push("/?refresh=true")
     } catch (error) {
       console.error("리뷰 작성 실패:", error)
       alert(error instanceof Error ? error.message : "리뷰 작성에 실패했습니다")
@@ -524,14 +663,22 @@ function WriteReviewContent() {
 
         {/* Rating */}
         <div>
-          <label className="text-sm font-medium text-foreground mb-2 block">평점 *</label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-medium text-foreground">종합 평점 *</label>
+            {!isRatingManual && rating > 0 && (
+              <span className="text-xs text-muted-foreground">세부 평점 평균으로 자동 계산됨</span>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             {[1, 2, 3, 4, 5].map((star) => (
               <button
                 key={star}
                 onMouseEnter={() => setHoverRating(star)}
                 onMouseLeave={() => setHoverRating(0)}
-                onClick={() => setRating(star)}
+                onClick={() => {
+                  setRating(star)
+                  setIsRatingManual(true)
+                }}
                 className="transition-transform hover:scale-110"
               >
                 <Star
@@ -543,6 +690,119 @@ function WriteReviewContent() {
               </button>
             ))}
             {rating > 0 && <span className="ml-2 text-lg font-semibold text-foreground">{rating}점</span>}
+            {isRatingManual && (
+              <button
+                onClick={() => setIsRatingManual(false)}
+                className="ml-2 text-xs text-primary hover:underline"
+              >
+                자동 계산
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Detail Ratings */}
+        <div className="bg-secondary/30 rounded-xl p-4 space-y-4">
+          <label className="text-sm font-medium text-foreground block">세부 평점 (선택)</label>
+
+          {/* 맛 */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground w-16">맛</span>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onMouseEnter={() => setHoverTasteRating(star)}
+                  onMouseLeave={() => setHoverTasteRating(0)}
+                  onClick={() => setTasteRating(tasteRating === star ? 0 : star)}
+                  className="transition-transform hover:scale-110"
+                >
+                  <Star
+                    className={cn(
+                      "h-5 w-5 transition-colors",
+                      star <= (hoverTasteRating || tasteRating) ? "fill-primary text-primary" : "fill-muted text-muted",
+                    )}
+                  />
+                </button>
+              ))}
+              {tasteRating > 0 && <span className="ml-2 text-sm font-medium text-foreground w-8">{tasteRating}점</span>}
+              {tasteRating === 0 && <span className="ml-2 text-sm text-muted-foreground w-8">-</span>}
+            </div>
+          </div>
+
+          {/* 가격 */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground w-16">가격</span>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onMouseEnter={() => setHoverPriceRating(star)}
+                  onMouseLeave={() => setHoverPriceRating(0)}
+                  onClick={() => setPriceRating(priceRating === star ? 0 : star)}
+                  className="transition-transform hover:scale-110"
+                >
+                  <Star
+                    className={cn(
+                      "h-5 w-5 transition-colors",
+                      star <= (hoverPriceRating || priceRating) ? "fill-primary text-primary" : "fill-muted text-muted",
+                    )}
+                  />
+                </button>
+              ))}
+              {priceRating > 0 && <span className="ml-2 text-sm font-medium text-foreground w-8">{priceRating}점</span>}
+              {priceRating === 0 && <span className="ml-2 text-sm text-muted-foreground w-8">-</span>}
+            </div>
+          </div>
+
+          {/* 분위기 */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground w-16">분위기</span>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onMouseEnter={() => setHoverAtmosphereRating(star)}
+                  onMouseLeave={() => setHoverAtmosphereRating(0)}
+                  onClick={() => setAtmosphereRating(atmosphereRating === star ? 0 : star)}
+                  className="transition-transform hover:scale-110"
+                >
+                  <Star
+                    className={cn(
+                      "h-5 w-5 transition-colors",
+                      star <= (hoverAtmosphereRating || atmosphereRating) ? "fill-primary text-primary" : "fill-muted text-muted",
+                    )}
+                  />
+                </button>
+              ))}
+              {atmosphereRating > 0 && <span className="ml-2 text-sm font-medium text-foreground w-8">{atmosphereRating}점</span>}
+              {atmosphereRating === 0 && <span className="ml-2 text-sm text-muted-foreground w-8">-</span>}
+            </div>
+          </div>
+
+          {/* 친절도 */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground w-16">친절도</span>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onMouseEnter={() => setHoverServiceRating(star)}
+                  onMouseLeave={() => setHoverServiceRating(0)}
+                  onClick={() => setServiceRating(serviceRating === star ? 0 : star)}
+                  className="transition-transform hover:scale-110"
+                >
+                  <Star
+                    className={cn(
+                      "h-5 w-5 transition-colors",
+                      star <= (hoverServiceRating || serviceRating) ? "fill-primary text-primary" : "fill-muted text-muted",
+                    )}
+                  />
+                </button>
+              ))}
+              {serviceRating > 0 && <span className="ml-2 text-sm font-medium text-foreground w-8">{serviceRating}점</span>}
+              {serviceRating === 0 && <span className="ml-2 text-sm text-muted-foreground w-8">-</span>}
+            </div>
           </div>
         </div>
 
@@ -619,6 +879,264 @@ function WriteReviewContent() {
           <p className="text-xs text-muted-foreground mt-1">{content.length}/500자</p>
         </div>
 
+        {/* Reference Review Selection */}
+        <div>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              이 음식점을 어떻게 알게 됐나요? (선택)
+            </label>
+            {referenceType ? (
+              <Card className="p-3 border border-primary/30 bg-primary/5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {referenceType === "passing" && (
+                      <>
+                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                          <Navigation className="h-5 w-5 text-primary" />
+                        </div>
+                        <p className="text-sm font-medium text-foreground">지나가다 발견했어요</p>
+                      </>
+                    )}
+                    {referenceType === "friend" && (
+                      <>
+                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                          <Users className="h-5 w-5 text-primary" />
+                        </div>
+                        <p className="text-sm font-medium text-foreground">지인에게 소개받았어요</p>
+                      </>
+                    )}
+                    {referenceType === "review" && selectedReferenceReview && (
+                      <>
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={selectedReferenceReview.user.avatar} />
+                          <AvatarFallback>{selectedReferenceReview.user.name[0]}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="text-sm font-medium text-foreground">
+                            {selectedReferenceReview.user.name}님의 리뷰를 참고했어요
+                          </p>
+                          <p className="text-xs text-muted-foreground line-clamp-1">
+                            "{selectedReferenceReview.content}"
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setReferenceType(null)
+                      setSelectedReferenceReview(null)
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </Card>
+            ) : (
+              <Button
+                variant="outline"
+                className="w-full justify-start text-muted-foreground"
+                onClick={() => setShowReferenceModal(true)}
+              >
+                선택하기
+              </Button>
+            )}
+            {referenceType === "review" && (
+              <p className="text-xs text-muted-foreground mt-2">
+                참고한 리뷰 작성자에게 영향력 포인트가 지급됩니다
+              </p>
+            )}
+        </div>
+
+        {/* Reference Selection Modal */}
+        <Dialog open={showReferenceModal} onOpenChange={setShowReferenceModal}>
+          <DialogContent className="max-w-sm mx-auto">
+            <DialogHeader>
+              <DialogTitle>이 음식점을 어떻게 알게 됐나요?</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2 mt-2">
+              {/* 지나가다 발견 */}
+              <button
+                className="w-full p-4 flex items-center gap-4 rounded-xl border border-border hover:bg-secondary transition-colors text-left"
+                onClick={() => {
+                  setReferenceType("passing")
+                  setSelectedReferenceReview(null)
+                  setShowReferenceModal(false)
+                }}
+              >
+                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Navigation className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">지나가다 발견했어요</p>
+                  <p className="text-sm text-muted-foreground">우연히 가게를 발견해서 방문했어요</p>
+                </div>
+              </button>
+
+              {/* 지인 소개 */}
+              <button
+                className="w-full p-4 flex items-center gap-4 rounded-xl border border-border hover:bg-secondary transition-colors text-left"
+                onClick={() => {
+                  setReferenceType("friend")
+                  setSelectedReferenceReview(null)
+                  setShowReferenceModal(false)
+                }}
+              >
+                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Users className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">지인에게 소개받았어요</p>
+                  <p className="text-sm text-muted-foreground">친구나 가족이 추천해줬어요</p>
+                </div>
+              </button>
+
+              {/* 다른 리뷰 참고 */}
+              {reviewTotalElements > 0 ? (
+                <button
+                  className="w-full p-4 flex items-center gap-4 rounded-xl border border-border hover:bg-secondary transition-colors text-left"
+                  onClick={() => {
+                    setShowReferenceModal(false)
+                    setShowReviewListModal(true)
+                    setReviewSearchQuery("")
+                    setReviewPage(0)
+                    loadReviews(0)
+                  }}
+                >
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Eye className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-foreground">다른 사람의 리뷰를 봤어요</p>
+                    <p className="text-sm text-muted-foreground">{reviewTotalElements}개의 리뷰에서 선택</p>
+                  </div>
+                </button>
+              ) : (
+                <div className="p-4 flex items-center gap-4 rounded-xl border border-border bg-muted/30">
+                  <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                    <Eye className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-muted-foreground">다른 사람의 리뷰를 봤어요</p>
+                    <p className="text-sm text-muted-foreground">아직 등록된 리뷰가 없어요</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Review List Modal */}
+        <Dialog open={showReviewListModal} onOpenChange={setShowReviewListModal}>
+          <DialogContent className="max-w-md mx-auto max-h-[80vh] flex flex-col">
+            <DialogHeader>
+              <DialogTitle>참고한 리뷰 선택</DialogTitle>
+            </DialogHeader>
+
+            {/* 검색 */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="닉네임으로 검색"
+                value={reviewSearchQuery}
+                onChange={(e) => setReviewSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            {/* 리뷰 목록 */}
+            <div className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6">
+              {isLoadingReviews ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {existingReviews
+                    .filter(review =>
+                      !reviewSearchQuery ||
+                      review.user.name.toLowerCase().includes(reviewSearchQuery.toLowerCase())
+                    )
+                    .map((review) => (
+                      <button
+                        key={review.id}
+                        className="w-full p-3 flex items-start gap-3 rounded-xl border border-border hover:bg-secondary transition-colors text-left"
+                        onClick={() => {
+                          setReferenceType("review")
+                          setSelectedReferenceReview(review)
+                          setShowReviewListModal(false)
+                        }}
+                      >
+                        <Avatar className="h-10 w-10 flex-shrink-0">
+                          <AvatarImage src={review.user.avatar} />
+                          <AvatarFallback>{review.user.name[0]}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-foreground">
+                              {review.user.name}
+                            </span>
+                            <div className="flex items-center">
+                              <Star className="h-3.5 w-3.5 fill-primary text-primary" />
+                              <span className="text-sm text-muted-foreground ml-0.5">
+                                {review.rating}
+                              </span>
+                            </div>
+                            {review.isFirstReview && (
+                              <Badge className="text-[10px] px-1.5 py-0.5 bg-primary/20 text-primary">
+                                첫 리뷰
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                            {review.content}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {new Date(review.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  {existingReviews.filter(review =>
+                    !reviewSearchQuery ||
+                    review.user.name.toLowerCase().includes(reviewSearchQuery.toLowerCase())
+                  ).length === 0 && (
+                    <p className="text-center text-muted-foreground py-8">
+                      {reviewSearchQuery ? "검색 결과가 없습니다" : "리뷰가 없습니다"}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 페이지네이션 */}
+            {reviewTotalPages > 1 && (
+              <div className="flex items-center justify-between pt-4 border-t border-border">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={reviewPage === 0 || isLoadingReviews}
+                  onClick={() => loadReviews(reviewPage - 1)}
+                >
+                  이전
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  {reviewPage + 1} / {reviewTotalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={reviewPage >= reviewTotalPages - 1 || isLoadingReviews}
+                  onClick={() => loadReviews(reviewPage + 1)}
+                >
+                  다음
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
         {/* Guidelines */}
         <div className="bg-secondary/50 rounded-xl p-4">
           <h4 className="font-medium text-foreground mb-2 text-sm">리뷰 작성 가이드</h4>
@@ -627,6 +1145,7 @@ function WriteReviewContent() {
             <li>• 광고성 리뷰나 허위 리뷰는 삭제될 수 있습니다</li>
             <li>• 첫 리뷰 작성 시 맛잘알 점수가 2배로 적용됩니다</li>
             <li>• 공감을 많이 받을수록 맛잘알 점수가 올라갑니다</li>
+            <li>• 다른 리뷰를 참고했다면 선택해주세요 - 리뷰어에게 보상이 갑니다</li>
           </ul>
         </div>
       </div>

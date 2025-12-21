@@ -417,6 +417,10 @@ class ApiClient {
     });
   }
 
+  async getRestaurantByKakaoPlaceId(kakaoPlaceId: string) {
+    return this.request<ApiResponse<Restaurant | null>>(`/restaurants/kakao/${kakaoPlaceId}`);
+  }
+
   // Review API
   async getReviews(region?: string, category?: string, page = 0, size = 20) {
     const params = new URLSearchParams({ page: String(page), size: String(size) });
@@ -638,6 +642,65 @@ class ApiClient {
   async getRestaurantSaveStatus(restaurantId: number) {
     return this.request<ApiResponse<SaveStatusResponse>>(`/playlists/restaurant/${restaurantId}/status`);
   }
+
+  // Comment API
+  async getComments(reviewId: number, page = 0, size = 20) {
+    return this.request<ApiResponse<PageResponse<Comment>>>(`/reviews/${reviewId}/comments?page=${page}&size=${size}`);
+  }
+
+  async getReplies(commentId: number, page = 0, size = 20) {
+    return this.request<ApiResponse<PageResponse<Comment>>>(`/comments/${commentId}/replies?page=${page}&size=${size}`);
+  }
+
+  async createComment(reviewId: number, data: CreateCommentRequest) {
+    return this.request<ApiResponse<Comment>>(`/reviews/${reviewId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateComment(commentId: number, content: string) {
+    return this.request<ApiResponse<Comment>>(`/comments/${commentId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ content }),
+    });
+  }
+
+  async deleteComment(commentId: number) {
+    return this.request<ApiResponse<void>>(`/comments/${commentId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getCommentCount(reviewId: number) {
+    return this.request<ApiResponse<number>>(`/reviews/${reviewId}/comments/count`);
+  }
+
+  // Notification API
+  async getNotifications(page = 0, size = 20) {
+    return this.request<ApiResponse<PageResponse<Notification>>>(`/notifications?page=${page}&size=${size}`);
+  }
+
+  async getUnreadNotificationCount() {
+    return this.request<ApiResponse<UnreadCountResponse>>('/notifications/unread-count');
+  }
+
+  async markNotificationAsRead(notificationId: number) {
+    return this.request<ApiResponse<void>>(`/notifications/${notificationId}/read`, {
+      method: 'POST',
+    });
+  }
+
+  async markAllNotificationsAsRead() {
+    return this.request<ApiResponse<void>>('/notifications/read-all', {
+      method: 'POST',
+    });
+  }
+
+  // Influence API
+  async getInfluenceStats(userId: number) {
+    return this.request<ApiResponse<InfluenceStats>>(`/users/${userId}/influence`);
+  }
 }
 
 // 카테고리 한글 -> Enum 변환
@@ -691,6 +754,10 @@ export interface Restaurant {
   neighborhood?: string;
   thumbnail: string;
   averageRating: number;
+  averageTasteRating?: number;
+  averagePriceRating?: number;
+  averageAtmosphereRating?: number;
+  averageServiceRating?: number;
   reviewCount: number;
   priceRange?: string;
   phone?: string;
@@ -701,12 +768,21 @@ export interface Restaurant {
   longitude?: number;
 }
 
+export interface ReferenceInfo {
+  reviewId: number;
+  user: User;
+}
+
 export interface Review {
   id: number;
   user: User;
   restaurant: Restaurant;
   content: string;
   rating: number;
+  tasteRating?: number;
+  priceRating?: number;
+  atmosphereRating?: number;
+  serviceRating?: number;
   images: string[];
   menu: string;
   price: string;
@@ -715,21 +791,37 @@ export interface Review {
   sympathyCount: number;
   isFirstReview: boolean;
   hasSympathized: boolean;
+  referenceInfo?: ReferenceInfo;
+  referenceCount?: number;
 }
 
 export interface CreateReviewRequest {
   restaurantId: number;
   content: string;
   rating: number;
+  tasteRating?: number;
+  priceRating?: number;
+  atmosphereRating?: number;
+  serviceRating?: number;
   images?: string[];
   menu?: string;
   price?: string;
   visitDate?: string;
+  referenceReviewId?: number;
+}
+
+export interface InfluenceStats {
+  totalReferenceCount: number;
+  totalInfluencePoints: number;
 }
 
 export interface UpdateReviewRequest {
   content?: string;
   rating?: number;
+  tasteRating?: number;
+  priceRating?: number;
+  atmosphereRating?: number;
+  serviceRating?: number;
   images?: string[];
   menu?: string;
   price?: string;
@@ -843,6 +935,49 @@ export interface SaveStatusResponse {
   restaurantId: number;
   savedPlaylistIds: number[];
   isSaved: boolean;
+}
+
+export interface Comment {
+  id: number;
+  reviewId: number;
+  user: {
+    id: number;
+    name: string;
+    avatar: string;
+    region: string;
+    tasteScore: number;
+    tasteGrade: string;
+  };
+  content: string;
+  parentId: number | null;
+  replyCount: number;
+  createdAt: string;
+  updatedAt: string;
+  isMine: boolean;
+  isDeleted: boolean;
+}
+
+export interface CreateCommentRequest {
+  content: string;
+  parentId?: number;
+}
+
+export interface Notification {
+  id: number;
+  type: 'COMMENT' | 'REPLY' | 'SYMPATHY' | 'FOLLOW';
+  message: string;
+  referenceId: number | null;
+  actor: {
+    id: number;
+    name: string;
+    avatar: string;
+  } | null;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface UnreadCountResponse {
+  count: number;
 }
 
 export const api = new ApiClient(API_BASE_URL);

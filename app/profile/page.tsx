@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Settings, MapPin, Edit2, ChevronRight, Loader2, ListMusic } from "lucide-react"
+import { Settings, MapPin, Edit2, ChevronRight, Loader2, ListMusic, Users } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { TasteScoreCard } from "@/components/taste-score-card"
 import { ScoreHistory } from "@/components/score-history"
@@ -13,13 +13,14 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { useAuth } from "@/lib/auth-context"
-import { api, Review, User } from "@/lib/api"
+import { api, Review, User, InfluenceStats } from "@/lib/api"
 
 export default function ProfilePage() {
   const { user: currentUser } = useAuth()
   const [activeTab, setActiveTab] = useState("reviews")
   const [reviews, setReviews] = useState<Review[]>([])
   const [followingCount, setFollowingCount] = useState(0)
+  const [influenceStats, setInfluenceStats] = useState<InfluenceStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -27,9 +28,10 @@ export default function ProfilePage() {
       if (!currentUser) return
       setIsLoading(true)
       try {
-        const [reviewsResult, followingsResult] = await Promise.all([
+        const [reviewsResult, followingsResult, influenceResult] = await Promise.all([
           api.getUserReviews(currentUser.id),
           api.getFollowings(currentUser.id),
+          api.getInfluenceStats(currentUser.id),
         ])
 
         if (reviewsResult.success) {
@@ -37,6 +39,9 @@ export default function ProfilePage() {
         }
         if (followingsResult.success) {
           setFollowingCount(followingsResult.data.totalElements)
+        }
+        if (influenceResult.success) {
+          setInfluenceStats(influenceResult.data)
         }
       } catch (err) {
         console.error("프로필 데이터 로드 실패:", err)
@@ -106,11 +111,11 @@ export default function ProfilePage() {
         <TasteScoreCard user={currentUser} />
 
         {/* Quick Links */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-4 gap-2">
           <Link href="/ranking">
             <Card className="p-3 hover:bg-secondary/50 transition-colors border border-border">
               <div className="flex flex-col items-center text-center">
-                <p className="text-xs text-muted-foreground mb-1">지역 랭킹</p>
+                <p className="text-xs text-muted-foreground mb-1">랭킹</p>
                 <p className="text-lg font-bold text-primary">#{currentUser.rank || '-'}</p>
               </div>
             </Card>
@@ -119,19 +124,44 @@ export default function ProfilePage() {
             <Card className="p-3 hover:bg-secondary/50 transition-colors border border-border">
               <div className="flex flex-col items-center text-center">
                 <p className="text-xs text-muted-foreground mb-1">친구</p>
-                <p className="text-lg font-bold text-primary">{followingCount}명</p>
+                <p className="text-lg font-bold text-primary">{followingCount}</p>
               </div>
             </Card>
           </Link>
+          <Card className="p-3 border border-border">
+            <div className="flex flex-col items-center text-center">
+              <p className="text-xs text-muted-foreground mb-1">영향력</p>
+              <p className="text-lg font-bold text-primary">{influenceStats?.totalReferenceCount || 0}</p>
+            </div>
+          </Card>
           <Link href="/playlists">
             <Card className="p-3 hover:bg-secondary/50 transition-colors border border-border">
               <div className="flex flex-col items-center text-center">
-                <p className="text-xs text-muted-foreground mb-1">내 리스트</p>
+                <p className="text-xs text-muted-foreground mb-1">리스트</p>
                 <ListMusic className="h-5 w-5 text-primary mt-1" />
               </div>
             </Card>
           </Link>
         </div>
+
+        {/* Influence Stats */}
+        {influenceStats && influenceStats.totalReferenceCount > 0 && (
+          <Card className="p-4 border border-primary/30 bg-primary/5">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
+                <Users className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {influenceStats.totalReferenceCount}명이 내 리뷰를 참고했어요
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  영향력 포인트 +{influenceStats.totalInfluencePoints}점 획득
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>

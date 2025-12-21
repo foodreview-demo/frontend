@@ -45,6 +45,7 @@ function groupMessagesByDate(messages: ChatMessage[]) {
       month: "long",
       day: "numeric",
       weekday: "long",
+      timeZone: "Asia/Seoul",
     })
 
     if (messageDate !== currentDate) {
@@ -268,6 +269,7 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
       hour: "2-digit",
       minute: "2-digit",
       hour12: true,
+      timeZone: "Asia/Seoul",
     })
   }
 

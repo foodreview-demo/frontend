@@ -29,23 +29,15 @@ import { useAuth } from "@/lib/auth-context"
 import { useNotificationSocket, NewMessageNotification } from "@/lib/use-notification-socket"
 import { requestNotificationPermission, showBrowserNotification } from "@/lib/browser-notification"
 import { cn } from "@/lib/utils"
-
-function getTasteLevel(score: number): { label: string; color: string } {
-  if (score >= 2000) return { label: "마스터", color: "bg-primary text-primary-foreground" }
-  if (score >= 1500) return { label: "전문가", color: "bg-accent text-accent-foreground" }
-  if (score >= 1000) return { label: "미식가", color: "bg-secondary text-secondary-foreground" }
-  if (score >= 500) return { label: "탐험가", color: "bg-muted text-muted-foreground" }
-  return { label: "입문자", color: "bg-muted text-muted-foreground" }
-}
+import { getTasteLevel } from "@/lib/constants"
 
 function formatChatTime(dateStr: string): string {
   const date = new Date(dateStr)
   const now = new Date()
-  const diff = now.getTime() - date.getTime()
   const oneDay = 24 * 60 * 60 * 1000
 
   if (date.toDateString() === now.toDateString()) {
-    return date.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: true })
+    return date.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Seoul" })
   }
   if (new Date(now.getTime() - oneDay).toDateString() === date.toDateString()) {
     return "어제"

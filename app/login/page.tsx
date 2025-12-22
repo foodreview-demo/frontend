@@ -3,12 +3,10 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import Image from "next/image"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Loader2, ArrowLeft, Eye, EyeOff } from "lucide-react"
+import { Loader2, Eye, EyeOff, Mail, Lock } from "lucide-react"
 
 const KAKAO_CLIENT_ID = process.env.NEXT_PUBLIC_KAKAO_CLIENT_ID
 const KAKAO_REDIRECT_URI = process.env.NEXT_PUBLIC_KAKAO_REDIRECT_URI || 'http://localhost:3000/oauth/kakao/callback'
@@ -21,6 +19,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [focusedField, setFocusedField] = useState<string | null>(null)
 
   const handleKakaoLogin = () => {
     const kakaoAuthUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${KAKAO_CLIENT_ID}&redirect_uri=${encodeURIComponent(KAKAO_REDIRECT_URI)}&response_type=code`
@@ -43,127 +42,140 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
-      {/* Header */}
-      <header className="flex items-center px-4 py-3">
-        <button onClick={() => router.back()} className="p-2 -ml-2 hover:bg-secondary rounded-full transition-colors">
-          <ArrowLeft className="h-5 w-5 text-foreground" />
-        </button>
-      </header>
+    <div className="min-h-screen bg-gradient-to-b from-background via-background to-secondary/20 flex flex-col">
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 max-w-md mx-auto w-full">
 
-      <div className="flex-1 flex flex-col px-6 pt-8 pb-12">
-        {/* Logo & Title */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-primary rounded-3xl mb-6 shadow-lg shadow-primary/25">
-            <span className="text-4xl">🍽️</span>
+        {/* Logo & Branding */}
+        <div className="text-center mb-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="relative inline-block mb-6">
+            <div className="w-24 h-24 bg-gradient-to-br from-primary to-primary/80 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-primary/30 transform hover:scale-105 transition-transform duration-300">
+              <span className="text-5xl">🍽️</span>
+            </div>
+            <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center border-4 border-background">
+              <span className="text-xs">✓</span>
+            </div>
           </div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">맛잘알</h1>
-          <p className="text-muted-foreground">진짜 맛집을 아는 사람들</p>
+          <h1 className="text-4xl font-bold text-foreground tracking-tight">맛잘알</h1>
+          <p className="text-muted-foreground mt-2 text-lg">진짜 맛집을 아는 사람들</p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {error && (
-            <div className="p-4 text-sm text-red-600 bg-red-50 rounded-xl border border-red-100">
-              {error}
+        {/* Form Card */}
+        <div className="w-full animate-in fade-in slide-in-from-bottom-6 duration-700 delay-150">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="p-4 text-sm text-red-600 bg-red-50 dark:bg-red-950/50 rounded-2xl border border-red-100 dark:border-red-900 animate-in fade-in slide-in-from-top-2 duration-300">
+                {error}
+              </div>
+            )}
+
+            {/* Email Input */}
+            <div className={`relative transition-all duration-300 ${focusedField === 'email' ? 'scale-[1.02]' : ''}`}>
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
+                <Mail className="h-5 w-5" />
+              </div>
+              <Input
+                id="email"
+                type="email"
+                placeholder="이메일"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onFocus={() => setFocusedField('email')}
+                onBlur={() => setFocusedField(null)}
+                required
+                className="h-14 pl-12 pr-4 rounded-2xl bg-secondary/50 border-2 border-transparent focus:border-primary focus:bg-background transition-all duration-300 text-base"
+              />
             </div>
-          )}
 
-          <div className="space-y-2">
-            <Label htmlFor="email" className="text-sm font-medium text-foreground">이메일</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="email@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="h-12 px-4 rounded-xl bg-secondary/50 border-0 focus:bg-background focus:ring-2 focus:ring-primary"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="password" className="text-sm font-medium text-foreground">비밀번호</Label>
-            <div className="relative">
+            {/* Password Input */}
+            <div className={`relative transition-all duration-300 ${focusedField === 'password' ? 'scale-[1.02]' : ''}`}>
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
+                <Lock className="h-5 w-5" />
+              </div>
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
-                placeholder="비밀번호를 입력하세요"
+                placeholder="비밀번호"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onFocus={() => setFocusedField('password')}
+                onBlur={() => setFocusedField(null)}
                 required
-                className="h-12 px-4 pr-12 rounded-xl bg-secondary/50 border-0 focus:bg-background focus:ring-2 focus:ring-primary"
+                className="h-14 pl-12 pr-14 rounded-2xl bg-secondary/50 border-2 border-transparent focus:border-primary focus:bg-background transition-all duration-300 text-base"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
               >
                 {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
             </div>
-          </div>
 
-          <Button
-            type="submit"
-            className="w-full h-12 rounded-xl text-base font-semibold bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25"
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                로그인 중...
-              </>
-            ) : (
-              "로그인"
-            )}
-          </Button>
+            {/* Login Button */}
+            <Button
+              type="submit"
+              className="w-full h-14 rounded-2xl text-base font-semibold bg-primary hover:bg-primary/90 shadow-xl shadow-primary/25 transition-all duration-300 hover:shadow-2xl hover:shadow-primary/30 hover:-translate-y-0.5"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                "로그인"
+              )}
+            </Button>
+          </form>
 
           {/* Divider */}
-          <div className="relative my-2">
+          <div className="relative my-8">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-border" />
             </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="px-3 bg-background text-muted-foreground">또는</span>
+            <div className="relative flex justify-center">
+              <span className="px-4 bg-gradient-to-b from-background to-secondary/20 text-sm text-muted-foreground">
+                간편 로그인
+              </span>
             </div>
           </div>
 
-          {/* Kakao Login */}
+          {/* Social Login */}
           <button
             type="button"
             onClick={handleKakaoLogin}
-            className="w-full h-12 rounded-xl text-base font-semibold flex items-center justify-center gap-2 transition-colors"
+            className="w-full h-14 rounded-2xl text-base font-semibold flex items-center justify-center gap-3 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]"
             style={{ backgroundColor: '#FEE500', color: '#000000' }}
           >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg width="22" height="22" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path fillRule="evenodd" clipRule="evenodd" d="M10 2C5.029 2 1 5.129 1 8.989C1 11.389 2.558 13.505 4.932 14.764L3.933 18.256C3.845 18.561 4.213 18.806 4.477 18.62L8.601 15.898C9.057 15.952 9.523 15.98 10 15.98C14.971 15.98 19 12.851 19 8.991C19 5.131 14.971 2.002 10 2.002V2Z" fill="black"/>
             </svg>
-            카카오 로그인
+            카카오로 시작하기
           </button>
-        </form>
+        </div>
 
-        {/* Footer */}
-        <div className="mt-auto pt-8 space-y-6">
-          <div className="text-center">
-            <span className="text-muted-foreground">계정이 없으신가요? </span>
-            <Link href="/signup" className="text-primary font-semibold hover:underline">
+        {/* Footer Links */}
+        <div className="mt-12 text-center animate-in fade-in duration-700 delay-300">
+          <p className="text-muted-foreground">
+            아직 회원이 아니신가요?{" "}
+            <Link href="/signup" className="text-primary font-semibold hover:underline underline-offset-4">
               회원가입
             </Link>
-          </div>
+          </p>
+        </div>
 
+        {/* Test Account Info */}
+        <div className="mt-8 w-full animate-in fade-in duration-700 delay-500">
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border" />
+              <div className="w-full border-t border-border/50" />
             </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="px-3 bg-background text-muted-foreground">테스트 계정</span>
+            <div className="relative flex justify-center">
+              <span className="px-4 bg-gradient-to-b from-background to-secondary/20 text-xs text-muted-foreground">
+                테스트 계정
+              </span>
             </div>
           </div>
-
-          <div className="text-center text-sm text-muted-foreground bg-secondary/50 rounded-xl p-4">
-            <p className="font-medium text-foreground mb-1">user1@foodreview.com</p>
-            <p>password123</p>
+          <div className="mt-4 text-center text-sm text-muted-foreground bg-secondary/30 rounded-2xl p-4 backdrop-blur-sm">
+            <p className="font-mono text-foreground">user1@foodreview.com</p>
+            <p className="font-mono text-xs mt-1">password123</p>
           </div>
         </div>
       </div>

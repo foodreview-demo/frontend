@@ -17,14 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, RecommendedUser, User } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { cn } from "@/lib/utils"
-
-function getTasteLevel(score: number): { label: string; color: string } {
-  if (score >= 2000) return { label: "마스터", color: "bg-primary text-primary-foreground" }
-  if (score >= 1500) return { label: "전문가", color: "bg-accent text-accent-foreground" }
-  if (score >= 1000) return { label: "미식가", color: "bg-secondary text-secondary-foreground" }
-  if (score >= 500) return { label: "탐험가", color: "bg-muted text-muted-foreground" }
-  return { label: "입문자", color: "bg-muted text-muted-foreground" }
-}
+import { getTasteLevel } from "@/lib/constants"
 
 export default function FollowsPage() {
   const router = useRouter()

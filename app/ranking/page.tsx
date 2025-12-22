@@ -13,27 +13,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, RankingUser } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { cn } from "@/lib/utils"
-
-const regions = [
-  "전체",
-  "서울",
-  "부산",
-  "인천",
-  "대구",
-  "대전",
-  "광주",
-  "울산",
-  "세종",
-  "경기",
-]
-
-function getTasteLevel(score: number): { label: string; color: string } {
-  if (score >= 2000) return { label: "마스터", color: "bg-primary text-primary-foreground" }
-  if (score >= 1500) return { label: "전문가", color: "bg-accent text-accent-foreground" }
-  if (score >= 1000) return { label: "미식가", color: "bg-secondary text-secondary-foreground" }
-  if (score >= 500) return { label: "탐험가", color: "bg-muted text-muted-foreground" }
-  return { label: "입문자", color: "bg-muted text-muted-foreground" }
-}
+import { regions, getTasteLevel } from "@/lib/constants"
 
 function RankBadge({ rank }: { rank: number }) {
   if (rank === 1) {

@@ -4,70 +4,34 @@ import { TrendingUp, Award, Heart, FileText } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import type { User } from "@/lib/api"
+import { getTasteLevelDetail } from "@/lib/constants"
 
 interface TasteScoreCardProps {
   user: User
   showDetails?: boolean
 }
 
-function getTasteLevel(score: number): {
-  label: string
-  minScore: number
-  maxScore: number
-  color: string
-  bgColor: string
-} {
-  if (score >= 2000)
-    return {
-      label: "마스터",
-      minScore: 2000,
-      maxScore: 3000,
-      color: "text-primary",
-      bgColor: "bg-primary/10",
-    }
-  if (score >= 1500)
-    return {
-      label: "전문가",
-      minScore: 1500,
-      maxScore: 2000,
-      color: "text-accent-foreground",
-      bgColor: "bg-accent/30",
-    }
-  if (score >= 1000)
-    return {
-      label: "미식가",
-      minScore: 1000,
-      maxScore: 1500,
-      color: "text-foreground",
-      bgColor: "bg-secondary",
-    }
-  if (score >= 500)
-    return {
-      label: "탐험가",
-      minScore: 500,
-      maxScore: 1000,
-      color: "text-muted-foreground",
-      bgColor: "bg-muted",
-    }
-  return {
-    label: "입문자",
-    minScore: 0,
-    maxScore: 500,
-    color: "text-muted-foreground",
-    bgColor: "bg-muted",
+// color 클래스를 text-* 형식으로 변환
+function getTextColor(level: string): string {
+  switch (level) {
+    case "마스터": return "text-primary"
+    case "전문가": return "text-accent-foreground"
+    case "미식가": return "text-foreground"
+    default: return "text-muted-foreground"
   }
 }
 
 export function TasteScoreCard({ user, showDetails = true }: TasteScoreCardProps) {
-  const level = getTasteLevel(user.tasteScore)
+  const level = getTasteLevelDetail(user.tasteScore)
+  const textColor = getTextColor(level.label)
   const progress = ((user.tasteScore - level.minScore) / (level.maxScore - level.minScore)) * 100
 
   return (
     <Card className={`p-4 ${level.bgColor} border-0`}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Award className={`h-6 w-6 ${level.color}`} />
-          <span className={`font-bold text-lg ${level.color}`}>{level.label}</span>
+          <Award className={`h-6 w-6 ${textColor}`} />
+          <span className={`font-bold text-lg ${textColor}`}>{level.label}</span>
         </div>
         <div className="text-right">
           <p className="text-2xl font-bold text-foreground">{user.tasteScore.toLocaleString()}</p>

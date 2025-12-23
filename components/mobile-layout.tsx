@@ -4,10 +4,11 @@ import type React from "react"
 
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { Home, Search, PenSquare, ListMusic, User, Users } from "lucide-react"
+import { Home, Search, PenSquare, User, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { RequireAuth } from "./require-auth"
 import { ChatButton } from "./chat-sidebar"
+import { useTranslation } from "@/lib/i18n-context"
 
 interface MobileLayoutProps {
   children: React.ReactNode
@@ -18,13 +19,14 @@ interface MobileLayoutProps {
 
 export function MobileLayout({ children, hideNavigation, requireAuth = true, showChatButton = true }: MobileLayoutProps) {
   const pathname = usePathname()
+  const t = useTranslation()
 
   const navItems = [
-    { href: "/", icon: Home, label: "홈" },
-    { href: "/search", icon: Search, label: "검색" },
-    { href: "/write", icon: PenSquare, label: "리뷰" },
-    { href: "/follows", icon: Users, label: "친구" },
-    { href: "/profile", icon: User, label: "내정보" },
+    { href: "/", icon: Home, label: t.nav.home },
+    { href: "/search", icon: Search, label: t.nav.search },
+    { href: "/write", icon: PenSquare, label: t.nav.write },
+    { href: "/follows", icon: Users, label: t.nav.friends },
+    { href: "/profile", icon: User, label: t.nav.profile },
   ]
 
   const content = (

@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, RankingUser } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
+import { useTranslation } from "@/lib/i18n-context"
 import { cn } from "@/lib/utils"
 import { regions, getTasteLevel } from "@/lib/constants"
 
@@ -46,6 +47,7 @@ function RankBadge({ rank }: { rank: number }) {
 
 export default function RankingPage() {
   const { user: currentUser } = useAuth()
+  const t = useTranslation()
   const [selectedRegion, setSelectedRegion] = useState("전체")
   const [period, setPeriod] = useState<"monthly" | "weekly">("monthly")
   const [users, setUsers] = useState<RankingUser[]>([])
@@ -65,14 +67,14 @@ export default function RankingPage() {
         }
       } catch (err) {
         console.error("랭킹 로드 실패:", err)
-        setError("랭킹을 불러오는데 실패했습니다")
+        setError(t.common.error)
       } finally {
         setIsLoading(false)
       }
     }
 
     fetchRanking()
-  }, [selectedRegion])
+  }, [selectedRegion, t.common.error])
 
   const currentUserRank = currentUser ? users.findIndex((u) => u.id === currentUser.id) + 1 : 0
 
@@ -84,12 +86,12 @@ export default function RankingPage() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Trophy className="h-6 w-6 text-primary" />
-              <h1 className="text-xl font-bold text-foreground">맛잘알 랭킹</h1>
+              <h1 className="text-xl font-bold text-foreground">{t.ranking.title}</h1>
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-1 bg-transparent">
-                  {selectedRegion === "전체" ? "전체 지역" : selectedRegion}
+                  {selectedRegion === "전체" ? t.regions.all : selectedRegion}
                   <ChevronDown className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
@@ -111,11 +113,11 @@ export default function RankingPage() {
             <TabsList className="grid w-full grid-cols-2 bg-secondary">
               <TabsTrigger value="monthly" className="gap-1">
                 <Calendar className="h-4 w-4" />
-                이번 달
+                {t.ranking.monthly}
               </TabsTrigger>
               <TabsTrigger value="weekly" className="gap-1">
                 <TrendingUp className="h-4 w-4" />
-                이번 주
+                {t.ranking.weekly}
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -145,12 +147,12 @@ export default function RankingPage() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-foreground">{currentUser.name}</span>
-                      <Badge className="text-xs bg-primary text-primary-foreground">나</Badge>
+                      <Badge className="text-xs bg-primary text-primary-foreground">{t.profile.me || "Me"}</Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground">{currentUser.tasteScore.toLocaleString()}점</p>
+                    <p className="text-sm text-muted-foreground">{currentUser.tasteScore.toLocaleString()}{t.ranking.points}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-muted-foreground">순위</p>
+                    <p className="text-sm text-muted-foreground">{t.ranking.rank || "Rank"}</p>
                     <p className="text-xl font-bold text-primary">#{currentUserRank}</p>
                   </div>
                 </div>
@@ -170,7 +172,7 @@ export default function RankingPage() {
                   </Link>
                   <Medal className="h-6 w-6 text-gray-400 mb-1" />
                   <p className="text-sm font-semibold text-foreground text-center truncate w-20">{users[1].name}</p>
-                  <p className="text-xs text-muted-foreground">{users[1].tasteScore.toLocaleString()}점</p>
+                  <p className="text-xs text-muted-foreground">{users[1].tasteScore.toLocaleString()}{t.ranking.points}</p>
                   <div className="h-16 w-20 bg-gray-200 rounded-t-lg mt-2" />
                 </div>
 
@@ -184,7 +186,7 @@ export default function RankingPage() {
                   </Link>
                   <Crown className="h-8 w-8 text-yellow-500 mb-1" />
                   <p className="text-sm font-bold text-foreground text-center truncate w-20">{users[0].name}</p>
-                  <p className="text-xs text-muted-foreground">{users[0].tasteScore.toLocaleString()}점</p>
+                  <p className="text-xs text-muted-foreground">{users[0].tasteScore.toLocaleString()}{t.ranking.points}</p>
                   <div className="h-24 w-20 bg-yellow-100 rounded-t-lg mt-2" />
                 </div>
 
@@ -198,7 +200,7 @@ export default function RankingPage() {
                   </Link>
                   <Medal className="h-6 w-6 text-amber-600 mb-1" />
                   <p className="text-sm font-semibold text-foreground text-center truncate w-20">{users[2].name}</p>
-                  <p className="text-xs text-muted-foreground">{users[2].tasteScore.toLocaleString()}점</p>
+                  <p className="text-xs text-muted-foreground">{users[2].tasteScore.toLocaleString()}{t.ranking.points}</p>
                   <div className="h-12 w-20 bg-amber-100 rounded-t-lg mt-2" />
                 </div>
               </div>
@@ -206,7 +208,7 @@ export default function RankingPage() {
 
             {/* Full Ranking List */}
             <div className="space-y-2">
-              <h3 className="font-semibold text-foreground">전체 순위</h3>
+              <h3 className="font-semibold text-foreground">{t.ranking.allTime}</h3>
               {users.map((user) => {
                 const level = getTasteLevel(user.tasteScore)
                 const isCurrentUser = currentUser && user.id === currentUser.id
@@ -227,7 +229,7 @@ export default function RankingPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-foreground truncate">{user.name}</span>
-                          {isCurrentUser && <Badge className="text-xs bg-primary text-primary-foreground">나</Badge>}
+                          {isCurrentUser && <Badge className="text-xs bg-primary text-primary-foreground">{t.profile.me || "Me"}</Badge>}
                           <Badge variant="secondary" className={cn("text-xs", level.color)}>
                             {level.label}
                           </Badge>
@@ -236,7 +238,7 @@ export default function RankingPage() {
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-foreground">{user.tasteScore.toLocaleString()}</p>
-                        <p className="text-xs text-muted-foreground">리뷰 {user.reviewCount}개</p>
+                        <p className="text-xs text-muted-foreground">{t.profile.reviews} {user.reviewCount}</p>
                       </div>
                     </Card>
                   </Link>
@@ -246,7 +248,7 @@ export default function RankingPage() {
 
             {users.length === 0 && (
               <div className="text-center py-12">
-                <p className="text-muted-foreground">해당 지역의 맛잘알이 없습니다</p>
+                <p className="text-muted-foreground">{t.restaurant.noResults}</p>
               </div>
             )}
           </>

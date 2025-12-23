@@ -4,12 +4,13 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import Script from "next/script"
-import { Search, Star, MapPin, Sparkles, Loader2, Navigation, X, ChevronUp, ChevronDown, Home, PenSquare, ListMusic, User } from "lucide-react"
+import { Search, Star, MapPin, Sparkles, Loader2, Navigation, X, ChevronUp, ChevronDown, Home, PenSquare, User, Users } from "lucide-react"
 import { RequireAuth } from "@/components/require-auth"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { api, Restaurant } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { useTranslation } from "@/lib/i18n-context"
 
 const KAKAO_MAP_API_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_API_KEY
 
@@ -38,6 +39,7 @@ interface NearbyRestaurant {
 type SortType = "distance" | "rating" | "reviews"
 
 export default function SearchPage() {
+  const t = useTranslation()
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const overlaysRef = useRef<any[]>([])
@@ -70,7 +72,7 @@ export default function SearchPage() {
   useEffect(() => {
     const fetchDbRestaurants = async () => {
       try {
-        const result = await api.getRestaurants(undefined, undefined, 0, 100)
+        const result = await api.getRestaurants(undefined, undefined, undefined, undefined, 0, 100)
         if (result.success) {
           setDbRestaurants(result.data.content)
         }
@@ -153,7 +155,7 @@ export default function SearchPage() {
   const getCurrentLocation = useCallback(() => {
     return new Promise<{ lat: number; lng: number }>((resolve, reject) => {
       if (!navigator.geolocation) {
-        setLocationError("이 브라우저에서는 위치 서비스를 지원하지 않습니다")
+        setLocationError(t.search.locationNotSupported)
         reject(new Error("Geolocation not supported"))
         return
       }
@@ -195,16 +197,16 @@ export default function SearchPage() {
         if (resolved) return // 이미 성공한 경우 무시
 
         console.error("위치 정보 오류:", error)
-        let errorMessage = "위치를 가져올 수 없습니다"
+        let errorMessage = t.search.locationError
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            errorMessage = "위치 권한이 거부되었습니다. 브라우저 설정에서 위치 권한을 허용해주세요."
+            errorMessage = t.search.locationPermissionDenied
             break
           case error.POSITION_UNAVAILABLE:
-            errorMessage = "위치 정보를 사용할 수 없습니다"
+            errorMessage = t.search.locationUnavailable
             break
           case error.TIMEOUT:
-            errorMessage = "위치 요청 시간이 초과되었습니다"
+            errorMessage = t.search.locationTimeout
             break
         }
         setLocationError(errorMessage)
@@ -233,7 +235,7 @@ export default function SearchPage() {
         }
       )
     })
-  }, [setCenterWithOffset, updateLocationMarker])
+  }, [setCenterWithOffset, updateLocationMarker, t.search.locationNotSupported, t.search.locationError, t.search.locationPermissionDenied, t.search.locationUnavailable, t.search.locationTimeout])
 
   // 지도 초기화
   const initializeMap = useCallback(() => {
@@ -424,7 +426,7 @@ export default function SearchPage() {
         labelText = `★ ${rating}`
       } else if (isFirstReview) {
         bgColor = "rgba(139,92,246,0.95)"
-        labelText = "첫리뷰"
+        labelText = t.search.firstReview
       }
 
       const content = document.createElement('div')
@@ -483,7 +485,7 @@ export default function SearchPage() {
         searchNearbyPlaces(pos.lat, pos.lng)
       } else if (permission.state === 'denied') {
         // 거부됨 - 안내 메시지 표시
-        setLocationError("위치 권한이 거부되었습니다. 브라우저 설정에서 위치 권한을 허용해주세요.")
+        setLocationError(t.search.locationPermissionDenied)
         setLocationPermissionChecked(true)
         setIsLoading(false)
         searchNearbyPlaces(37.5665, 126.9780) // 서울 중심으로 검색
@@ -500,7 +502,7 @@ export default function SearchPage() {
           setLocationError(null)
         } else if (permission.state === 'denied') {
           setShowLocationPrompt(false)
-          setLocationError("위치 권한이 거부되었습니다. 브라우저 설정에서 위치 권한을 허용해주세요.")
+          setLocationError(t.search.locationPermissionDenied)
         }
       })
     } catch {
@@ -508,7 +510,7 @@ export default function SearchPage() {
       setShowLocationPrompt(true)
       setLocationPermissionChecked(true)
     }
-  }, [getCurrentLocation, searchNearbyPlaces])
+  }, [getCurrentLocation, searchNearbyPlaces, t.search.locationPermissionDenied])
 
   // 사용자가 위치 공유 동의 버튼 클릭
   const handleLocationConsent = async () => {
@@ -710,7 +712,7 @@ export default function SearchPage() {
             <div className="flex items-center px-4 py-3">
               <Search className="h-5 w-5 text-gray-400 mr-3" />
               <Input
-                placeholder="음식점, 메뉴 검색"
+                placeholder={t.search.placeholder}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="border-0 p-0 h-auto text-base focus-visible:ring-0 placeholder:text-gray-400"
@@ -749,24 +751,22 @@ export default function SearchPage() {
               <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center mb-4">
                 <Navigation className="h-8 w-8 text-blue-500" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2">위치 정보 이용 동의</h3>
-              <p className="text-sm text-gray-600 mb-6">
-                주변 맛집을 찾기 위해 현재 위치가 필요해요.
-                <br />
-                위치 정보는 음식점 검색에만 사용됩니다.
+              <h3 className="text-lg font-bold text-gray-900 mb-2">{t.search.locationPermissionTitle}</h3>
+              <p className="text-sm text-gray-600 mb-6 whitespace-pre-line">
+                {t.search.locationPermissionDesc}
               </p>
               <div className="flex gap-3 w-full">
                 <button
                   onClick={handleLocationDeny}
                   className="flex-1 py-3 px-4 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors"
                 >
-                  다음에 하기
+                  {t.search.later}
                 </button>
                 <button
                   onClick={handleLocationConsent}
                   className="flex-1 py-3 px-4 bg-blue-500 text-white rounded-xl text-sm font-medium hover:bg-blue-600 transition-colors"
                 >
-                  위치 공유
+                  {t.search.shareLocation}
                 </button>
               </div>
             </div>
@@ -793,6 +793,7 @@ export default function SearchPage() {
             restaurant={selectedPlace}
             formatDistance={formatDistance}
             onClose={() => setSelectedPlace(null)}
+            t={t}
           />
         </div>
       )}
@@ -823,9 +824,9 @@ export default function SearchPage() {
           <div className="w-10 h-1 bg-gray-300 rounded-full mb-2" />
           <div className="flex items-center gap-1 text-xs text-gray-500">
             {isSheetFull ? (
-              <><ChevronDown className="h-3 w-3" /> 지도 보기</>
+              <><ChevronDown className="h-3 w-3" /> {t.search.showMap}</>
             ) : (
-              <><ChevronUp className="h-3 w-3" /> {nearbyRestaurants.length}개 음식점</>
+              <><ChevronUp className="h-3 w-3" /> {nearbyRestaurants.length}{t.search.restaurants}</>
             )}
           </div>
         </div>
@@ -833,9 +834,9 @@ export default function SearchPage() {
         {/* 정렬 버튼 */}
         <div className="px-4 pb-2 flex gap-2 border-b border-gray-100">
           {[
-            { key: "distance", label: "거리순" },
-            { key: "rating", label: "별점순" },
-            { key: "reviews", label: "리뷰순" }
+            { key: "distance", label: t.search.sortDistance },
+            { key: "rating", label: t.search.sortRating },
+            { key: "reviews", label: t.search.sortReviews }
           ].map(({ key, label }) => (
             <button
               key={key}
@@ -883,7 +884,7 @@ export default function SearchPage() {
           ) : (
             <div className="flex flex-col items-center justify-center py-12 text-gray-400">
               <MapPin className="h-10 w-10 mb-2" />
-              <p className="text-sm">주변에 음식점이 없어요</p>
+              <p className="text-sm">{t.search.noRestaurantsNearby}</p>
             </div>
           )}
         </div>
@@ -901,11 +902,13 @@ export default function SearchPage() {
 function SelectedPlaceCard({
   restaurant,
   formatDistance,
-  onClose
+  onClose,
+  t
 }: {
   restaurant: NearbyRestaurant
   formatDistance: (d: string) => string
   onClose: () => void
+  t: ReturnType<typeof useTranslation>
 }) {
   const { kakaoPlace, dbRestaurant } = restaurant
   const hasReview = dbRestaurant && dbRestaurant.reviewCount > 0
@@ -966,14 +969,14 @@ function SelectedPlaceCard({
                   <Star className="h-3.5 w-3.5 fill-orange-500 text-orange-500" />
                   <span className="text-sm font-semibold text-orange-600">{dbRestaurant.averageRating}</span>
                 </div>
-                <span className="text-sm text-gray-500">리뷰 {dbRestaurant.reviewCount}</span>
+                <span className="text-sm text-gray-500">{t.profile.reviews} {dbRestaurant.reviewCount}</span>
               </>
             ) : isFirstReview || isNewRestaurant ? (
               <Badge className="bg-violet-500 text-white text-xs gap-1">
-                <Sparkles className="h-3 w-3" />첫 리뷰 2배 포인트!
+                <Sparkles className="h-3 w-3" />{t.search.firstReviewBadge}
               </Badge>
             ) : (
-              <span className="text-sm text-gray-400">리뷰 없음</span>
+              <span className="text-sm text-gray-400">{t.search.noReview}</span>
             )}
           </div>
 
@@ -991,12 +994,12 @@ function SelectedPlaceCard({
           <>
             <Link href={`/restaurant/${dbRestaurant.id}`} className="flex-1">
               <button className="w-full py-2 px-4 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors">
-                상세보기
+                {t.search.viewDetails}
               </button>
             </Link>
             <Link href={getWriteReviewUrl()} className="flex-1">
               <button className="w-full py-2 px-4 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 transition-colors">
-                리뷰 쓰기
+                {t.search.writeReview}
               </button>
             </Link>
           </>
@@ -1004,7 +1007,7 @@ function SelectedPlaceCard({
           <Link href={getWriteReviewUrl()} className="flex-1">
             <button className="w-full py-2.5 px-4 bg-gradient-to-r from-violet-500 to-orange-500 text-white rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
               <Sparkles className="h-4 w-4" />
-              첫 리뷰 작성하고 2배 포인트 받기
+              {t.search.firstReviewBonus}
             </button>
           </Link>
         )}
@@ -1084,12 +1087,13 @@ function RestaurantListItem({
 
 // 하단 네비게이션 (MobileLayout과 동일)
 function BottomNav() {
+  const t = useTranslation()
   const navItems = [
-    { href: "/", icon: Home, label: "홈" },
-    { href: "/search", icon: Search, label: "검색", active: true },
-    { href: "/write", icon: PenSquare, label: "리뷰작성" },
-    { href: "/playlists", icon: ListMusic, label: "리스트" },
-    { href: "/profile", icon: User, label: "내정보" },
+    { href: "/", icon: Home, label: t.nav.home },
+    { href: "/search", icon: Search, label: t.nav.search, active: true },
+    { href: "/write", icon: PenSquare, label: t.nav.write },
+    { href: "/follows", icon: Users, label: t.nav.friends },
+    { href: "/profile", icon: User, label: t.nav.profile },
   ]
 
   return (

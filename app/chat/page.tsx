@@ -7,19 +7,21 @@ import { MobileLayout } from "@/components/mobile-layout"
 import { Loader2, MessageCircle } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { useTranslation } from "@/lib/i18n-context"
 
 function ChatContent() {
   const searchParams = useSearchParams()
   const roomUuid = searchParams.get("room")
+  const t = useTranslation()
 
   if (!roomUuid) {
     return (
       <MobileLayout>
         <div className="flex flex-col items-center justify-center min-h-screen p-4">
           <MessageCircle className="h-16 w-16 text-muted-foreground mb-4" />
-          <p className="text-muted-foreground mb-4">채팅방을 선택해주세요</p>
+          <p className="text-muted-foreground mb-4">{t.chat.selectRoom}</p>
           <Link href="/follows">
-            <Button>친구 목록으로 이동</Button>
+            <Button>{t.chat.goToFriends}</Button>
           </Link>
         </div>
       </MobileLayout>

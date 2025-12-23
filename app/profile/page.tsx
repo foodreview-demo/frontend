@@ -13,10 +13,12 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { useAuth } from "@/lib/auth-context"
+import { useTranslation } from "@/lib/i18n-context"
 import { api, Review, User, InfluenceStats } from "@/lib/api"
 
 export default function ProfilePage() {
   const { user: currentUser } = useAuth()
+  const t = useTranslation()
   const [activeTab, setActiveTab] = useState("reviews")
   const [reviews, setReviews] = useState<Review[]>([])
   const [followingCount, setFollowingCount] = useState(0)
@@ -68,7 +70,7 @@ export default function ProfilePage() {
       {/* Header */}
       <header className="sticky top-0 z-50 bg-card border-b border-border">
         <div className="flex items-center justify-between px-4 py-3">
-          <h1 className="text-xl font-bold text-foreground">내 정보</h1>
+          <h1 className="text-xl font-bold text-foreground">{t.profile.myInfo}</h1>
           <Link href="/settings">
             <Button variant="ghost" size="icon">
               <Settings className="h-5 w-5" />
@@ -115,7 +117,7 @@ export default function ProfilePage() {
           <Link href="/ranking">
             <Card className="p-3 hover:bg-secondary/50 transition-colors border border-border">
               <div className="flex flex-col items-center text-center">
-                <p className="text-xs text-muted-foreground mb-1">랭킹</p>
+                <p className="text-xs text-muted-foreground mb-1">{t.nav.ranking}</p>
                 <p className="text-lg font-bold text-primary">#{currentUser.rank || '-'}</p>
               </div>
             </Card>
@@ -123,21 +125,21 @@ export default function ProfilePage() {
           <Link href="/follows">
             <Card className="p-3 hover:bg-secondary/50 transition-colors border border-border">
               <div className="flex flex-col items-center text-center">
-                <p className="text-xs text-muted-foreground mb-1">친구</p>
+                <p className="text-xs text-muted-foreground mb-1">{t.nav.friends}</p>
                 <p className="text-lg font-bold text-primary">{followingCount}</p>
               </div>
             </Card>
           </Link>
           <Card className="p-3 border border-border">
             <div className="flex flex-col items-center text-center">
-              <p className="text-xs text-muted-foreground mb-1">영향력</p>
+              <p className="text-xs text-muted-foreground mb-1">{t.profile.influence}</p>
               <p className="text-lg font-bold text-primary">{influenceStats?.totalReferenceCount || 0}</p>
             </div>
           </Card>
           <Link href="/playlists">
             <Card className="p-3 hover:bg-secondary/50 transition-colors border border-border">
               <div className="flex flex-col items-center text-center">
-                <p className="text-xs text-muted-foreground mb-1">리스트</p>
+                <p className="text-xs text-muted-foreground mb-1">{t.common.list}</p>
                 <ListMusic className="h-5 w-5 text-primary mt-1" />
               </div>
             </Card>
@@ -153,10 +155,10 @@ export default function ProfilePage() {
               </div>
               <div>
                 <p className="text-sm font-medium text-foreground">
-                  {influenceStats.totalReferenceCount}명이 내 리뷰를 참고했어요
+                  {influenceStats.totalReferenceCount}{t.profile.influenceDesc}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  영향력 포인트 +{influenceStats.totalInfluencePoints}점 획득
+                  {t.profile.influencePoints} +{influenceStats.totalInfluencePoints}{t.profile.influencePointsDesc}
                 </p>
               </div>
             </div>
@@ -166,8 +168,8 @@ export default function ProfilePage() {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-2 bg-secondary">
-            <TabsTrigger value="reviews">내 리뷰</TabsTrigger>
-            <TabsTrigger value="history">점수 내역</TabsTrigger>
+            <TabsTrigger value="reviews">{t.review.myReviews}</TabsTrigger>
+            <TabsTrigger value="history">{t.profile.scoreHistory}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="reviews" className="mt-4 space-y-4">
@@ -179,9 +181,9 @@ export default function ProfilePage() {
               reviews.map((review) => <ReviewCard key={review.id} review={review} />)
             ) : (
               <div className="text-center py-12">
-                <p className="text-muted-foreground mb-4">아직 작성한 리뷰가 없어요</p>
+                <p className="text-muted-foreground mb-4">{t.profile.noReviewsYet}</p>
                 <Link href="/write">
-                  <Button className="bg-primary text-primary-foreground">첫 리뷰 작성하기</Button>
+                  <Button className="bg-primary text-primary-foreground">{t.profile.writeFirstReview}</Button>
                 </Link>
               </div>
             )}

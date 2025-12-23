@@ -16,12 +16,14 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { api, RecommendedUser, User } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
+import { useTranslation } from "@/lib/i18n-context"
 import { cn } from "@/lib/utils"
 import { getTasteLevel } from "@/lib/constants"
 
 export default function FollowsPage() {
   const router = useRouter()
   const { user: currentUser } = useAuth()
+  const t = useTranslation()
   const [activeTab, setActiveTab] = useState("following")
   const [recommendations, setRecommendations] = useState<RecommendedUser[]>([])
   const [followingList, setFollowingList] = useState<User[]>([])
@@ -197,12 +199,12 @@ export default function FollowsPage() {
     <MobileLayout>
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
         <div className="flex items-center justify-between px-4 py-3">
-          <h1 className="text-xl font-bold text-foreground">친구</h1>
+          <h1 className="text-xl font-bold text-foreground">{t.nav.friends}</h1>
           <div className="flex items-center gap-1">
             <Link href="/ranking">
               <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground">
                 <Trophy className="h-4 w-4" />
-                랭킹
+                {t.nav.ranking}
               </Button>
             </Link>
           </div>
@@ -211,7 +213,7 @@ export default function FollowsPage() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="사용자 검색"
+              placeholder={t.follows.searchUsers}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 bg-secondary/50 border-0 rounded-full h-9"
@@ -260,7 +262,7 @@ export default function FollowsPage() {
                 )
               })
             ) : (
-              <p className="text-center text-sm text-muted-foreground py-4">검색 결과가 없습니다</p>
+              <p className="text-center text-sm text-muted-foreground py-4">{t.restaurant.noResults}</p>
             )}
           </div>
         </div>
@@ -272,17 +274,17 @@ export default function FollowsPage() {
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-3 bg-secondary/50 p-1 rounded-xl">
-              <TabsTrigger value="following" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">팔로잉</TabsTrigger>
-              <TabsTrigger value="follower" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">팔로워</TabsTrigger>
-              <TabsTrigger value="recommend" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">추천</TabsTrigger>
+              <TabsTrigger value="following" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">{t.profile.following}</TabsTrigger>
+              <TabsTrigger value="follower" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">{t.profile.followers}</TabsTrigger>
+              <TabsTrigger value="recommend" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">{t.follows.recommend}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="following" className="mt-4 space-y-2">
-              {renderUserList(followingList, "아직 팔로우하는 사람이 없어요", "비슷한 취향의 맛잘알을 팔로우해보세요", true)}
+              {renderUserList(followingList, t.follows.noFollowing, t.follows.noFollowingDesc, true)}
             </TabsContent>
 
             <TabsContent value="follower" className="mt-4 space-y-2">
-              {renderUserList(followerList, "아직 팔로워가 없어요", "리뷰를 작성하고 맛잘알 점수를 높여보세요", false)}
+              {renderUserList(followerList, t.follows.noFollowers, t.follows.noFollowersDesc, false)}
             </TabsContent>
 
             <TabsContent value="recommend" className="mt-4 space-y-3">
@@ -290,9 +292,9 @@ export default function FollowsPage() {
                 <div className="flex items-start gap-3">
                   <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center"><Sparkles className="h-5 w-5 text-primary" /></div>
                   <div>
-                    <h3 className="font-semibold text-foreground">AI 사용자 추천</h3>
+                    <h3 className="font-semibold text-foreground">{t.follows.aiRecommend}</h3>
                     <p className="text-sm text-muted-foreground mt-1">
-                      <span className="text-primary font-medium">맛잘알 점수, 지역, 선호 카테고리</span>를 분석해서 비슷한 취향의 사용자를 추천해드려요!
+                      {t.follows.aiRecommendDesc}
                     </p>
                   </div>
                 </div>
@@ -335,7 +337,7 @@ export default function FollowsPage() {
                       </div>
                       <div className="flex gap-2 mt-4">
                         <Button className={cn("flex-1", isFollowing ? "bg-secondary text-secondary-foreground" : "bg-primary text-primary-foreground")} onClick={() => handleFollow(user.id)}>
-                          {isFollowing ? <><UserCheck className="h-4 w-4 mr-2" />팔로잉</> : <><UserPlus className="h-4 w-4 mr-2" />팔로우</>}
+                          {isFollowing ? <><UserCheck className="h-4 w-4 mr-2" />{t.profile.following}</> : <><UserPlus className="h-4 w-4 mr-2" />{t.profile.follow}</>}
                         </Button>
                         <Button variant="outline" onClick={() => handleStartChat(user.id)}><MessageCircle className="h-4 w-4" /></Button>
                       </div>
@@ -345,7 +347,7 @@ export default function FollowsPage() {
               ) : (
                 <div className="text-center py-12">
                   <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">추천할 사용자가 없습니다</p>
+                  <p className="text-muted-foreground">{t.follows.noRecommend}</p>
                 </div>
               )}
             </TabsContent>

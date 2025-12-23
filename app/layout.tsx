@@ -2,6 +2,7 @@ import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { AuthProvider } from "@/lib/auth-context"
+import { I18nProvider } from "@/lib/i18n-context"
 import { PWARegister } from "@/components/pwa-register"
 import "./globals.css"
 
@@ -49,9 +50,11 @@ export default function RootLayout({
     <html lang="ko">
       <body className={`font-sans antialiased`}>
         <PWARegister />
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <I18nProvider>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </I18nProvider>
       </body>
     </html>
   )

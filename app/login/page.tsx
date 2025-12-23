@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
+import { useTranslation } from "@/lib/i18n-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Loader2, Eye, EyeOff, Mail, Lock } from "lucide-react"
@@ -14,6 +15,7 @@ const KAKAO_REDIRECT_URI = process.env.NEXT_PUBLIC_KAKAO_REDIRECT_URI || 'http:/
 export default function LoginPage() {
   const router = useRouter()
   const { login } = useAuth()
+  const t = useTranslation()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -35,7 +37,7 @@ export default function LoginPage() {
       await login(email, password)
       router.push("/")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "로그인에 실패했습니다")
+      setError(err instanceof Error ? err.message : t.auth.loginFailed)
     } finally {
       setIsLoading(false)
     }
@@ -55,8 +57,8 @@ export default function LoginPage() {
               <span className="text-xs">✓</span>
             </div>
           </div>
-          <h1 className="text-4xl font-bold text-foreground tracking-tight">맛잘알</h1>
-          <p className="text-muted-foreground mt-2 text-lg">진짜 맛집을 아는 사람들</p>
+          <h1 className="text-4xl font-bold text-foreground tracking-tight">{t.common.appName}</h1>
+          <p className="text-muted-foreground mt-2 text-lg">{t.auth.appSlogan}</p>
         </div>
 
         {/* Form Card */}
@@ -76,7 +78,7 @@ export default function LoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="이메일"
+                placeholder={t.auth.email}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 onFocus={() => setFocusedField('email')}
@@ -94,7 +96,7 @@ export default function LoginPage() {
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
-                placeholder="비밀번호"
+                placeholder={t.auth.password}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onFocus={() => setFocusedField('password')}
@@ -120,7 +122,7 @@ export default function LoginPage() {
               {isLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
-                "로그인"
+                t.auth.login
               )}
             </Button>
           </form>
@@ -132,7 +134,7 @@ export default function LoginPage() {
             </div>
             <div className="relative flex justify-center">
               <span className="px-4 bg-gradient-to-b from-background to-secondary/20 text-sm text-muted-foreground">
-                간편 로그인
+                {t.auth.quickLogin}
               </span>
             </div>
           </div>
@@ -147,16 +149,16 @@ export default function LoginPage() {
             <svg width="22" height="22" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path fillRule="evenodd" clipRule="evenodd" d="M10 2C5.029 2 1 5.129 1 8.989C1 11.389 2.558 13.505 4.932 14.764L3.933 18.256C3.845 18.561 4.213 18.806 4.477 18.62L8.601 15.898C9.057 15.952 9.523 15.98 10 15.98C14.971 15.98 19 12.851 19 8.991C19 5.131 14.971 2.002 10 2.002V2Z" fill="black"/>
             </svg>
-            카카오로 시작하기
+            {t.auth.loginWithKakao}
           </button>
         </div>
 
         {/* Footer Links */}
         <div className="mt-12 text-center animate-in fade-in duration-700 delay-300">
           <p className="text-muted-foreground">
-            아직 회원이 아니신가요?{" "}
+            {t.auth.noAccount}{" "}
             <Link href="/signup" className="text-primary font-semibold hover:underline underline-offset-4">
-              회원가입
+              {t.auth.signup}
             </Link>
           </p>
         </div>
@@ -169,7 +171,7 @@ export default function LoginPage() {
             </div>
             <div className="relative flex justify-center">
               <span className="px-4 bg-gradient-to-b from-background to-secondary/20 text-xs text-muted-foreground">
-                테스트 계정
+                {t.auth.testAccount}
               </span>
             </div>
           </div>

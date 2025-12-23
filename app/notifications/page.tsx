@@ -8,12 +8,14 @@ import { MobileLayout } from "@/components/mobile-layout"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth } from "@/lib/auth-context"
+import { useTranslation } from "@/lib/i18n-context"
 import { api, Notification as NotificationType } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 export default function NotificationsPage() {
   const router = useRouter()
   const { user } = useAuth()
+  const t = useTranslation()
   const [notifications, setNotifications] = useState<NotificationType[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [hasMore, setHasMore] = useState(true)
@@ -90,10 +92,10 @@ export default function NotificationsPage() {
     const hours = Math.floor(diff / 3600000)
     const days = Math.floor(diff / 86400000)
 
-    if (minutes < 1) return "방금 전"
-    if (minutes < 60) return `${minutes}분 전`
-    if (hours < 24) return `${hours}시간 전`
-    if (days < 7) return `${days}일 전`
+    if (minutes < 1) return t.time.justNow
+    if (minutes < 60) return `${minutes}${t.time.minutesAgo}`
+    if (hours < 24) return `${hours}${t.time.hoursAgo}`
+    if (days < 7) return `${days}${t.time.daysAgo}`
     return date.toLocaleDateString("ko-KR", { month: "short", day: "numeric" })
   }
 
@@ -123,14 +125,14 @@ export default function NotificationsPage() {
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
-            <h1 className="font-bold text-lg text-foreground ml-2">알림</h1>
+            <h1 className="font-bold text-lg text-foreground ml-2">{t.notification.title}</h1>
           </div>
         </header>
         <div className="flex flex-col items-center justify-center min-h-[60vh] p-4">
           <Bell className="h-12 w-12 text-muted-foreground mb-4" />
-          <p className="text-muted-foreground mb-4">로그인 후 알림을 확인할 수 있어요</p>
+          <p className="text-muted-foreground mb-4">{t.notification.loginRequired}</p>
           <Link href="/login">
-            <Button>로그인</Button>
+            <Button>{t.auth.login}</Button>
           </Link>
         </div>
       </MobileLayout>
@@ -147,7 +149,7 @@ export default function NotificationsPage() {
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
-            <h1 className="font-bold text-lg text-foreground ml-2">알림</h1>
+            <h1 className="font-bold text-lg text-foreground ml-2">{t.notification.title}</h1>
             {unreadCount > 0 && (
               <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-primary text-primary-foreground rounded-full">
                 {unreadCount}
@@ -162,7 +164,7 @@ export default function NotificationsPage() {
               className="text-xs"
             >
               <CheckCheck className="h-4 w-4 mr-1" />
-              모두 읽음
+              {t.notification.markAllRead}
             </Button>
           )}
         </div>
@@ -208,7 +210,7 @@ export default function NotificationsPage() {
             {hasMore && (
               <div className="flex justify-center pt-4">
                 <Button variant="outline" onClick={loadMore}>
-                  더 보기
+                  {t.review.viewMore}
                 </Button>
               </div>
             )}
@@ -218,8 +220,8 @@ export default function NotificationsPage() {
             <div className="w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center mb-4">
               <Bell className="h-8 w-8 text-muted-foreground" />
             </div>
-            <p className="font-medium text-foreground mb-1">알림이 없어요</p>
-            <p className="text-sm text-muted-foreground">새로운 소식이 오면 알려드릴게요</p>
+            <p className="font-medium text-foreground mb-1">{t.notification.noNotifications}</p>
+            <p className="text-sm text-muted-foreground">{t.notification.willNotify}</p>
           </div>
         )}
       </div>

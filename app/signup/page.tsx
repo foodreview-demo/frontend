@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
+import { useTranslation } from "@/lib/i18n-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -14,6 +15,7 @@ import { cn } from "@/lib/utils"
 export default function SignUpPage() {
   const router = useRouter()
   const { signUp } = useAuth()
+  const t = useTranslation()
   const [step, setStep] = useState(1)
   const [formData, setFormData] = useState({
     email: "",
@@ -33,17 +35,17 @@ export default function SignUpPage() {
     setError("")
 
     if (formData.password !== formData.confirmPassword) {
-      setError("비밀번호가 일치하지 않습니다")
+      setError(t.auth.passwordMismatch)
       return
     }
 
     if (formData.password.length < 8) {
-      setError("비밀번호는 8자 이상이어야 합니다")
+      setError(t.auth.passwordTooShort)
       return
     }
 
     if (!formData.region) {
-      setError("지역을 선택해주세요")
+      setError(t.auth.selectRegion)
       return
     }
 
@@ -58,7 +60,7 @@ export default function SignUpPage() {
       })
       router.push("/login?registered=true")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "회원가입에 실패했습니다")
+      setError(err instanceof Error ? err.message : t.auth.signupFailed)
     } finally {
       setIsLoading(false)
     }
@@ -111,7 +113,7 @@ export default function SignUpPage() {
             )} />
           </div>
           <p className="text-center text-sm text-muted-foreground">
-            {step === 1 ? "기본 정보" : "비밀번호 설정"}
+            {step === 1 ? t.auth.basicInfo : t.auth.passwordSetup}
           </p>
         </div>
 
@@ -120,8 +122,8 @@ export default function SignUpPage() {
           <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-primary to-primary/80 rounded-[1.75rem] mb-5 shadow-xl shadow-primary/25">
             <span className="text-4xl">🍽️</span>
           </div>
-          <h1 className="text-3xl font-bold text-foreground tracking-tight">회원가입</h1>
-          <p className="text-muted-foreground mt-2">맛잘알 커뮤니티에 참여하세요</p>
+          <h1 className="text-3xl font-bold text-foreground tracking-tight">{t.auth.signup}</h1>
+          <p className="text-muted-foreground mt-2">{t.auth.joinCommunity}</p>
         </div>
 
         {/* Form */}
@@ -143,7 +145,7 @@ export default function SignUpPage() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="이메일"
+                  placeholder={t.auth.email}
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   onFocus={() => setFocusedField('email')}
@@ -161,7 +163,7 @@ export default function SignUpPage() {
                 <Input
                   id="name"
                   type="text"
-                  placeholder="닉네임 (2-30자)"
+                  placeholder={t.auth.nicknamePlaceholder}
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   onFocus={() => setFocusedField('name')}
@@ -184,7 +186,7 @@ export default function SignUpPage() {
                   onOpenChange={(open) => setFocusedField(open ? 'region' : null)}
                 >
                   <SelectTrigger className="h-14 pl-12 pr-4 rounded-2xl bg-secondary/50 border-2 border-transparent focus:border-primary focus:bg-background transition-all duration-300 text-base [&>span]:text-left">
-                    <SelectValue placeholder="지역 선택" />
+                    <SelectValue placeholder={t.common.selectRegion} />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl">
                     {availableRegions.map((region) => (
@@ -203,7 +205,7 @@ export default function SignUpPage() {
                 disabled={!isStep1Valid}
                 className="w-full h-14 rounded-2xl text-base font-semibold bg-primary hover:bg-primary/90 shadow-xl shadow-primary/25 transition-all duration-300 hover:shadow-2xl hover:shadow-primary/30 hover:-translate-y-0.5 disabled:opacity-50 disabled:shadow-none disabled:translate-y-0"
               >
-                다음
+                {t.common.next}
               </Button>
             </div>
           )}
@@ -218,7 +220,7 @@ export default function SignUpPage() {
                 className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-2"
               >
                 <ArrowLeft className="h-4 w-4" />
-                <span className="text-sm">이전으로</span>
+                <span className="text-sm">{t.common.back}</span>
               </button>
 
               {/* Password */}
@@ -229,7 +231,7 @@ export default function SignUpPage() {
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="비밀번호 (8자 이상)"
+                  placeholder={t.auth.passwordMinLength}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   onFocus={() => setFocusedField('password')}
@@ -255,7 +257,7 @@ export default function SignUpPage() {
                 <Input
                   id="confirmPassword"
                   type={showConfirmPassword ? "text" : "password"}
-                  placeholder="비밀번호 확인"
+                  placeholder={t.auth.passwordConfirm}
                   value={formData.confirmPassword}
                   onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                   onFocus={() => setFocusedField('confirmPassword')}
@@ -285,7 +287,7 @@ export default function SignUpPage() {
                     )}>
                       <Check className={cn("h-3 w-3", !passwordChecks.length && "opacity-40")} />
                     </div>
-                    <span className="text-sm">8자 이상</span>
+                    <span className="text-sm">{t.auth.minChars}</span>
                   </div>
                   <div className={cn(
                     "flex items-center gap-2 transition-all duration-300",
@@ -297,7 +299,7 @@ export default function SignUpPage() {
                     )}>
                       <Check className={cn("h-3 w-3", !passwordChecks.match && "opacity-40")} />
                     </div>
-                    <span className="text-sm">비밀번호 일치</span>
+                    <span className="text-sm">{t.auth.passwordMatch}</span>
                   </div>
                 </div>
               )}
@@ -311,7 +313,7 @@ export default function SignUpPage() {
                 {isLoading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
-                  "가입하기"
+                  t.auth.signupComplete
                 )}
               </Button>
             </div>
@@ -321,9 +323,9 @@ export default function SignUpPage() {
         {/* Footer */}
         <div className="mt-10 text-center animate-in fade-in duration-700 delay-300">
           <p className="text-muted-foreground">
-            이미 회원이신가요?{" "}
+            {t.auth.hasAccount}{" "}
             <Link href="/login" className="text-primary font-semibold hover:underline underline-offset-4">
-              로그인
+              {t.auth.login}
             </Link>
           </p>
         </div>

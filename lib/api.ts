@@ -422,11 +422,32 @@ class ApiClient {
   }
 
   // Review API
-  async getReviews(region?: string, category?: string, page = 0, size = 20) {
+  async getReviews(
+    region?: string,
+    category?: string,
+    page = 0,
+    size = 20,
+    district?: string,
+    neighborhood?: string
+  ) {
     const params = new URLSearchParams({ page: String(page), size: String(size) });
     if (region && region !== '전체') params.append('region', region);
+    if (district && district !== '전체') params.append('district', district);
+    if (neighborhood && neighborhood !== '전체') params.append('neighborhood', neighborhood);
     if (category && category !== '전체') params.append('category', categoryToEnum(category));
     return this.request<ApiResponse<PageResponse<Review>>>(`/reviews?${params}`);
+  }
+
+  // 동별 리뷰 수 조회 (지도 마커용)
+  async getReviewCountByNeighborhood(region: string, district: string) {
+    const params = new URLSearchParams({ region, district });
+    return this.request<ApiResponse<NeighborhoodCount[]>>(`/reviews/count-by-neighborhood?${params}`);
+  }
+
+  // 구별 리뷰 수 조회
+  async getReviewCountByDistrict(region: string) {
+    const params = new URLSearchParams({ region });
+    return this.request<ApiResponse<DistrictCount[]>>(`/reviews/count-by-district?${params}`);
   }
 
   async getReview(reviewId: number) {
@@ -701,6 +722,42 @@ class ApiClient {
   async getInfluenceStats(userId: number) {
     return this.request<ApiResponse<InfluenceStats>>(`/users/${userId}/influence`);
   }
+
+  // Report API
+  async createReport(data: CreateReportRequest) {
+    return this.request<ApiResponse<Report>>('/reports', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Admin API
+  async getAdminStats() {
+    return this.request<ApiResponse<AdminStats>>('/admin/stats');
+  }
+
+  async getReports(status?: ReportStatus, page = 0, size = 20) {
+    const params = new URLSearchParams({ page: String(page), size: String(size) });
+    if (status) params.append('status', status);
+    return this.request<ApiResponse<PageResponse<Report>>>(`/admin/reports?${params}`);
+  }
+
+  async getReport(reportId: number) {
+    return this.request<ApiResponse<Report>>(`/admin/reports/${reportId}`);
+  }
+
+  async processReport(reportId: number, data: ProcessReportRequest) {
+    return this.request<ApiResponse<Report>>(`/admin/reports/${reportId}/process`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteReviewByAdmin(reviewId: number) {
+    return this.request<ApiResponse<void>>(`/admin/reviews/${reviewId}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 // 카테고리 한글 -> Enum 변환
@@ -732,6 +789,7 @@ export interface User {
   receivedSympathyCount: number;
   favoriteCategories: string[];
   rank?: number;
+  role?: 'USER' | 'ADMIN';
 }
 
 export interface RankingUser extends User {
@@ -784,6 +842,7 @@ export interface Review {
   atmosphereRating?: number;
   serviceRating?: number;
   images: string[];
+  receiptImage: string | null;
   menu: string;
   price: string;
   visitDate: string;
@@ -804,6 +863,7 @@ export interface CreateReviewRequest {
   atmosphereRating?: number;
   serviceRating?: number;
   images?: string[];
+  receiptImage: string;
   menu?: string;
   price?: string;
   visitDate?: string;
@@ -823,6 +883,7 @@ export interface UpdateReviewRequest {
   atmosphereRating?: number;
   serviceRating?: number;
   images?: string[];
+  receiptImage?: string;
   menu?: string;
   price?: string;
   visitDate?: string;
@@ -888,6 +949,18 @@ export interface SympathyResponse {
 
 export interface ImageUploadResponse {
   urls: string[];
+  count: number;
+}
+
+// 동별 리뷰 수 (지도 마커용)
+export interface NeighborhoodCount {
+  neighborhood: string;
+  count: number;
+}
+
+// 구별 리뷰 수
+export interface DistrictCount {
+  district: string;
   count: number;
 }
 
@@ -978,6 +1051,63 @@ export interface Notification {
 
 export interface UnreadCountResponse {
   count: number;
+}
+
+// Report types
+export type ReportReason = 'SPAM' | 'INAPPROPRIATE' | 'FAKE_REVIEW' | 'NO_RECEIPT' | 'HARASSMENT' | 'COPYRIGHT' | 'OTHER';
+export type ReportStatus = 'PENDING' | 'RESOLVED' | 'REJECTED';
+
+export const REPORT_REASONS: { value: ReportReason; label: string }[] = [
+  { value: 'SPAM', label: '스팸/광고' },
+  { value: 'INAPPROPRIATE', label: '부적절한 내용' },
+  { value: 'FAKE_REVIEW', label: '허위 리뷰' },
+  { value: 'NO_RECEIPT', label: '영수증 미첨부' },
+  { value: 'HARASSMENT', label: '비방/욕설' },
+  { value: 'COPYRIGHT', label: '저작권 침해' },
+  { value: 'OTHER', label: '기타' },
+];
+
+export const REPORT_STATUS_LABELS: Record<ReportStatus, string> = {
+  PENDING: '대기중',
+  RESOLVED: '처리완료',
+  REJECTED: '반려',
+};
+
+export interface Report {
+  id: number;
+  reviewId: number;
+  reviewContent: string;
+  reviewAuthorName: string;
+  reviewAuthorId: number;
+  restaurantName: string;
+  reporterId: number;
+  reporterName: string;
+  reason: ReportReason;
+  reasonDescription: string;
+  description: string | null;
+  status: ReportStatus;
+  statusDescription: string;
+  adminNote: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateReportRequest {
+  reviewId: number;
+  reason: ReportReason;
+  description?: string;
+}
+
+export interface ProcessReportRequest {
+  action: 'RESOLVE' | 'REJECT';
+  adminNote?: string;
+  deleteReview?: boolean;
+}
+
+export interface AdminStats {
+  pendingReportCount: number;
+  totalUserCount: number;
+  totalReviewCount: number;
 }
 
 export const api = new ApiClient(API_BASE_URL);

@@ -3,27 +3,44 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Heart, MessageCircle, Star, Sparkles, Users } from "lucide-react"
+import { Heart, MessageCircle, Star, Sparkles, Users, MoreVertical, Flag, Receipt, ChevronLeft, ChevronRight } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { CommentSection } from "@/components/comment-section"
+import { ReportModal } from "@/components/report-modal"
 import { api, type Review } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { getTasteLevel, formatDate } from "@/lib/constants"
+import { useAuth } from "@/lib/auth-context"
 
 interface ReviewCardProps {
   review: Review
 }
 
 export function ReviewCard({ review }: ReviewCardProps) {
+  const { user } = useAuth()
   const [sympathyCount, setSympathyCount] = useState(review.sympathyCount)
   const [hasSympathized, setHasSympathized] = useState(review.hasSympathized)
   const [showComments, setShowComments] = useState(false)
   const [commentCount, setCommentCount] = useState(0)
+  const [showReportModal, setShowReportModal] = useState(false)
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
   const tasteLevel = getTasteLevel(review.user.tasteScore)
+  const isOwnReview = user?.id === review.user.id
+
+  // 모든 이미지 (음식 사진 + 영수증)
+  const allImages = [...review.images, ...(review.receiptImage ? [review.receiptImage] : [])]
+  const hasMultipleImages = allImages.length > 1
+  const isReceiptImage = review.receiptImage && currentImageIndex === allImages.length - 1
 
   // 댓글 수 로드
   useEffect(() => {
@@ -83,6 +100,21 @@ export function ReviewCard({ review }: ReviewCardProps) {
             <Sparkles className="h-3 w-3" />첫 리뷰
           </Badge>
         )}
+        {user && !isOwnReview && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setShowReportModal(true)} className="text-destructive">
+                <Flag className="h-4 w-4 mr-2" />
+                신고하기
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
       {/* Restaurant Info */}
@@ -98,15 +130,52 @@ export function ReviewCard({ review }: ReviewCardProps) {
         </div>
       </Link>
 
-      {/* Review Image */}
-      {review.images.length > 0 && (
+      {/* Review Images */}
+      {allImages.length > 0 && (
         <div className="relative aspect-[4/3] bg-muted">
           <Image
-            src={review.images[0] || "/placeholder.svg"}
+            src={allImages[currentImageIndex] || "/placeholder.svg"}
             alt={`${review.restaurant.name} 리뷰 이미지`}
             fill
             className="object-cover"
           />
+          {/* 영수증 배지 */}
+          {isReceiptImage && (
+            <div className="absolute top-2 left-2 flex items-center gap-1 bg-primary/90 text-primary-foreground text-xs px-2 py-1 rounded-full">
+              <Receipt className="h-3 w-3" />
+              영수증
+            </div>
+          )}
+          {/* 이미지 네비게이션 */}
+          {hasMultipleImages && (
+            <>
+              <button
+                onClick={() => setCurrentImageIndex(prev => prev > 0 ? prev - 1 : allImages.length - 1)}
+                className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 transition-colors"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => setCurrentImageIndex(prev => prev < allImages.length - 1 ? prev + 1 : 0)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 transition-colors"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+              {/* 인디케이터 */}
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                {allImages.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setCurrentImageIndex(idx)}
+                    className={cn(
+                      "h-1.5 rounded-full transition-all",
+                      idx === currentImageIndex ? "w-4 bg-white" : "w-1.5 bg-white/50"
+                    )}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -225,6 +294,13 @@ export function ReviewCard({ review }: ReviewCardProps) {
           <CommentSection reviewId={review.id} reviewUserId={review.user.id} />
         </div>
       )}
+
+      {/* Report Modal */}
+      <ReportModal
+        open={showReportModal}
+        onOpenChange={setShowReportModal}
+        reviewId={review.id}
+      />
     </Card>
   )
 }

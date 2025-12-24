@@ -7,15 +7,15 @@ import { ReviewFeedClient } from "@/components/review-feed-client"
 import { Review } from "@/lib/api"
 import { CategoryFilter } from "./category-filter"
 import { Loader2 } from "lucide-react"
+import { RegionSelection } from "@/components/map-region-selector"
 
 interface HomePageClientWrapperProps {
   initialReviews: Review[];
-  initialRegion?: string;
   initialCategory?: string;
 }
 
-export function HomePageClientWrapper({ initialReviews, initialRegion = "전체", initialCategory = "전체" }: HomePageClientWrapperProps) {
-  const [selectedRegion, setSelectedRegion] = useState(initialRegion);
+export function HomePageClientWrapper({ initialReviews, initialCategory = "전체" }: HomePageClientWrapperProps) {
+  const [selectedRegion, setSelectedRegion] = useState<RegionSelection>({ region: "전체" });
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
 
   return (

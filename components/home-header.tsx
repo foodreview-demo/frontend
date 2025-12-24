@@ -4,20 +4,34 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Bell, MapPin, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
-import { regions } from "@/lib/constants"
 import { api } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
+import { MapRegionSelector, RegionSelection } from "@/components/map-region-selector"
 
 interface HomeHeaderProps {
-  selectedRegion: string
-  onRegionChange: (region: string) => void
+  selectedRegion: RegionSelection
+  onRegionChange: (selection: RegionSelection) => void
 }
 
 export function HomeHeader({ selectedRegion, onRegionChange }: HomeHeaderProps) {
   const { user } = useAuth()
   const [unreadCount, setUnreadCount] = useState(0)
+  const [isMapOpen, setIsMapOpen] = useState(false)
+
+  // 선택된 지역 표시 텍스트
+  const getRegionDisplayText = () => {
+    if (selectedRegion.neighborhood) {
+      return `${selectedRegion.district} ${selectedRegion.neighborhood}`
+    }
+    if (selectedRegion.district) {
+      return selectedRegion.district
+    }
+    if (selectedRegion.region !== "전체") {
+      return selectedRegion.region
+    }
+    return "전체 지역"
+  }
 
   useEffect(() => {
     const fetchUnreadCount = async () => {
@@ -52,26 +66,26 @@ export function HomeHeader({ selectedRegion, onRegionChange }: HomeHeaderProps) 
         </div>
 
         <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-1 text-foreground">
-                <MapPin className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium">{selectedRegion === "전체" ? "전체 지역" : selectedRegion}</span>
-                <ChevronDown className="h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              {regions.map((region) => (
-                <DropdownMenuItem
-                  key={region}
-                  onClick={() => onRegionChange(region)}
-                  className={selectedRegion === region ? "bg-primary/10 text-primary" : ""}
-                >
-                  {region}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1 text-foreground"
+            onClick={() => setIsMapOpen(true)}
+          >
+            <MapPin className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium max-w-[120px] truncate">
+              {getRegionDisplayText()}
+            </span>
+            <ChevronDown className="h-3 w-3" />
+          </Button>
+
+          <MapRegionSelector
+            open={isMapOpen}
+            onOpenChange={setIsMapOpen}
+            selectedRegion={selectedRegion}
+            onRegionChange={onRegionChange}
+            userHomeNeighborhood={user?.region}
+          />
 
           <Link href="/notifications">
             <Button variant="ghost" size="icon" className="relative">

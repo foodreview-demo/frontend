@@ -468,22 +468,36 @@ export function MapRegionSelector({
 
                 <div className="flex-1 overflow-y-auto">
                   <div className="p-2">
-                    {DISTRICT_NEIGHBORHOOD_GROUPS[`${tempRegion}_${tempDistrict}`]?.map((group, index) => (
-                      <button
-                        key={index}
-                        onClick={() => handleNeighborhoodSelect(group.label, group.neighborhoods)}
-                        className={cn(
-                          "w-full text-left px-4 py-3 rounded-xl transition-all",
-                          "hover:bg-amber-100/50 dark:hover:bg-amber-900/20",
-                          "active:bg-amber-200/50 dark:active:bg-amber-800/30",
-                          "border-b border-gray-100 dark:border-gray-800 last:border-0"
-                        )}
-                      >
-                        <span className="text-sm text-foreground font-medium">
-                          {group.label}
-                        </span>
-                      </button>
-                    ))}
+                    {DISTRICT_NEIGHBORHOOD_GROUPS[`${tempRegion}_${tempDistrict}`]?.map((group, index) => {
+                      // 동네 묶음의 리뷰 수 합산
+                      const groupCount = group.neighborhoods.reduce((sum, dong) => {
+                        return sum + getNeighborhoodCount(dong)
+                      }, 0)
+
+                      return (
+                        <button
+                          key={index}
+                          onClick={() => handleNeighborhoodSelect(group.label, group.neighborhoods)}
+                          className={cn(
+                            "w-full text-left px-4 py-3 rounded-xl transition-all",
+                            "hover:bg-amber-100/50 dark:hover:bg-amber-900/20",
+                            "active:bg-amber-200/50 dark:active:bg-amber-800/30",
+                            "border-b border-gray-100 dark:border-gray-800 last:border-0"
+                          )}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-foreground font-medium">
+                              {group.label}
+                            </span>
+                            {groupCount > 0 && (
+                              <Badge variant="secondary" className="text-xs bg-primary/10 text-primary">
+                                {groupCount}
+                              </Badge>
+                            )}
+                          </div>
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
 

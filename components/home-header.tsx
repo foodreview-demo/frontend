@@ -21,8 +21,8 @@ export function HomeHeader({ selectedRegion, onRegionChange }: HomeHeaderProps) 
 
   // 선택된 지역 표시 텍스트
   const getRegionDisplayText = () => {
-    if (selectedRegion.neighborhood) {
-      return `${selectedRegion.district} ${selectedRegion.neighborhood}`
+    if (selectedRegion.neighborhoodLabel) {
+      return `${selectedRegion.district} ${selectedRegion.neighborhoodLabel}`
     }
     if (selectedRegion.district) {
       return selectedRegion.district

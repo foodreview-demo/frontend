@@ -166,6 +166,14 @@ export function MapRegionSelector({
   const getDistrictCount = (district: string) => districtCounts.find(d => d.district === district)?.count || 0
   const getNeighborhoodCount = (neighborhood: string) => neighborhoodCounts.find(n => n.neighborhood === neighborhood)?.count || 0
 
+  // 숫자 축약 (1000 이상이면 "1k" 형식)
+  const formatCount = (count: number) => {
+    if (count >= 1000) {
+      return `${(count / 1000).toFixed(1).replace(/\.0$/, "")}k`
+    }
+    return count.toString()
+  }
+
   // 해당 지역에 SVG 지도를 사용할지 확인 (서울, 경기만 SVG 지도 사용)
   const hasSvgMap = (regionName: string) => {
     return REGIONS_WITH_SVG_MAP.includes(regionName)
@@ -363,8 +371,8 @@ export function MapRegionSelector({
                               >
                                 {shortName}
                               </text>
-                              {/* 리뷰 수 */}
-                              {count > 0 && (
+                              {/* 리뷰 수 - 호버 시에만 표시 */}
+                              {isHovered && count > 0 && (
                                 <text
                                   x={data.cx}
                                   y={data.cy + 2 + fontSize}
@@ -372,7 +380,7 @@ export function MapRegionSelector({
                                   fontSize={countFontSize}
                                   className="fill-primary font-bold"
                                 >
-                                  {count}
+                                  {formatCount(count)}
                                 </text>
                               )}
                             </g>

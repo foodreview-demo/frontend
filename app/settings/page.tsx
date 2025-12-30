@@ -12,7 +12,8 @@ import {
   Trash2,
   ChevronRight,
   Globe,
-  Check
+  Check,
+  Settings2
 } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { Button } from "@/components/ui/button"
@@ -98,6 +99,17 @@ export default function SettingsPage() {
                 <ChevronRight className="h-5 w-5 text-muted-foreground" />
               </div>
             </Link>
+            {user?.role === 'ADMIN' && (
+              <Link href="/admin">
+                <div className="flex items-center justify-between p-4 hover:bg-secondary/50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <Settings2 className="h-5 w-5 text-muted-foreground" />
+                    <span className="font-medium">관리자 페이지</span>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                </div>
+              </Link>
+            )}
           </Card>
         </div>
 

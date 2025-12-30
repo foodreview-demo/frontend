@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense, useRef, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowLeft, Camera, Star, X, Sparkles, Search, MapPin, Loader2, Eye, Users, Navigation } from "lucide-react"
+import { ArrowLeft, Camera, Star, X, Sparkles, Search, MapPin, Loader2, Eye, Users, Navigation, Receipt } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -60,9 +60,12 @@ function WriteReviewContent() {
   const [menu, setMenu] = useState("")
   const [price, setPrice] = useState("")
   const [images, setImages] = useState<string[]>([])
+  const [receiptImage, setReceiptImage] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [isUploadingReceipt, setIsUploadingReceipt] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const receiptInputRef = useRef<HTMLInputElement>(null)
 
   // 지역 정보 (카카오 주소에서 파싱 후 사용자 수정 가능)
   const [region, setRegion] = useState("")
@@ -359,9 +362,49 @@ function WriteReviewContent() {
     setImages(images.filter((_, i) => i !== index))
   }
 
+  const handleReceiptButtonClick = () => {
+    receiptInputRef.current?.click()
+  }
+
+  const handleReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    const file = files[0]
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    if (!validTypes.includes(file.type)) {
+      alert("JPEG, PNG, GIF, WebP 형식의 이미지만 업로드할 수 있습니다")
+      return
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert("이미지 파일 크기는 10MB를 초과할 수 없습니다")
+      return
+    }
+
+    setIsUploadingReceipt(true)
+    try {
+      const result = await api.uploadImages([file])
+      if (result.success) {
+        setReceiptImage(result.data.urls[0])
+      }
+    } catch (error) {
+      console.error("영수증 업로드 실패:", error)
+      alert(error instanceof Error ? error.message : "영수증 업로드에 실패했습니다")
+    } finally {
+      setIsUploadingReceipt(false)
+      if (receiptInputRef.current) {
+        receiptInputRef.current.value = ""
+      }
+    }
+  }
+
   const handleSubmit = async () => {
-    if (!hasSelectedPlace || rating === 0 || !content || !menu) {
-      alert("필수 항목을 모두 입력해주세요")
+    if (!hasSelectedPlace || rating === 0 || !content || !menu || !receiptImage) {
+      alert("필수 항목을 모두 입력해주세요 (영수증 사진 포함)")
       return
     }
 
@@ -424,6 +467,7 @@ function WriteReviewContent() {
         atmosphereRating: atmosphereRating > 0 ? atmosphereRating : undefined,
         serviceRating: serviceRating > 0 ? serviceRating : undefined,
         images: images.length > 0 ? images : undefined,
+        receiptImage: receiptImage!,
         menu,
         price: price || undefined,
         referenceReviewId: selectedReferenceReview?.id,
@@ -457,7 +501,7 @@ function WriteReviewContent() {
           <h1 className="font-bold text-lg text-foreground">리뷰 작성</h1>
           <Button
             onClick={handleSubmit}
-            disabled={!hasSelectedPlace || rating === 0 || !content || !menu || isSubmitting}
+            disabled={!hasSelectedPlace || rating === 0 || !content || !menu || !receiptImage || isSubmitting}
             className="bg-primary text-primary-foreground"
           >
             {isSubmitting ? "등록 중..." : "등록"}
@@ -866,6 +910,63 @@ function WriteReviewContent() {
           )}
         </div>
 
+        {/* Receipt Image */}
+        <div>
+          <label className="text-sm font-medium text-foreground mb-2 block">
+            영수증 사진 *
+          </label>
+          <p className="text-xs text-muted-foreground mb-2">
+            방문 인증을 위해 영수증 사진을 첨부해주세요
+          </p>
+          <input
+            ref={receiptInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            onChange={handleReceiptUpload}
+            className="hidden"
+          />
+          <div className="flex gap-2">
+            {receiptImage ? (
+              <div className="relative h-24 w-24 rounded-lg overflow-hidden bg-muted border-2 border-primary">
+                <Image
+                  src={receiptImage}
+                  alt="영수증 이미지"
+                  fill
+                  className="object-cover"
+                  unoptimized
+                />
+                <button
+                  onClick={() => setReceiptImage(null)}
+                  className="absolute top-1 right-1 bg-background/80 rounded-full p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+                <div className="absolute bottom-0 left-0 right-0 bg-primary/90 text-primary-foreground text-[10px] text-center py-0.5">
+                  영수증
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={handleReceiptButtonClick}
+                disabled={isUploadingReceipt}
+                className="h-24 w-24 rounded-lg border-2 border-dashed border-primary/50 flex flex-col items-center justify-center text-primary hover:border-primary hover:bg-primary/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isUploadingReceipt ? (
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                ) : (
+                  <>
+                    <Receipt className="h-6 w-6 mb-1" />
+                    <span className="text-xs">영수증</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+          {isUploadingReceipt && (
+            <p className="text-xs text-muted-foreground mt-2">영수증 업로드 중...</p>
+          )}
+        </div>
+
         {/* Content */}
         <div>
           <label className="text-sm font-medium text-foreground mb-2 block">리뷰 내용 *</label>
@@ -1142,6 +1243,7 @@ function WriteReviewContent() {
           <h4 className="font-medium text-foreground mb-2 text-sm">리뷰 작성 가이드</h4>
           <ul className="text-xs text-muted-foreground space-y-1">
             <li>• 직접 방문한 경험을 솔직하게 작성해주세요</li>
+            <li>• <strong className="text-foreground">영수증 사진은 필수입니다</strong> (방문 인증용)</li>
             <li>• 광고성 리뷰나 허위 리뷰는 삭제될 수 있습니다</li>
             <li>• 첫 리뷰 작성 시 맛잘알 점수가 2배로 적용됩니다</li>
             <li>• 공감을 많이 받을수록 맛잘알 점수가 올라갑니다</li>

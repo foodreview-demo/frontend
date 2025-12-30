@@ -7,10 +7,11 @@ import { ReviewCard } from "@/components/review-card"
 import { api, Review } from "@/lib/api"
 import { Loader2, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { RegionSelection } from "@/components/map-region-selector"
 
 interface ReviewFeedClientProps {
   initialReviews: Review[];
-  selectedRegion: string;
+  selectedRegion: RegionSelection;
   selectedCategory: string;
 }
 
@@ -35,8 +36,12 @@ export function ReviewFeedClient({ initialReviews, selectedRegion, selectedCateg
     setError(null);
     try {
       const result = await api.getReviews(
-        selectedRegion !== "전체" ? selectedRegion : undefined,
-        selectedCategory !== "전체" ? selectedCategory : undefined
+        selectedRegion.region !== "전체" ? selectedRegion.region : undefined,
+        selectedCategory !== "전체" ? selectedCategory : undefined,
+        0,
+        20,
+        selectedRegion.district,
+        selectedRegion.neighborhood
       );
       if (result.success) {
         setReviews(result.data.content);
@@ -62,7 +67,13 @@ export function ReviewFeedClient({ initialReviews, selectedRegion, selectedCateg
 
   // 필터 변경 시 리뷰 로드
   useEffect(() => {
-    if (selectedRegion === "전체" && selectedCategory === "전체" && initialReviews.length > 0 && !isRefreshing) {
+    // 전체 지역 + 전체 카테고리이고, 초기 리뷰가 있으면 그대로 사용
+    const isDefaultFilter = selectedRegion.region === "전체" &&
+                            !selectedRegion.district &&
+                            !selectedRegion.neighborhood &&
+                            selectedCategory === "전체";
+
+    if (isDefaultFilter && initialReviews.length > 0 && !isRefreshing) {
       setReviews(initialReviews);
       setIsLoading(false);
       return;
@@ -73,8 +84,12 @@ export function ReviewFeedClient({ initialReviews, selectedRegion, selectedCateg
       setError(null);
       try {
         const result = await api.getReviews(
-          selectedRegion !== "전체" ? selectedRegion : undefined,
-          selectedCategory !== "전체" ? selectedCategory : undefined
+          selectedRegion.region !== "전체" ? selectedRegion.region : undefined,
+          selectedCategory !== "전체" ? selectedCategory : undefined,
+          0,
+          20,
+          selectedRegion.district,
+          selectedRegion.neighborhood
         );
         if (result.success) {
           setReviews(result.data.content);

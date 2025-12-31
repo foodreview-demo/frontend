@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Send, MapPin, Loader2, MoreVertical, Check, CheckCheck, Users, UserPlus, X } from "lucide-react"
+import { ArrowLeft, Send, MapPin, Loader2, MoreVertical, Check, CheckCheck, Users, UserPlus, X, Flag, UserX, AlertTriangle } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,7 +21,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { api, ChatMessage, ChatRoom, User } from "@/lib/api"
+import { api, ChatMessage, ChatRoom, User, ChatReportReason, CHAT_REPORT_REASONS } from "@/lib/api"
+import { ChatReportDialog } from "@/components/chat-report-dialog"
+import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useAuth } from "@/lib/auth-context"
 import { useChatSocket, ReadNotification } from "@/lib/use-chat-socket"
 import { cn } from "@/lib/utils"
@@ -79,6 +82,13 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
   const [followingList, setFollowingList] = useState<User[]>([])
   const [selectedUsers, setSelectedUsers] = useState<User[]>([])
   const [isInviting, setIsInviting] = useState(false)
+
+  // 신고/차단 관련 상태
+  const [showReportDialog, setShowReportDialog] = useState(false)
+  const [showBlockDialog, setShowBlockDialog] = useState(false)
+  const [isBlocking, setIsBlocking] = useState(false)
+  const [selectedMessage, setSelectedMessage] = useState<ChatMessage | null>(null)
+  const [isBlockedError, setIsBlockedError] = useState(false)
 
   // WebSocket 연결 상태에서 수신된 메시지 처리
   const handleWebSocketMessage = useCallback((message: ChatMessage) => {
@@ -171,9 +181,15 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
             setMessages(messagesResult.data.content)
           }
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("채팅 로드 실패:", err)
-        setError("채팅방을 불러오는데 실패했습니다")
+        // 차단된 사용자인 경우 특별 처리
+        if (err?.message?.includes("차단") || err?.errorCode === "BLOCKED_USER") {
+          setIsBlockedError(true)
+          setError("차단된 사용자와는 채팅할 수 없습니다")
+        } else {
+          setError("채팅방을 불러오는데 실패했습니다")
+        }
       } finally {
         setIsLoading(false)
       }
@@ -314,7 +330,7 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
     setIsInviting(true)
     try {
       const userIds = selectedUsers.map((u) => u.id)
-      const result = await api.inviteToChatRoom(uuid, userIds)
+      const result = await api.inviteToRoom(uuid, userIds)
       if (result.success) {
         setChatRoom(result.data)
         setIsInviteModalOpen(false)
@@ -330,6 +346,33 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
     }
   }
 
+  // 사용자 차단
+  const handleBlock = async () => {
+    if (!chatRoom?.otherUser) return
+    setIsBlocking(true)
+    try {
+      await api.blockUser(chatRoom.otherUser.id)
+      // 페이지 이동 전에 다이얼로그 닫기
+      setShowBlockDialog(false)
+      // 페이지 이동 (이후 상태 업데이트 하지 않음)
+      router.push("/follows")
+      // 약간의 딜레이 후 alert (페이지 이동 중 표시)
+      setTimeout(() => alert("사용자를 차단했습니다"), 100)
+    } catch (err) {
+      console.error("차단 실패:", err)
+      alert("차단에 실패했습니다")
+      setIsBlocking(false)
+    }
+    // 성공 시에는 페이지 이동하므로 setIsBlocking(false) 호출 안함
+  }
+
+  // 메시지 길게 누르기 핸들러
+  const handleMessageLongPress = (message: ChatMessage) => {
+    if (message.senderId === currentUser?.id) return // 내 메시지는 무시
+    if (!message.senderId) return // 시스템 메시지 무시
+    setSelectedMessage(message)
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
@@ -343,10 +386,35 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
   if (error || !chatRoom) {
     return (
       <div className="min-h-screen bg-background flex flex-col max-w-md mx-auto">
+        <header className="sticky top-0 z-50 bg-card border-b border-border px-2 py-2">
+          <div className="flex items-center gap-2">
+            <Link href="/follows">
+              <Button variant="ghost" size="icon">
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            </Link>
+            <span className="font-semibold text-foreground">채팅</span>
+          </div>
+        </header>
         <div className="flex flex-col items-center justify-center flex-1 p-4">
-          <p className="text-muted-foreground">{error || "채팅방을 찾을 수 없습니다"}</p>
+          {isBlockedError ? (
+            <>
+              <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+                <UserX className="h-8 w-8 text-destructive" />
+              </div>
+              <p className="text-lg font-medium text-foreground mb-2">채팅을 할 수 없습니다</p>
+              <p className="text-sm text-muted-foreground text-center mb-6">
+                차단된 사용자와는 채팅할 수 없습니다.<br />
+                차단을 해제하면 다시 대화할 수 있습니다.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-muted-foreground mb-4">{error || "채팅방을 찾을 수 없습니다"}</p>
+            </>
+          )}
           <Link href="/follows">
-            <Button className="mt-4">돌아가기</Button>
+            <Button>채팅 목록으로 돌아가기</Button>
           </Link>
         </div>
       </div>
@@ -444,6 +512,18 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
                   <UserPlus className="h-4 w-4 mr-2" />
                   초대하기
                 </DropdownMenuItem>
+              )}
+              {!isGroupChat && otherUser && (
+                <>
+                  <DropdownMenuItem onClick={() => setShowReportDialog(true)}>
+                    <Flag className="h-4 w-4 mr-2" />
+                    신고하기
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="text-destructive" onClick={() => setShowBlockDialog(true)}>
+                    <UserX className="h-4 w-4 mr-2" />
+                    차단하기
+                  </DropdownMenuItem>
+                </>
               )}
               <DropdownMenuItem className="text-destructive" onClick={handleLeaveChat}>
                 채팅방 나가기
@@ -730,6 +810,87 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
               {selectedUsers.length === 0 ? "선택해주세요" : `${selectedUsers.length}명 초대`}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 신고 다이얼로그 */}
+      {chatRoom && chatRoom.otherUser && (
+        <ChatReportDialog
+          open={showReportDialog}
+          onOpenChange={setShowReportDialog}
+          reportedUserId={chatRoom.otherUser.id}
+          reportedUserName={chatRoom.otherUser.name}
+          chatRoomId={chatRoom.id}
+          messageId={selectedMessage?.id}
+          messageContent={selectedMessage?.content}
+          onSuccess={() => setSelectedMessage(null)}
+        />
+      )}
+
+      {/* 차단 확인 다이얼로그 */}
+      <Dialog open={showBlockDialog} onOpenChange={setShowBlockDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              사용자 차단
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="text-sm text-muted-foreground">
+              <strong>{chatRoom?.otherUser?.name}</strong>님을 차단하시겠습니까?
+            </div>
+            <ul className="list-disc pl-5 mt-3 space-y-1 text-sm text-muted-foreground">
+              <li>이 사용자의 리뷰가 피드에 표시되지 않습니다</li>
+              <li>이 사용자의 채팅 메시지를 받을 수 없습니다</li>
+              <li>서로 팔로우 관계가 해제됩니다</li>
+            </ul>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowBlockDialog(false)}>
+              취소
+            </Button>
+            <Button variant="destructive" onClick={handleBlock} disabled={isBlocking}>
+              {isBlocking ? "차단 중..." : "차단하기"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 메시지 액션 다이얼로그 (메시지 길게 눌렀을 때) */}
+      <Dialog open={!!selectedMessage} onOpenChange={(open) => !open && setSelectedMessage(null)}>
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="text-base">메시지 옵션</DialogTitle>
+          </DialogHeader>
+          {selectedMessage && (
+            <div className="space-y-2">
+              <div className="p-2 bg-muted rounded text-sm mb-4">
+                &ldquo;{selectedMessage.content.length > 50 ? selectedMessage.content.slice(0, 50) + '...' : selectedMessage.content}&rdquo;
+              </div>
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => {
+                  setShowReportDialog(true)
+                }}
+              >
+                <Flag className="h-4 w-4 mr-2" />
+                이 메시지 신고하기
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start text-destructive hover:text-destructive"
+                onClick={() => {
+                  setSelectedMessage(null)
+                  setShowBlockDialog(true)
+                }}
+              >
+                <UserX className="h-4 w-4 mr-2" />
+                이 사용자 차단하기
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

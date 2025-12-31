@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, MapPin, MessageCircle, UserPlus, Loader2, ListMusic, Star, ChevronRight } from "lucide-react"
+import { ArrowLeft, MapPin, MessageCircle, UserPlus, Loader2, ListMusic, Star, ChevronRight, MoreVertical, UserX, AlertTriangle } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { TasteScoreCard } from "@/components/taste-score-card"
 import { ReviewCard } from "@/components/review-card"
@@ -13,6 +13,20 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { api, User, Review, Playlist } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 
@@ -26,6 +40,9 @@ export function ProfileClient({ id }: { id: string }) {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("reviews")
+  const [showBlockDialog, setShowBlockDialog] = useState(false)
+  const [isBlocking, setIsBlocking] = useState(false)
+  const [isBlocked, setIsBlocked] = useState(false)
 
   const isOwnProfile = currentUser && user && currentUser.id === user.id
 
@@ -51,15 +68,21 @@ export function ProfileClient({ id }: { id: string }) {
           setPlaylists(playlistsResult.data.content)
         }
 
-        // Check if following
+        // Check if following and blocked
         if (currentUser && currentUser.id !== userId) {
           try {
-            const followResult = await api.isFollowing(userId)
+            const [followResult, blockedResult] = await Promise.all([
+              api.isFollowing(userId),
+              api.isBlocked(userId),
+            ])
             if (followResult.success) {
               setIsFollowing(followResult.data)
             }
+            if (blockedResult.success) {
+              setIsBlocked(blockedResult.data)
+            }
           } catch (err) {
-            // Ignore follow check error
+            // Ignore check error
           }
         }
       } catch (err) {
@@ -99,9 +122,37 @@ export function ProfileClient({ id }: { id: string }) {
         console.error("UUID가 없음:", result)
         alert("채팅방을 열 수 없습니다")
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("채팅방 생성 실패:", err)
-      alert("채팅방을 열 수 없습니다")
+      if (err?.message?.includes("차단")) {
+        alert("차단된 사용자와는 채팅할 수 없습니다")
+      } else {
+        alert("채팅방을 열 수 없습니다")
+      }
+    }
+  }
+
+  const handleBlock = async () => {
+    if (!user) return
+    setIsBlocking(true)
+    try {
+      if (isBlocked) {
+        await api.unblockUser(user.id)
+        setIsBlocked(false)
+        setShowBlockDialog(false)
+        alert("차단을 해제했습니다")
+      } else {
+        await api.blockUser(user.id)
+        setIsBlocked(true)
+        setIsFollowing(false)
+        setShowBlockDialog(false)
+        alert("사용자를 차단했습니다")
+      }
+    } catch (err) {
+      console.error("차단 처리 실패:", err)
+      alert("처리에 실패했습니다")
+    } finally {
+      setIsBlocking(false)
     }
   }
 
@@ -139,7 +190,26 @@ export function ProfileClient({ id }: { id: string }) {
             </Button>
           </Link>
           <h1 className="font-bold text-lg text-foreground">{user.name}</h1>
-          <div className="w-10" />
+          {!isOwnProfile ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <MoreVertical className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  className={isBlocked ? "" : "text-destructive focus:text-destructive"}
+                  onClick={() => setShowBlockDialog(true)}
+                >
+                  <UserX className="h-4 w-4 mr-2" />
+                  {isBlocked ? "차단 해제" : "차단하기"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <div className="w-10" />
+          )}
         </div>
       </header>
 
@@ -246,6 +316,53 @@ export function ProfileClient({ id }: { id: string }) {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* 차단 확인 다이얼로그 */}
+      <Dialog open={showBlockDialog} onOpenChange={setShowBlockDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              {isBlocked ? "차단 해제" : "사용자 차단"}
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div>
+                {isBlocked ? (
+                  <>
+                    <strong>{user.name}</strong>님의 차단을 해제하시겠습니까?
+                    <ul className="list-disc pl-5 mt-3 space-y-1">
+                      <li>이 사용자의 리뷰가 피드에 다시 표시됩니다</li>
+                      <li>이 사용자와 다시 채팅할 수 있습니다</li>
+                      <li>팔로우는 자동으로 복구되지 않습니다</li>
+                    </ul>
+                  </>
+                ) : (
+                  <>
+                    <strong>{user.name}</strong>님을 차단하시겠습니까?
+                    <ul className="list-disc pl-5 mt-3 space-y-1">
+                      <li>이 사용자의 리뷰가 피드에 표시되지 않습니다</li>
+                      <li>이 사용자의 채팅 메시지를 받을 수 없습니다</li>
+                      <li>서로 팔로우 관계가 해제됩니다</li>
+                    </ul>
+                  </>
+                )}
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBlockDialog(false)}>
+              취소
+            </Button>
+            <Button
+              variant={isBlocked ? "default" : "destructive"}
+              onClick={handleBlock}
+              disabled={isBlocking}
+            >
+              {isBlocking ? "처리 중..." : isBlocked ? "차단 해제" : "차단하기"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MobileLayout>
   )
 }

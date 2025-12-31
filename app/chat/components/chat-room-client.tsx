@@ -95,16 +95,29 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
 
   // WebSocket 연결 상태에서 수신된 메시지 처리
   const handleWebSocketMessage = useCallback((message: ChatMessage) => {
-    // 내가 보낸 메시지는 이미 optimistic update로 추가됨 - 무시
-    if (message.senderId === currentUser?.id) {
-      return
-    }
-
     setMessages((prev) => {
       // 중복 메시지 방지
       if (prev.some((m) => m.id === message.id)) {
         return prev
       }
+
+      // 내가 보낸 메시지인 경우: optimistic update된 임시 메시지를 실제 메시지로 교체
+      if (message.senderId === currentUser?.id) {
+        // 같은 내용의 임시 메시지(id가 큰 timestamp 값)를 찾아서 교체
+        const tempMsgIndex = prev.findIndex(
+          (m) => m.senderId === currentUser?.id &&
+                 m.content === message.content &&
+                 m.id > 1700000000000 // timestamp 기반 임시 ID
+        )
+        if (tempMsgIndex !== -1) {
+          const newMessages = [...prev]
+          newMessages[tempMsgIndex] = message
+          return newMessages
+        }
+        // 임시 메시지를 못 찾으면 추가하지 않음 (이미 있을 수 있음)
+        return prev
+      }
+
       return [...prev, message]
     })
   }, [currentUser?.id])
@@ -438,6 +451,12 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
 
   // 메시지 삭제
   const handleDeleteMessage = async (messageId: number) => {
+    // 임시 ID(timestamp 기반)인 경우 아직 서버에 저장되지 않았을 수 있음
+    if (messageId > 1700000000000) {
+      alert('메시지가 아직 전송 중입니다. 잠시 후 다시 시도해주세요.')
+      setSelectedMessage(null)
+      return
+    }
     if (!confirm('이 메시지를 삭제하시겠습니까?')) return
     try {
       await api.deleteMessage(uuid, messageId)

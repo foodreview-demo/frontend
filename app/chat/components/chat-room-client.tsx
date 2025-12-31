@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useEffect, useCallback, TouchEvent, MouseEvent } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Send, MapPin, Loader2, MoreVertical, Check, CheckCheck, Users, UserPlus, X, Flag, UserX, AlertTriangle } from "lucide-react"
@@ -348,12 +348,15 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
 
   // 사용자 차단
   const handleBlock = async () => {
-    if (!chatRoom?.otherUser) return
+    // 차단할 사용자 ID: 선택된 메시지가 있으면 메시지 발신자, 없으면 채팅방 상대방
+    const blockUserId = selectedMessage?.senderId || chatRoom?.otherUser?.id
+    if (!blockUserId) return
     setIsBlocking(true)
     try {
-      await api.blockUser(chatRoom.otherUser.id)
+      await api.blockUser(blockUserId)
       // 페이지 이동 전에 다이얼로그 닫기
       setShowBlockDialog(false)
+      setSelectedMessage(null)
       // 페이지 이동 (이후 상태 업데이트 하지 않음)
       router.push("/follows")
       // 약간의 딜레이 후 alert (페이지 이동 중 표시)
@@ -366,11 +369,44 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
     // 성공 시에는 페이지 이동하므로 setIsBlocking(false) 호출 안함
   }
 
+  // Long press 관련 ref
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const longPressTriggeredRef = useRef(false)
+
   // 메시지 길게 누르기 핸들러
   const handleMessageLongPress = (message: ChatMessage) => {
     if (message.senderId === currentUser?.id) return // 내 메시지는 무시
     if (!message.senderId) return // 시스템 메시지 무시
     setSelectedMessage(message)
+  }
+
+  // Long press 시작 (터치/마우스)
+  const handleLongPressStart = (message: ChatMessage) => {
+    if (message.senderId === currentUser?.id) return
+    if (!message.senderId) return
+
+    longPressTriggeredRef.current = false
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTriggeredRef.current = true
+      handleMessageLongPress(message)
+    }, 500) // 500ms 후 long press 인식
+  }
+
+  // Long press 종료
+  const handleLongPressEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }
+
+  // 우클릭 핸들러 (데스크탑)
+  const handleContextMenu = (e: MouseEvent, message: ChatMessage) => {
+    if (message.senderId === currentUser?.id) return
+    if (!message.senderId) return
+
+    e.preventDefault()
+    handleMessageLongPress(message)
   }
 
   if (isLoading) {
@@ -622,11 +658,18 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
                       <div className={cn("flex items-end gap-1.5", isMe && "flex-row-reverse")}>
                         <div
                           className={cn(
-                            "px-3 py-2 rounded-2xl break-words shadow-sm",
+                            "px-3 py-2 rounded-2xl break-words shadow-sm select-none",
                             isMe
                               ? "bg-primary text-primary-foreground rounded-br-md"
-                              : "bg-card text-card-foreground border border-border rounded-bl-md"
+                              : "bg-card text-card-foreground border border-border rounded-bl-md cursor-pointer active:opacity-80"
                           )}
+                          onTouchStart={() => handleLongPressStart(message)}
+                          onTouchEnd={handleLongPressEnd}
+                          onTouchCancel={handleLongPressEnd}
+                          onMouseDown={() => handleLongPressStart(message)}
+                          onMouseUp={handleLongPressEnd}
+                          onMouseLeave={handleLongPressEnd}
+                          onContextMenu={(e) => handleContextMenu(e, message)}
                         >
                           <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                         </div>
@@ -814,12 +857,12 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
       </Dialog>
 
       {/* 신고 다이얼로그 */}
-      {chatRoom && chatRoom.otherUser && (
+      {chatRoom && (selectedMessage?.senderId || chatRoom.otherUser) && (
         <ChatReportDialog
           open={showReportDialog}
           onOpenChange={setShowReportDialog}
-          reportedUserId={chatRoom.otherUser.id}
-          reportedUserName={chatRoom.otherUser.name}
+          reportedUserId={selectedMessage?.senderId || chatRoom.otherUser?.id || 0}
+          reportedUserName={selectedMessage?.senderName || chatRoom.otherUser?.name || ''}
           chatRoomId={chatRoom.id}
           messageId={selectedMessage?.id}
           messageContent={selectedMessage?.content}
@@ -828,7 +871,10 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
       )}
 
       {/* 차단 확인 다이얼로그 */}
-      <Dialog open={showBlockDialog} onOpenChange={setShowBlockDialog}>
+      <Dialog open={showBlockDialog} onOpenChange={(open) => {
+        setShowBlockDialog(open)
+        if (!open) setSelectedMessage(null)
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -838,7 +884,7 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
           </DialogHeader>
           <div className="py-4">
             <div className="text-sm text-muted-foreground">
-              <strong>{chatRoom?.otherUser?.name}</strong>님을 차단하시겠습니까?
+              <strong>{selectedMessage?.senderName || chatRoom?.otherUser?.name}</strong>님을 차단하시겠습니까?
             </div>
             <ul className="list-disc pl-5 mt-3 space-y-1 text-sm text-muted-foreground">
               <li>이 사용자의 리뷰가 피드에 표시되지 않습니다</li>
@@ -847,7 +893,10 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
             </ul>
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowBlockDialog(false)}>
+            <Button variant="outline" onClick={() => {
+              setShowBlockDialog(false)
+              setSelectedMessage(null)
+            }}>
               취소
             </Button>
             <Button variant="destructive" onClick={handleBlock} disabled={isBlocking}>

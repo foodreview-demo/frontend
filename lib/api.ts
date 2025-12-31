@@ -535,6 +535,13 @@ class ApiClient {
     });
   }
 
+  // 메시지 삭제
+  async deleteMessage(roomUuid: string, messageId: number) {
+    return this.request<ApiResponse<void>>(`/chat/room/${roomUuid}/messages/${messageId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // 단체톡방 생성
   async createGroupChatRoom(name: string | null, memberIds: number[]) {
     return this.request<ApiResponse<ChatRoom>>('/chat/rooms/group', {

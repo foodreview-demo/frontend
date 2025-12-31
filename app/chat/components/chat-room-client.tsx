@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, TouchEvent, MouseEvent } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Send, MapPin, Loader2, MoreVertical, Check, CheckCheck, Users, UserPlus, X, Flag, UserX, AlertTriangle } from "lucide-react"
+import { ArrowLeft, Send, MapPin, Loader2, MoreVertical, Check, CheckCheck, Users, UserPlus, X, Flag, UserX, AlertTriangle, Copy, Trash2, Reply } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -89,6 +89,9 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
   const [isBlocking, setIsBlocking] = useState(false)
   const [selectedMessage, setSelectedMessage] = useState<ChatMessage | null>(null)
   const [isBlockedError, setIsBlockedError] = useState(false)
+
+  // 답장 관련 상태
+  const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null)
 
   // WebSocket 연결 상태에서 수신된 메시지 처리
   const handleWebSocketMessage = useCallback((message: ChatMessage) => {
@@ -230,8 +233,17 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
   const handleSend = async () => {
     if (!newMessage.trim() || !chatRoom || isSending || !currentUser) return
 
-    const messageContent = newMessage.trim()
+    // 답장인 경우 인용 형식으로 메시지 구성
+    let messageContent = newMessage.trim()
+    if (replyToMessage) {
+      const replyPreview = replyToMessage.content.length > 20
+        ? replyToMessage.content.slice(0, 20) + '...'
+        : replyToMessage.content
+      messageContent = `> ${replyToMessage.senderName}: ${replyPreview}\n\n${messageContent}`
+    }
+
     setNewMessage("")
+    setReplyToMessage(null)
     setIsSending(true)
 
     // WebSocket으로 전송 시도
@@ -375,15 +387,13 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
 
   // 메시지 길게 누르기 핸들러
   const handleMessageLongPress = (message: ChatMessage) => {
-    if (message.senderId === currentUser?.id) return // 내 메시지는 무시
     if (!message.senderId) return // 시스템 메시지 무시
     setSelectedMessage(message)
   }
 
   // Long press 시작 (터치/마우스)
   const handleLongPressStart = (message: ChatMessage) => {
-    if (message.senderId === currentUser?.id) return
-    if (!message.senderId) return
+    if (!message.senderId) return // 시스템 메시지 무시
 
     longPressTriggeredRef.current = false
     longPressTimerRef.current = setTimeout(() => {
@@ -402,11 +412,48 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
 
   // 우클릭 핸들러 (데스크탑)
   const handleContextMenu = (e: MouseEvent, message: ChatMessage) => {
-    if (message.senderId === currentUser?.id) return
-    if (!message.senderId) return
+    if (!message.senderId) return // 시스템 메시지 무시
 
     e.preventDefault()
     handleMessageLongPress(message)
+  }
+
+  // 메시지 복사
+  const handleCopyMessage = async (content: string) => {
+    try {
+      await navigator.clipboard.writeText(content)
+      alert('메시지가 복사되었습니다')
+    } catch {
+      // fallback for older browsers
+      const textarea = document.createElement('textarea')
+      textarea.value = content
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+      alert('메시지가 복사되었습니다')
+    }
+    setSelectedMessage(null)
+  }
+
+  // 메시지 삭제
+  const handleDeleteMessage = async (messageId: number) => {
+    if (!confirm('이 메시지를 삭제하시겠습니까?')) return
+    try {
+      await api.deleteMessage(uuid, messageId)
+      setMessages(prev => prev.filter(m => m.id !== messageId))
+      setSelectedMessage(null)
+    } catch (err) {
+      console.error('메시지 삭제 실패:', err)
+      alert('메시지 삭제에 실패했습니다')
+    }
+  }
+
+  // 답장하기
+  const handleReply = (message: ChatMessage) => {
+    setReplyToMessage(message)
+    setSelectedMessage(null)
+    textareaRef.current?.focus()
   }
 
   if (isLoading) {
@@ -658,10 +705,10 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
                       <div className={cn("flex items-end gap-1.5", isMe && "flex-row-reverse")}>
                         <div
                           className={cn(
-                            "px-3 py-2 rounded-2xl break-words shadow-sm select-none",
+                            "px-3 py-2 rounded-2xl break-words shadow-sm select-none cursor-pointer active:opacity-80",
                             isMe
                               ? "bg-primary text-primary-foreground rounded-br-md"
-                              : "bg-card text-card-foreground border border-border rounded-bl-md cursor-pointer active:opacity-80"
+                              : "bg-card text-card-foreground border border-border rounded-bl-md"
                           )}
                           onTouchStart={() => handleLongPressStart(message)}
                           onTouchEnd={handleLongPressEnd}
@@ -717,8 +764,30 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
       </div>
 
       {/* Input Area */}
-      <div className="sticky bottom-0 bg-card px-3 py-3 border-t border-border">
-        <div className="flex items-end gap-2">
+      <div className="sticky bottom-0 bg-card border-t border-border">
+        {/* 답장 프리뷰 */}
+        {replyToMessage && (
+          <div className="px-3 pt-2 pb-1 flex items-center gap-2 bg-secondary/50">
+            <Reply className="h-4 w-4 text-primary shrink-0" />
+            <div className="flex-1 min-w-0 text-sm">
+              <span className="text-primary font-medium">{replyToMessage.senderName}</span>
+              <span className="text-muted-foreground ml-1">
+                {replyToMessage.content.length > 30
+                  ? replyToMessage.content.slice(0, 30) + '...'
+                  : replyToMessage.content}
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0"
+              onClick={() => setReplyToMessage(null)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+        <div className="px-3 py-3 flex items-end gap-2">
           <div className="flex-1">
             <Textarea
               ref={textareaRef}
@@ -917,27 +986,66 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
               <div className="p-2 bg-muted rounded text-sm mb-4">
                 &ldquo;{selectedMessage.content.length > 50 ? selectedMessage.content.slice(0, 50) + '...' : selectedMessage.content}&rdquo;
               </div>
+
+              {/* 답장 */}
               <Button
                 variant="outline"
                 className="w-full justify-start"
-                onClick={() => {
-                  setShowReportDialog(true)
-                }}
+                onClick={() => handleReply(selectedMessage)}
               >
-                <Flag className="h-4 w-4 mr-2" />
-                이 메시지 신고하기
+                <Reply className="h-4 w-4 mr-2" />
+                답장
               </Button>
+
+              {/* 복사 */}
               <Button
                 variant="outline"
-                className="w-full justify-start text-destructive hover:text-destructive"
-                onClick={() => {
-                  setSelectedMessage(null)
-                  setShowBlockDialog(true)
-                }}
+                className="w-full justify-start"
+                onClick={() => handleCopyMessage(selectedMessage.content)}
               >
-                <UserX className="h-4 w-4 mr-2" />
-                이 사용자 차단하기
+                <Copy className="h-4 w-4 mr-2" />
+                복사
               </Button>
+
+              {/* 삭제 (내 메시지만) */}
+              {selectedMessage.senderId === currentUser?.id && (
+                <Button
+                  variant="outline"
+                  className="w-full justify-start text-destructive hover:text-destructive"
+                  onClick={() => handleDeleteMessage(selectedMessage.id)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  삭제
+                </Button>
+              )}
+
+              {/* 신고/차단 (상대방 메시지만) */}
+              {selectedMessage.senderId !== currentUser?.id && (
+                <>
+                  <div className="border-t my-2" />
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setShowReportDialog(true)
+                    }}
+                  >
+                    <Flag className="h-4 w-4 mr-2" />
+                    이 메시지 신고하기
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-destructive hover:text-destructive"
+                    onClick={() => {
+                      setSelectedMessage(null)
+                      setShowBlockDialog(true)
+                    }}
+                  >
+                    <UserX className="h-4 w-4 mr-2" />
+                    이 사용자 차단하기
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </DialogContent>

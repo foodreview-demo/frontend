@@ -88,10 +88,14 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
   const [showBlockDialog, setShowBlockDialog] = useState(false)
   const [isBlocking, setIsBlocking] = useState(false)
   const [selectedMessage, setSelectedMessage] = useState<ChatMessage | null>(null)
+  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null)
   const [isBlockedError, setIsBlockedError] = useState(false)
 
   // 답장 관련 상태
   const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null)
+
+  // 팝업 메뉴 ref (외부 클릭 감지용)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   // WebSocket 연결 상태에서 수신된 메시지 처리
   const handleWebSocketMessage = useCallback((message: ChatMessage) => {
@@ -397,21 +401,32 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
   // Long press 관련 ref
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null)
   const longPressTriggeredRef = useRef(false)
+  const longPressPositionRef = useRef<{ x: number; y: number } | null>(null)
 
   // 메시지 길게 누르기 핸들러
-  const handleMessageLongPress = (message: ChatMessage) => {
+  const handleMessageLongPress = (message: ChatMessage, x: number, y: number) => {
     if (!message.senderId) return // 시스템 메시지 무시
     setSelectedMessage(message)
+    setMenuPosition({ x, y })
   }
 
   // Long press 시작 (터치/마우스)
-  const handleLongPressStart = (message: ChatMessage) => {
+  const handleLongPressStart = (e: React.TouchEvent | React.MouseEvent, message: ChatMessage) => {
     if (!message.senderId) return // 시스템 메시지 무시
+
+    // 위치 저장
+    if ('touches' in e) {
+      longPressPositionRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    } else {
+      longPressPositionRef.current = { x: e.clientX, y: e.clientY }
+    }
 
     longPressTriggeredRef.current = false
     longPressTimerRef.current = setTimeout(() => {
       longPressTriggeredRef.current = true
-      handleMessageLongPress(message)
+      if (longPressPositionRef.current) {
+        handleMessageLongPress(message, longPressPositionRef.current.x, longPressPositionRef.current.y)
+      }
     }, 500) // 500ms 후 long press 인식
   }
 
@@ -428,14 +443,36 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
     if (!message.senderId) return // 시스템 메시지 무시
 
     e.preventDefault()
-    handleMessageLongPress(message)
+    handleMessageLongPress(message, e.clientX, e.clientY)
   }
+
+  // 메뉴 닫기
+  const closeMenu = () => {
+    setSelectedMessage(null)
+    setMenuPosition(null)
+  }
+
+  // 외부 클릭 시 메뉴 닫기
+  useEffect(() => {
+    const handleClickOutside = (e: Event) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        closeMenu()
+      }
+    }
+    if (selectedMessage && menuPosition) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('touchstart', handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchstart', handleClickOutside)
+    }
+  }, [selectedMessage, menuPosition])
 
   // 메시지 복사
   const handleCopyMessage = async (content: string) => {
     try {
       await navigator.clipboard.writeText(content)
-      alert('메시지가 복사되었습니다')
     } catch {
       // fallback for older browsers
       const textarea = document.createElement('textarea')
@@ -444,9 +481,8 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
       textarea.select()
       document.execCommand('copy')
       document.body.removeChild(textarea)
-      alert('메시지가 복사되었습니다')
     }
-    setSelectedMessage(null)
+    closeMenu()
   }
 
   // 메시지 삭제
@@ -454,14 +490,17 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
     // 임시 ID(timestamp 기반)인 경우 아직 서버에 저장되지 않았을 수 있음
     if (messageId > 1700000000000) {
       alert('메시지가 아직 전송 중입니다. 잠시 후 다시 시도해주세요.')
-      setSelectedMessage(null)
+      closeMenu()
       return
     }
-    if (!confirm('이 메시지를 삭제하시겠습니까?')) return
+    if (!confirm('이 메시지를 삭제하시겠습니까?')) {
+      closeMenu()
+      return
+    }
     try {
       await api.deleteMessage(uuid, messageId)
       setMessages(prev => prev.filter(m => m.id !== messageId))
-      setSelectedMessage(null)
+      closeMenu()
     } catch (err) {
       console.error('메시지 삭제 실패:', err)
       alert('메시지 삭제에 실패했습니다')
@@ -471,7 +510,7 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
   // 답장하기
   const handleReply = (message: ChatMessage) => {
     setReplyToMessage(message)
-    setSelectedMessage(null)
+    closeMenu()
     textareaRef.current?.focus()
   }
 
@@ -729,10 +768,10 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
                               ? "bg-primary text-primary-foreground rounded-br-md"
                               : "bg-card text-card-foreground border border-border rounded-bl-md"
                           )}
-                          onTouchStart={() => handleLongPressStart(message)}
+                          onTouchStart={(e) => handleLongPressStart(e, message)}
                           onTouchEnd={handleLongPressEnd}
                           onTouchCancel={handleLongPressEnd}
-                          onMouseDown={() => handleLongPressStart(message)}
+                          onMouseDown={(e) => handleLongPressStart(e, message)}
                           onMouseUp={handleLongPressEnd}
                           onMouseLeave={handleLongPressEnd}
                           onContextMenu={(e) => handleContextMenu(e, message)}
@@ -994,81 +1033,73 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
         </DialogContent>
       </Dialog>
 
-      {/* 메시지 액션 다이얼로그 (메시지 길게 눌렀을 때) */}
-      <Dialog open={!!selectedMessage} onOpenChange={(open) => !open && setSelectedMessage(null)}>
-        <DialogContent className="max-w-xs">
-          <DialogHeader>
-            <DialogTitle className="text-base">메시지 옵션</DialogTitle>
-          </DialogHeader>
-          {selectedMessage && (
-            <div className="space-y-2">
-              <div className="p-2 bg-muted rounded text-sm mb-4">
-                &ldquo;{selectedMessage.content.length > 50 ? selectedMessage.content.slice(0, 50) + '...' : selectedMessage.content}&rdquo;
-              </div>
+      {/* 메시지 팝업 메뉴 (메시지 길게 눌렀을 때) */}
+      {selectedMessage && menuPosition && (
+        <div
+          ref={menuRef}
+          className="fixed z-[100] bg-card rounded-xl shadow-lg border border-border py-1 min-w-[140px]"
+          style={{
+            left: Math.min(menuPosition.x, window.innerWidth - 160),
+            top: Math.min(menuPosition.y, window.innerHeight - 250),
+          }}
+        >
+          {/* 답장 */}
+          <button
+            className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-secondary/80 active:bg-secondary"
+            onClick={() => handleReply(selectedMessage)}
+          >
+            <Reply className="h-4 w-4 text-muted-foreground" />
+            답장
+          </button>
 
-              {/* 답장 */}
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                onClick={() => handleReply(selectedMessage)}
-              >
-                <Reply className="h-4 w-4 mr-2" />
-                답장
-              </Button>
+          {/* 복사 */}
+          <button
+            className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-secondary/80 active:bg-secondary"
+            onClick={() => handleCopyMessage(selectedMessage.content)}
+          >
+            <Copy className="h-4 w-4 text-muted-foreground" />
+            복사
+          </button>
 
-              {/* 복사 */}
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                onClick={() => handleCopyMessage(selectedMessage.content)}
-              >
-                <Copy className="h-4 w-4 mr-2" />
-                복사
-              </Button>
-
-              {/* 삭제 (내 메시지만) */}
-              {selectedMessage.senderId === currentUser?.id && (
-                <Button
-                  variant="outline"
-                  className="w-full justify-start text-destructive hover:text-destructive"
-                  onClick={() => handleDeleteMessage(selectedMessage.id)}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  삭제
-                </Button>
-              )}
-
-              {/* 신고/차단 (상대방 메시지만) */}
-              {selectedMessage.senderId !== currentUser?.id && (
-                <>
-                  <div className="border-t my-2" />
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                    onClick={() => {
-                      setShowReportDialog(true)
-                    }}
-                  >
-                    <Flag className="h-4 w-4 mr-2" />
-                    이 메시지 신고하기
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-destructive hover:text-destructive"
-                    onClick={() => {
-                      setSelectedMessage(null)
-                      setShowBlockDialog(true)
-                    }}
-                  >
-                    <UserX className="h-4 w-4 mr-2" />
-                    이 사용자 차단하기
-                  </Button>
-                </>
-              )}
-            </div>
+          {/* 삭제 (내 메시지만) */}
+          {selectedMessage.senderId === currentUser?.id && (
+            <button
+              className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-secondary/80 active:bg-secondary text-destructive"
+              onClick={() => handleDeleteMessage(selectedMessage.id)}
+            >
+              <Trash2 className="h-4 w-4" />
+              삭제
+            </button>
           )}
-        </DialogContent>
-      </Dialog>
+
+          {/* 신고/차단 (상대방 메시지만) */}
+          {selectedMessage.senderId !== currentUser?.id && (
+            <>
+              <div className="border-t border-border my-1" />
+              <button
+                className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-secondary/80 active:bg-secondary"
+                onClick={() => {
+                  closeMenu()
+                  setShowReportDialog(true)
+                }}
+              >
+                <Flag className="h-4 w-4 text-muted-foreground" />
+                신고
+              </button>
+              <button
+                className="w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-secondary/80 active:bg-secondary text-destructive"
+                onClick={() => {
+                  closeMenu()
+                  setShowBlockDialog(true)
+                }}
+              >
+                <UserX className="h-4 w-4" />
+                차단
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }

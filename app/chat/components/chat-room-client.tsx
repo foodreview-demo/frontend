@@ -65,6 +65,19 @@ function shouldGroupWithPrevious(current: ChatMessage, previous: ChatMessage | n
   return currentTime - previousTime < 60000 // 1 minute
 }
 
+// 답장 메시지 파싱 ("> 이름: 내용\n\n본문" 형식)
+function parseReplyMessage(content: string): { replyTo: { name: string; content: string } | null; message: string } {
+  const replyPattern = /^> (.+?): (.+?)\n\n([\s\S]*)$/
+  const match = content.match(replyPattern)
+  if (match) {
+    return {
+      replyTo: { name: match[1], content: match[2] },
+      message: match[3]
+    }
+  }
+  return { replyTo: null, message: content }
+}
+
 export function ChatRoomClient({ uuid }: { uuid: string }) {
   const router = useRouter()
   const { user: currentUser } = useAuth()
@@ -776,7 +789,35 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
                           onMouseLeave={handleLongPressEnd}
                           onContextMenu={(e) => handleContextMenu(e, message)}
                         >
-                          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                          {(() => {
+                            const parsed = parseReplyMessage(message.content)
+                            return (
+                              <>
+                                {parsed.replyTo && (
+                                  <div className={cn(
+                                    "text-xs mb-1.5 pb-1.5 border-b flex items-start gap-1.5",
+                                    isMe ? "border-primary-foreground/30" : "border-border"
+                                  )}>
+                                    <Reply className={cn(
+                                      "h-3 w-3 mt-0.5 shrink-0",
+                                      isMe ? "text-primary-foreground/70" : "text-muted-foreground"
+                                    )} />
+                                    <div className="min-w-0">
+                                      <span className={cn(
+                                        "font-medium",
+                                        isMe ? "text-primary-foreground/90" : "text-foreground"
+                                      )}>{parsed.replyTo.name}</span>
+                                      <p className={cn(
+                                        "truncate",
+                                        isMe ? "text-primary-foreground/70" : "text-muted-foreground"
+                                      )}>{parsed.replyTo.content}</p>
+                                    </div>
+                                  </div>
+                                )}
+                                <p className="text-sm whitespace-pre-wrap">{parsed.message}</p>
+                              </>
+                            )
+                          })()}
                         </div>
 
                         {showTime && (

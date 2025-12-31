@@ -65,16 +65,28 @@ function shouldGroupWithPrevious(current: ChatMessage, previous: ChatMessage | n
   return currentTime - previousTime < 60000 // 1 minute
 }
 
-// 답장 메시지 파싱 ("> 이름: 내용\n\n본문" 형식)
-function parseReplyMessage(content: string): { replyTo: { name: string; content: string } | null; message: string } {
-  const replyPattern = /^> (.+?): (.+?)\n\n([\s\S]*)$/
-  const match = content.match(replyPattern)
-  if (match) {
+// 답장 메시지 파싱 ("> [id]이름: 내용\n\n본문" 형식)
+function parseReplyMessage(content: string): { replyTo: { id: number; name: string; content: string } | null; message: string } {
+  // 새 형식: > [123]이름: 내용
+  const newPattern = /^> \[(\d+)\](.+?): (.+?)\n\n([\s\S]*)$/
+  const newMatch = content.match(newPattern)
+  if (newMatch) {
     return {
-      replyTo: { name: match[1], content: match[2] },
-      message: match[3]
+      replyTo: { id: parseInt(newMatch[1]), name: newMatch[2], content: newMatch[3] },
+      message: newMatch[4]
     }
   }
+
+  // 구 형식 호환: > 이름: 내용
+  const oldPattern = /^> ([^:]+): (.+?)\n\n([\s\S]*)$/
+  const oldMatch = content.match(oldPattern)
+  if (oldMatch) {
+    return {
+      replyTo: { id: 0, name: oldMatch[1], content: oldMatch[2] },
+      message: oldMatch[3]
+    }
+  }
+
   return { replyTo: null, message: content }
 }
 
@@ -190,6 +202,19 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [])
 
+  // 특정 메시지로 스크롤
+  const scrollToMessage = useCallback((messageId: number) => {
+    const messageElement = document.getElementById(`message-${messageId}`)
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: "smooth", block: "center" })
+      // 하이라이트 효과
+      messageElement.classList.add("ring-2", "ring-primary", "ring-offset-2")
+      setTimeout(() => {
+        messageElement.classList.remove("ring-2", "ring-primary", "ring-offset-2")
+      }, 2000)
+    }
+  }, [])
+
   // 초기 데이터 로드
   useEffect(() => {
     const fetchData = async () => {
@@ -263,13 +288,13 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
   const handleSend = async () => {
     if (!newMessage.trim() || !chatRoom || isSending || !currentUser) return
 
-    // 답장인 경우 인용 형식으로 메시지 구성
+    // 답장인 경우 인용 형식으로 메시지 구성 (ID 포함)
     let messageContent = newMessage.trim()
     if (replyToMessage) {
       const replyPreview = replyToMessage.content.length > 20
         ? replyToMessage.content.slice(0, 20) + '...'
         : replyToMessage.content
-      messageContent = `> ${replyToMessage.senderName}: ${replyPreview}\n\n${messageContent}`
+      messageContent = `> [${replyToMessage.id}]${replyToMessage.senderName}: ${replyPreview}\n\n${messageContent}`
     }
 
     setNewMessage("")
@@ -775,8 +800,9 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
 
                       <div className={cn("flex items-end gap-1.5", isMe && "flex-row-reverse")}>
                         <div
+                          id={`message-${message.id}`}
                           className={cn(
-                            "px-3 py-2 rounded-2xl break-words shadow-sm select-none cursor-pointer active:opacity-80",
+                            "px-3 py-2 rounded-2xl break-words shadow-sm select-none cursor-pointer active:opacity-80 transition-all",
                             isMe
                               ? "bg-primary text-primary-foreground rounded-br-md"
                               : "bg-card text-card-foreground border border-border rounded-bl-md"
@@ -794,10 +820,18 @@ export function ChatRoomClient({ uuid }: { uuid: string }) {
                             return (
                               <>
                                 {parsed.replyTo && (
-                                  <div className={cn(
-                                    "text-xs mb-1.5 pb-1.5 border-b flex items-start gap-1.5",
-                                    isMe ? "border-primary-foreground/30" : "border-border"
-                                  )}>
+                                  <div
+                                    className={cn(
+                                      "text-xs mb-1.5 pb-1.5 border-b flex items-start gap-1.5 cursor-pointer hover:opacity-80",
+                                      isMe ? "border-primary-foreground/30" : "border-border"
+                                    )}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      if (parsed.replyTo?.id) {
+                                        scrollToMessage(parsed.replyTo.id)
+                                      }
+                                    }}
+                                  >
                                     <Reply className={cn(
                                       "h-3 w-3 mt-0.5 shrink-0",
                                       isMe ? "text-primary-foreground/70" : "text-muted-foreground"

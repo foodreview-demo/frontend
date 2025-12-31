@@ -20,9 +20,6 @@ function KakaoCallbackContent() {
     const code = urlParams.get('code')
     const errorParam = urlParams.get('error')
 
-    console.log('카카오 콜백 - URL:', window.location.href)
-    console.log('카카오 콜백 - code:', code)
-
     if (errorParam) {
       setError('카카오 로그인이 취소되었습니다')
       setTimeout(() => router.push('/login'), 2000)

@@ -200,7 +200,6 @@ class ApiClient {
   public async tryRefreshToken(): Promise<boolean> {
     const refreshToken = this.getRefreshToken();
     if (!refreshToken) {
-      console.log('No refresh token available');
       return false;
     }
 
@@ -218,7 +217,6 @@ class ApiClient {
         const result: ApiResponse<{ accessToken: string; refreshToken: string }> = await response.json();
         setCookie('accessToken', result.data.accessToken, 1); // 1 day
         setCookie('refreshToken', result.data.refreshToken, 7); // 7 days (새 토큰으로 교체 - Rotation)
-        console.log('Token refreshed successfully');
         return true;
       } else {
         // Refresh 실패 시 (토큰 만료, 탈취 감지 등)
@@ -869,7 +867,7 @@ export interface Review {
   atmosphereRating?: number;
   serviceRating?: number;
   images: string[];
-  receiptImage: string | null;
+  receiptImageUrl?: string;
   menu: string;
   price: string;
   visitDate: string;
@@ -890,7 +888,7 @@ export interface CreateReviewRequest {
   atmosphereRating?: number;
   serviceRating?: number;
   images?: string[];
-  receiptImage: string;
+  receiptImageUrl?: string;
   menu?: string;
   price?: string;
   visitDate?: string;
@@ -910,7 +908,7 @@ export interface UpdateReviewRequest {
   atmosphereRating?: number;
   serviceRating?: number;
   images?: string[];
-  receiptImage?: string;
+  receiptImageUrl?: string;
   menu?: string;
   price?: string;
   visitDate?: string;

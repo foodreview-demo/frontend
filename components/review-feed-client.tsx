@@ -1,13 +1,14 @@
 // components/review-feed-client.tsx
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useSearchParams } from "next/navigation"
 import { ReviewCard } from "@/components/review-card"
 import { api, Review } from "@/lib/api"
 import { Loader2, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { RegionSelection } from "@/components/map-region-selector"
+import { useFeedSettings } from "@/lib/feed-settings-context"
 
 interface ReviewFeedClientProps {
   initialReviews: Review[];
@@ -20,6 +21,13 @@ export function ReviewFeedClient({ initialReviews, selectedRegion, selectedCateg
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const searchParams = useSearchParams();
+  const { showVerifiedOnly } = useFeedSettings();
+
+  // 인증된 리뷰만 필터링
+  const filteredReviews = useMemo(() => {
+    if (!showVerifiedOnly) return reviews;
+    return reviews.filter(review => review.receiptImageUrl);
+  }, [reviews, showVerifiedOnly]);
 
   // Pull-to-refresh 상태
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -225,11 +233,15 @@ export function ReviewFeedClient({ initialReviews, selectedRegion, selectedCateg
           <div className="text-center py-12">
             <p className="text-muted-foreground">{error}</p>
           </div>
-        ) : reviews.length > 0 ? (
-          reviews.map((review) => <ReviewCard key={review.id} review={review} />)
+        ) : filteredReviews.length > 0 ? (
+          filteredReviews.map((review) => <ReviewCard key={review.id} review={review} />)
         ) : (
           <div className="text-center py-12">
-            <p className="text-muted-foreground">해당 조건의 리뷰가 없습니다</p>
+            <p className="text-muted-foreground">
+              {showVerifiedOnly && reviews.length > 0
+                ? "인증된 리뷰가 없습니다"
+                : "해당 조건의 리뷰가 없습니다"}
+            </p>
           </div>
         )}
       </div>

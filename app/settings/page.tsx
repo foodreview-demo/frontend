@@ -14,7 +14,9 @@ import {
   Globe,
   Check,
   Settings2,
-  UserX
+  UserX,
+  Receipt,
+  Filter
 } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { Button } from "@/components/ui/button"
@@ -34,11 +36,13 @@ import {
 import { useAuth } from "@/lib/auth-context"
 import { useI18n } from "@/lib/i18n-context"
 import { locales, type Locale } from "@/lib/i18n"
+import { useFeedSettings } from "@/lib/feed-settings-context"
 
 export default function SettingsPage() {
   const router = useRouter()
   const { user, logout } = useAuth()
   const { locale, setLocale, t } = useI18n()
+  const { showVerifiedOnly, setShowVerifiedOnly } = useFeedSettings()
   const [notifications, setNotifications] = useState({
     reviews: true,
     follows: true,
@@ -163,6 +167,26 @@ export default function SettingsPage() {
                 ))}
               </div>
             )}
+          </Card>
+        </div>
+
+        {/* Feed Settings Section */}
+        <div>
+          <h2 className="text-sm font-medium text-muted-foreground mb-2 px-1">피드 설정</h2>
+          <Card className="divide-y divide-border">
+            <div className="flex items-center justify-between p-4">
+              <div className="flex items-center gap-3">
+                <Receipt className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">인증된 리뷰만 보기</p>
+                  <p className="text-sm text-muted-foreground">영수증 인증이 완료된 리뷰만 표시합니다</p>
+                </div>
+              </div>
+              <Switch
+                checked={showVerifiedOnly}
+                onCheckedChange={setShowVerifiedOnly}
+              />
+            </div>
           </Card>
         </div>
 

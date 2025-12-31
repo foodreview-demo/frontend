@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { AuthProvider } from "@/lib/auth-context"
 import { I18nProvider } from "@/lib/i18n-context"
+import { FeedSettingsProvider } from "@/lib/feed-settings-context"
 import { PWARegister } from "@/components/pwa-register"
 import "./globals.css"
 
@@ -51,9 +52,11 @@ export default function RootLayout({
       <body className={`font-sans antialiased`}>
         <PWARegister />
         <I18nProvider>
-          <AuthProvider>
-            {children}
-          </AuthProvider>
+          <FeedSettingsProvider>
+            <AuthProvider>
+              {children}
+            </AuthProvider>
+          </FeedSettingsProvider>
         </I18nProvider>
       </body>
     </html>

@@ -30,37 +30,30 @@ export function useNotificationSocket({ userId, onNotification, enabled = true }
       connectHeaders: {
         userId: String(userId),
       },
-      debug: (str) => {
-        console.log("[STOMP Notification]", str)
-      },
+      debug: () => {},
       reconnectDelay: 5000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
       onConnect: () => {
-        console.log("[STOMP Notification] Connected")
         setIsConnected(true)
 
         // 사용자별 알림 구독
         client.subscribe(`/topic/user/${userId}/notification`, (message: IMessage) => {
           try {
             const notification = JSON.parse(message.body) as NewMessageNotification
-            console.log("[STOMP Notification] Received:", notification)
             onNotification(notification)
           } catch (e) {
-            console.error("[STOMP Notification] Failed to parse:", e)
+            // parse error
           }
         })
       },
       onDisconnect: () => {
-        console.log("[STOMP Notification] Disconnected")
         setIsConnected(false)
       },
-      onStompError: (frame) => {
-        console.error("[STOMP Notification] Error:", frame.headers["message"])
+      onStompError: () => {
         setIsConnected(false)
       },
-      onWebSocketError: (event) => {
-        console.error("[STOMP Notification] WebSocket Error:", event)
+      onWebSocketError: () => {
         setIsConnected(false)
       },
     })

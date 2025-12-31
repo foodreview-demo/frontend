@@ -13,7 +13,8 @@ import {
   ChevronRight,
   Globe,
   Check,
-  Settings2
+  Settings2,
+  UserX
 } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { Button } from "@/components/ui/button"
@@ -95,6 +96,15 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-3">
                   <Shield className="h-5 w-5 text-muted-foreground" />
                   <span className="font-medium">{t.settings.privacySecurity}</span>
+                </div>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </div>
+            </Link>
+            <Link href="/settings/blocked">
+              <div className="flex items-center justify-between p-4 hover:bg-secondary/50 transition-colors">
+                <div className="flex items-center gap-3">
+                  <UserX className="h-5 w-5 text-muted-foreground" />
+                  <span className="font-medium">차단 관리</span>
                 </div>
                 <ChevronRight className="h-5 w-5 text-muted-foreground" />
               </div>

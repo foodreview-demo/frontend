@@ -125,7 +125,15 @@ class ApiClient {
       headers,
     });
 
-    if (response.status === 401 || response.status === 403) {
+    // 403 Forbidden - 권한 없음 (차단된 사용자 등)
+    if (response.status === 403) {
+      const errorData = await response.json().catch(() => ({}));
+      const error = new Error(errorData.message || '접근 권한이 없습니다') as Error & { errorCode?: string };
+      error.errorCode = errorData.errorCode;
+      throw error;
+    }
+
+    if (response.status === 401) {
       // 토큰이 없거나 만료된 경우
       const hasToken = !!token;
 
@@ -133,45 +141,28 @@ class ApiClient {
       const errorData = await response.json().catch(() => ({}));
 
       // 토큰이 없는 상태에서 401 (로그인 실패 등)
-      if (!hasToken && response.status === 401) {
+      if (!hasToken) {
         throw new Error(errorData.message || '이메일 또는 비밀번호가 올바르지 않습니다');
       }
 
-      if (hasToken && response.status === 401) {
-        // 토큰 만료 시 리프레시 시도 (동시 요청 방지)
-        const refreshed = await this.refreshTokenWithLock();
-        if (refreshed) {
-          // 재시도
-          const newToken = this.getToken();
-          (headers as Record<string, string>)['Authorization'] = `Bearer ${newToken}`;
-          const retryResponse = await fetch(`${this.baseUrl}${endpoint}`, {
-            ...options,
-            headers,
-          });
-          if (!retryResponse.ok) {
-            throw new Error('요청 실패');
-          }
-          return retryResponse.json();
-        }
-      }
-
-      // 403이고 토큰이 있는 경우: 토큰이 유효하지 않을 수 있음
-      // 토큰 없이 재시도 (public endpoint일 수 있음)
-      if (response.status === 403 && hasToken) {
-        delete (headers as Record<string, string>)['Authorization'];
+      // 토큰 만료 시 리프레시 시도 (동시 요청 방지)
+      const refreshed = await this.refreshTokenWithLock();
+      if (refreshed) {
+        // 재시도
+        const newToken = this.getToken();
+        (headers as Record<string, string>)['Authorization'] = `Bearer ${newToken}`;
         const retryResponse = await fetch(`${this.baseUrl}${endpoint}`, {
           ...options,
           headers,
         });
-        if (retryResponse.ok) {
-          return retryResponse.json();
+        if (!retryResponse.ok) {
+          throw new Error('요청 실패');
         }
+        return retryResponse.json();
       }
 
-      // 그래도 실패하면 로그아웃
-      if (hasToken) {
-        this.logout();
-      }
+      // 리프레시 실패 시 로그아웃
+      this.logout();
       throw new Error(errorData.message || '인증이 만료되었습니다');
     }
 
@@ -731,6 +722,35 @@ class ApiClient {
     });
   }
 
+  // Block API
+  async blockUser(userId: number) {
+    return this.request<ApiResponse<void>>(`/users/${userId}/block`, {
+      method: 'POST',
+    });
+  }
+
+  async unblockUser(userId: number) {
+    return this.request<ApiResponse<void>>(`/users/${userId}/block`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getBlockedUsers(page = 0, size = 20) {
+    return this.request<ApiResponse<PageResponse<BlockedUser>>>(`/users/blocked?page=${page}&size=${size}`);
+  }
+
+  async isBlocked(userId: number) {
+    return this.request<ApiResponse<boolean>>(`/users/${userId}/is-blocked`);
+  }
+
+  // Chat Report API
+  async createChatReport(data: CreateChatReportRequest) {
+    return this.request<ApiResponse<ChatReportResponse>>('/chat/reports', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   // Admin API
   async getAdminStats() {
     return this.request<ApiResponse<AdminStats>>('/admin/stats');
@@ -1108,6 +1128,53 @@ export interface AdminStats {
   pendingReportCount: number;
   totalUserCount: number;
   totalReviewCount: number;
+}
+
+// Block types
+export interface BlockedUser {
+  id: number;
+  name: string;
+  avatar: string;
+  tasteGrade: string;
+  blockedAt: string;
+}
+
+// Chat Report types
+export type ChatReportReason = 'HARASSMENT' | 'SPAM' | 'SEXUAL_HARASSMENT' | 'FRAUD' | 'INAPPROPRIATE' | 'OTHER';
+
+export const CHAT_REPORT_REASONS: { value: ChatReportReason; label: string }[] = [
+  { value: 'HARASSMENT', label: '욕설/비방' },
+  { value: 'SPAM', label: '스팸/광고' },
+  { value: 'SEXUAL_HARASSMENT', label: '성희롱' },
+  { value: 'FRAUD', label: '사기/피싱' },
+  { value: 'INAPPROPRIATE', label: '부적절한 내용' },
+  { value: 'OTHER', label: '기타' },
+];
+
+export interface CreateChatReportRequest {
+  reportedUserId: number;
+  chatRoomId: number;
+  messageId?: number;
+  messageContent?: string;
+  reason: ChatReportReason;
+  description?: string;
+}
+
+export interface ChatReportResponse {
+  id: number;
+  reporterId: number;
+  reporterName: string;
+  reportedUserId: number;
+  reportedUserName: string;
+  chatRoomId: number;
+  messageId: number | null;
+  messageContent: string | null;
+  reason: ChatReportReason;
+  reasonDescription: string;
+  description: string | null;
+  status: ReportStatus;
+  statusDescription: string;
+  createdAt: string;
 }
 
 export const api = new ApiClient(API_BASE_URL);

@@ -1,9 +1,9 @@
 import { MobileLayout } from "@/components/mobile-layout"
 import { HomePageClientWrapper } from "@/components/home-page-client-wrapper" // New import
-import { api } from "@/lib/api"
+import { api, Review } from "@/lib/api"
 
 export default async function HomePage() {
-  let initialReviews = [];
+  let initialReviews: Review[] = [];
   let error: string | null = null;
 
   try {

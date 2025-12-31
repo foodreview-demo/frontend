@@ -75,8 +75,8 @@ export default function FollowsPage() {
     }
     setIsSearching(true)
     try {
-      const result = await api.searchRestaurants(query, undefined, undefined, 0, 10) // This should be a user search API
-      // Placeholder: currently no user search API, using a mock from recommendations
+      // TODO: 사용자 검색 API가 추가되면 여기서 호출
+      // 현재는 추천 목록에서 필터링하여 mock 검색
       const mockResults = recommendations.filter(u => u.name.toLowerCase().includes(query.toLowerCase()));
       setSearchResults(mockResults);
 

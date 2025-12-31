@@ -35,14 +35,11 @@ export function useChatSocket({ roomUuid, userId, onMessage, onReadNotification,
       connectHeaders: {
         userId: String(userId),
       },
-      debug: (str) => {
-        console.log("[STOMP]", str)
-      },
+      debug: () => {},
       reconnectDelay: 5000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
       onConnect: () => {
-        console.log("[STOMP] Connected")
         setIsConnected(true)
         setError(null)
 
@@ -50,10 +47,9 @@ export function useChatSocket({ roomUuid, userId, onMessage, onReadNotification,
         client.subscribe(`/topic/chat/${roomUuid}`, (message: IMessage) => {
           try {
             const chatMessage = JSON.parse(message.body) as ChatMessage
-            console.log("[STOMP] Message received:", chatMessage)
             onMessage(chatMessage)
           } catch (e) {
-            console.error("[STOMP] Failed to parse message:", e)
+            // parse error
           }
         })
 
@@ -61,15 +57,13 @@ export function useChatSocket({ roomUuid, userId, onMessage, onReadNotification,
         client.subscribe(`/topic/chat/${roomUuid}/read`, (message: IMessage) => {
           try {
             const notification = JSON.parse(message.body) as ReadNotification
-            console.log("[STOMP] Read notification received:", notification)
             onReadNotification?.(notification)
           } catch (e) {
-            console.error("[STOMP] Failed to parse read notification:", e)
+            // parse error
           }
         })
       },
       onDisconnect: () => {
-        console.log("[STOMP] Disconnected")
         setIsConnected(false)
       },
       onStompError: (frame) => {

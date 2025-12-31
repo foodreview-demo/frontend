@@ -16,6 +16,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { CommentSection } from "@/components/comment-section"
 import { ReportModal } from "@/components/report-modal"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { api, type Review } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { getTasteLevel, formatDate } from "@/lib/constants"
@@ -37,10 +43,10 @@ export function ReviewCard({ review }: ReviewCardProps) {
   const tasteLevel = getTasteLevel(review.user.tasteScore)
   const isOwnReview = user?.id === review.user.id
 
-  // 모든 이미지 (음식 사진 + 영수증)
-  const allImages = [...review.images, ...(review.receiptImage ? [review.receiptImage] : [])]
+  // 음식 사진만 (영수증 제외)
+  const allImages = review.images
   const hasMultipleImages = allImages.length > 1
-  const isReceiptImage = review.receiptImage && currentImageIndex === allImages.length - 1
+  const [showReceiptModal, setShowReceiptModal] = useState(false)
 
   // 댓글 수 로드
   useEffect(() => {
@@ -95,6 +101,15 @@ export function ReviewCard({ review }: ReviewCardProps) {
             {review.user.region} · 맛잘알 점수 {review.user.tasteScore.toLocaleString()}
           </p>
         </div>
+        {/* 영수증 인증 배지 - 클릭 시 영수증 모달 */}
+        {review.receiptImageUrl && (
+          <button onClick={() => setShowReceiptModal(true)}>
+            <Badge variant="outline" className="gap-1 text-xs border-green-500 text-green-600 hover:bg-green-50 cursor-pointer">
+              <Receipt className="h-3 w-3" />
+              인증됨
+            </Badge>
+          </button>
+        )}
         {review.isFirstReview && (
           <Badge className="bg-primary text-primary-foreground gap-1">
             <Sparkles className="h-3 w-3" />첫 리뷰
@@ -139,13 +154,6 @@ export function ReviewCard({ review }: ReviewCardProps) {
             fill
             className="object-cover"
           />
-          {/* 영수증 배지 */}
-          {isReceiptImage && (
-            <div className="absolute top-2 left-2 flex items-center gap-1 bg-primary/90 text-primary-foreground text-xs px-2 py-1 rounded-full">
-              <Receipt className="h-3 w-3" />
-              영수증
-            </div>
-          )}
           {/* 이미지 네비게이션 */}
           {hasMultipleImages && (
             <>
@@ -301,6 +309,28 @@ export function ReviewCard({ review }: ReviewCardProps) {
         onOpenChange={setShowReportModal}
         reviewId={review.id}
       />
+
+      {/* Receipt Modal */}
+      <Dialog open={showReceiptModal} onOpenChange={setShowReceiptModal}>
+        <DialogContent className="max-w-sm mx-auto p-0 overflow-hidden">
+          <DialogHeader className="p-4 pb-2">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Receipt className="h-4 w-4" />
+              영수증
+            </DialogTitle>
+          </DialogHeader>
+          {review.receiptImageUrl && (
+            <div className="relative aspect-[3/4] w-full">
+              <Image
+                src={review.receiptImageUrl}
+                alt="영수증"
+                fill
+                className="object-contain bg-muted"
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

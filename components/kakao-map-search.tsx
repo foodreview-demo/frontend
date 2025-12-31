@@ -53,43 +53,26 @@ export function KakaoMapSearch({
 
   // 지도 초기화 함수
   const initializeMap = useCallback(() => {
-    console.log("initializeMap 호출됨")
-    console.log("mapRef.current:", mapRef.current)
-
-    if (!mapRef.current) {
-      console.error("mapRef.current가 없습니다")
-      return
-    }
+    if (!mapRef.current) return
 
     const kakao = (window as any).kakao
-    console.log("kakao 객체:", kakao)
-    console.log("kakao.maps:", kakao?.maps)
-    console.log("kakao.maps.services:", kakao?.maps?.services)
-
-    if (!kakao || !kakao.maps) {
-      console.error("kakao.maps가 없습니다")
-      return
-    }
+    if (!kakao || !kakao.maps) return
 
     try {
       // 기본 위치 (서울 시청)
       const defaultPosition = new kakao.maps.LatLng(37.5665, 126.9780)
-      console.log("defaultPosition 생성됨:", defaultPosition)
 
       const mapInstance = new kakao.maps.Map(mapRef.current, {
         center: defaultPosition,
         level: 5
       })
-      console.log("mapInstance 생성됨:", mapInstance)
 
       const placesService = new kakao.maps.services.Places()
-      console.log("placesService 생성됨:", placesService)
 
       mapInstanceRef.current = mapInstance
       placesServiceRef.current = placesService
       setIsMapLoaded(true)
       setError(null)
-      console.log("지도 초기화 완료!")
 
       // 현재 위치 가져오기
       if (navigator.geolocation) {
@@ -107,7 +90,6 @@ export function KakaoMapSearch({
         )
       }
     } catch (err) {
-      console.error("지도 초기화 오류:", err)
       setError("지도를 초기화하는데 실패했습니다")
     }
   }, [])
@@ -141,14 +123,10 @@ export function KakaoMapSearch({
 
   // Script 로드 핸들러
   const handleScriptLoad = () => {
-    console.log("카카오맵 스크립트 로드 완료")
     setIsScriptLoaded(true)
   }
 
-  const handleScriptError = (e: any) => {
-    console.error("카카오맵 스크립트 로드 실패:", e)
-    console.error("API Key:", KAKAO_MAP_API_KEY)
-    console.error("Script URL:", `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_MAP_API_KEY}&libraries=services&autoload=false`)
+  const handleScriptError = () => {
     setError("카카오맵을 불러오는데 실패했습니다. API 키와 도메인 설정을 확인해주세요.")
   }
 

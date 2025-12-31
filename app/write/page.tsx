@@ -403,8 +403,8 @@ function WriteReviewContent() {
   }
 
   const handleSubmit = async () => {
-    if (!hasSelectedPlace || rating === 0 || !content || !menu || !receiptImage) {
-      alert("필수 항목을 모두 입력해주세요 (영수증 사진 포함)")
+    if (!hasSelectedPlace || rating === 0 || !content || !menu) {
+      alert("필수 항목을 모두 입력해주세요")
       return
     }
 
@@ -467,7 +467,7 @@ function WriteReviewContent() {
         atmosphereRating: atmosphereRating > 0 ? atmosphereRating : undefined,
         serviceRating: serviceRating > 0 ? serviceRating : undefined,
         images: images.length > 0 ? images : undefined,
-        receiptImage: receiptImage!,
+        receiptImageUrl: receiptImage || undefined,
         menu,
         price: price || undefined,
         referenceReviewId: selectedReferenceReview?.id,
@@ -501,7 +501,7 @@ function WriteReviewContent() {
           <h1 className="font-bold text-lg text-foreground">리뷰 작성</h1>
           <Button
             onClick={handleSubmit}
-            disabled={!hasSelectedPlace || rating === 0 || !content || !menu || !receiptImage || isSubmitting}
+            disabled={!hasSelectedPlace || rating === 0 || !content || !menu || isSubmitting}
             className="bg-primary text-primary-foreground"
           >
             {isSubmitting ? "등록 중..." : "등록"}
@@ -913,10 +913,10 @@ function WriteReviewContent() {
         {/* Receipt Image */}
         <div>
           <label className="text-sm font-medium text-foreground mb-2 block">
-            영수증 사진 *
+            영수증 사진 (선택)
           </label>
           <p className="text-xs text-muted-foreground mb-2">
-            방문 인증을 위해 영수증 사진을 첨부해주세요
+            영수증을 첨부하면 &apos;인증됨&apos; 배지가 표시됩니다
           </p>
           <input
             ref={receiptInputRef}
@@ -1243,7 +1243,7 @@ function WriteReviewContent() {
           <h4 className="font-medium text-foreground mb-2 text-sm">리뷰 작성 가이드</h4>
           <ul className="text-xs text-muted-foreground space-y-1">
             <li>• 직접 방문한 경험을 솔직하게 작성해주세요</li>
-            <li>• <strong className="text-foreground">영수증 사진은 필수입니다</strong> (방문 인증용)</li>
+            <li>• 영수증을 첨부하면 &apos;인증됨&apos; 배지가 표시됩니다</li>
             <li>• 광고성 리뷰나 허위 리뷰는 삭제될 수 있습니다</li>
             <li>• 첫 리뷰 작성 시 맛잘알 점수가 2배로 적용됩니다</li>
             <li>• 공감을 많이 받을수록 맛잘알 점수가 올라갑니다</li>

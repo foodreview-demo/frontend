@@ -26,7 +26,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!api.hasAccessToken()) {
       // refreshToken이 있으면 토큰 갱신 시도
       if (api.hasRefreshToken()) {
-        console.log('No access token, attempting refresh...')
         const refreshed = await api.tryRefreshToken()
         if (!refreshed) {
           // 갱신 실패 시 로그아웃 상태
@@ -35,8 +34,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setIsLoading(false)
           return
         }
-        // 갱신 성공 시 계속 진행
-        console.log('Token refreshed, fetching user info...')
       } else {
         // refreshToken도 없으면 로그아웃 상태
         setUser(null)

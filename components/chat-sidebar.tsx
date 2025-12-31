@@ -35,6 +35,7 @@ function formatChatTime(dateStr: string): string {
   const date = new Date(dateStr)
   const now = new Date()
   const oneDay = 24 * 60 * 60 * 1000
+  const diff = now.getTime() - date.getTime()
 
   if (date.toDateString() === now.toDateString()) {
     return date.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Seoul" })

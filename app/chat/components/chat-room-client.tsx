@@ -67,23 +67,37 @@ function shouldGroupWithPrevious(current: ChatMessage, previous: ChatMessage | n
 
 // 답장 메시지 파싱 ("> [id]이름: 내용\n\n본문" 형식)
 function parseReplyMessage(content: string): { replyTo: { id: number; name: string; content: string } | null; message: string } {
+  // 첫 줄이 > 로 시작하는지 확인
+  if (!content.startsWith('> ')) {
+    return { replyTo: null, message: content }
+  }
+
+  // 빈 줄로 구분된 첫 번째 부분과 나머지 분리
+  const parts = content.split(/\n\n/)
+  if (parts.length < 2) {
+    return { replyTo: null, message: content }
+  }
+
+  const replyLine = parts[0] // "> [123]이름: 내용" 또는 "> 이름: 내용"
+  const message = parts.slice(1).join('\n\n') // 나머지 본문
+
   // 새 형식: > [123]이름: 내용
-  const newPattern = /^> \[(\d+)\](.+?): (.+?)\n\n([\s\S]*)$/
-  const newMatch = content.match(newPattern)
+  const newPattern = /^> \[(\d+)\]([^:]+): (.+)$/
+  const newMatch = replyLine.match(newPattern)
   if (newMatch) {
     return {
       replyTo: { id: parseInt(newMatch[1]), name: newMatch[2], content: newMatch[3] },
-      message: newMatch[4]
+      message
     }
   }
 
-  // 구 형식 호환: > 이름: 내용
-  const oldPattern = /^> ([^:]+): (.+?)\n\n([\s\S]*)$/
-  const oldMatch = content.match(oldPattern)
+  // 구 형식: > 이름: 내용
+  const oldPattern = /^> ([^:]+): (.+)$/
+  const oldMatch = replyLine.match(oldPattern)
   if (oldMatch) {
     return {
       replyTo: { id: 0, name: oldMatch[1], content: oldMatch[2] },
-      message: oldMatch[3]
+      message
     }
   }
 

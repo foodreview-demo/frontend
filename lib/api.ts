@@ -856,6 +856,16 @@ export interface ReferenceInfo {
   user: User;
 }
 
+// 영수증 검증 상태
+export type ReceiptVerificationStatus =
+  | 'NONE'           // 영수증 미첨부
+  | 'PENDING'        // 검증 대기 중
+  | 'VERIFIED'       // 자동 검증 완료
+  | 'REJECTED'       // 자동 검증 실패
+  | 'PENDING_REVIEW' // 수동 검토 필요
+  | 'MANUALLY_APPROVED' // 수동 승인
+  | 'MANUALLY_REJECTED'; // 수동 거부
+
 export interface Review {
   id: number;
   user: User;
@@ -868,6 +878,8 @@ export interface Review {
   serviceRating?: number;
   images: string[];
   receiptImageUrl?: string;
+  receiptVerificationStatus?: ReceiptVerificationStatus;
+  isReceiptVerified?: boolean;
   menu: string;
   price: string;
   visitDate: string;

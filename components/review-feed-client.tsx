@@ -23,10 +23,10 @@ export function ReviewFeedClient({ initialReviews, selectedRegion, selectedCateg
   const searchParams = useSearchParams();
   const { showVerifiedOnly } = useFeedSettings();
 
-  // 인증된 리뷰만 필터링
+  // 인증된 리뷰만 필터링 (isReceiptVerified가 true인 경우)
   const filteredReviews = useMemo(() => {
     if (!showVerifiedOnly) return reviews;
-    return reviews.filter(review => review.receiptImageUrl);
+    return reviews.filter(review => review.isReceiptVerified === true);
   }, [reviews, showVerifiedOnly]);
 
   // Pull-to-refresh 상태

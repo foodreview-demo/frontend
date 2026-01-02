@@ -101,13 +101,30 @@ export function ReviewCard({ review }: ReviewCardProps) {
             {review.user.region} · 맛잘알 점수 {review.user.tasteScore.toLocaleString()}
           </p>
         </div>
-        {/* 영수증 인증 배지 - 클릭 시 영수증 모달 */}
+        {/* 영수증 인증 배지 - 검증 상태에 따라 다르게 표시 */}
         {review.receiptImageUrl && (
           <button onClick={() => setShowReceiptModal(true)}>
-            <Badge variant="outline" className="gap-1 text-xs border-green-500 text-green-600 hover:bg-green-50 cursor-pointer">
-              <Receipt className="h-3 w-3" />
-              인증됨
-            </Badge>
+            {review.isReceiptVerified ? (
+              <Badge variant="outline" className="gap-1 text-xs border-green-500 text-green-600 hover:bg-green-50 cursor-pointer">
+                <Receipt className="h-3 w-3" />
+                인증됨
+              </Badge>
+            ) : review.receiptVerificationStatus === 'PENDING' || review.receiptVerificationStatus === 'PENDING_REVIEW' ? (
+              <Badge variant="outline" className="gap-1 text-xs border-yellow-500 text-yellow-600 hover:bg-yellow-50 cursor-pointer">
+                <Receipt className="h-3 w-3" />
+                검토 중
+              </Badge>
+            ) : review.receiptVerificationStatus === 'REJECTED' || review.receiptVerificationStatus === 'MANUALLY_REJECTED' ? (
+              <Badge variant="outline" className="gap-1 text-xs border-gray-400 text-gray-500 hover:bg-gray-50 cursor-pointer">
+                <Receipt className="h-3 w-3" />
+                첨부됨
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="gap-1 text-xs border-gray-400 text-gray-500 hover:bg-gray-50 cursor-pointer">
+                <Receipt className="h-3 w-3" />
+                첨부됨
+              </Badge>
+            )}
           </button>
         )}
         {review.isFirstReview && (

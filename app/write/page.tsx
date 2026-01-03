@@ -437,7 +437,7 @@ function WriteReviewContent() {
         const restaurantResult = await api.createRestaurant({
           name: selectedKakaoPlace.name,
           category,
-          address: selectedKakaoPlace.roadAddress || selectedKakaoPlace.address,
+          address: selectedKakaoPlace.address, // 지번 주소(구주소) 사용
           region: region || '서울',
           district: district || undefined,
           neighborhood: neighborhood || undefined,
@@ -565,7 +565,7 @@ function WriteReviewContent() {
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {selectedKakaoPlace.roadAddress || selectedKakaoPlace.address}
+                    {selectedKakaoPlace.address}
                   </p>
                   {selectedKakaoPlace.phone && (
                     <p className="text-xs text-muted-foreground">{selectedKakaoPlace.phone}</p>

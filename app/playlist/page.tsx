@@ -273,7 +273,7 @@ function PlaylistDetailContent() {
                 className="flex items-center gap-3 p-4 hover:bg-secondary/50 transition-colors"
               >
                 <Link
-                  href={`/restaurant/${item.restaurant.id}`}
+                  href={`/restaurant/${item.restaurant.uuid}`}
                   className="flex items-center gap-3 flex-1 min-w-0"
                 >
                   <div className="w-16 h-16 rounded-lg bg-secondary overflow-hidden shrink-0">

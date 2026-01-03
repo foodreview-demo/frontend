@@ -44,6 +44,7 @@ export default function SearchPage() {
   const mapInstanceRef = useRef<any>(null)
   const overlaysRef = useRef<any[]>([])
   const placesServiceRef = useRef<any>(null)
+  const geocoderRef = useRef<any>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
 
   const [isScriptLoaded, setIsScriptLoaded] = useState(false)
@@ -250,9 +251,11 @@ export default function SearchPage() {
         level: 4
       })
       const placesService = new kakao.maps.services.Places()
+      const geocoder = new kakao.maps.services.Geocoder()
 
       mapInstanceRef.current = mapInstance
       placesServiceRef.current = placesService
+      geocoderRef.current = geocoder
       setIsMapLoaded(true)
     } catch (err) {
       console.error("지도 초기화 오류:", err)
@@ -278,6 +281,34 @@ export default function SearchPage() {
     }
   }, [isScriptLoaded, initializeMap])
 
+  // 좌표로 지번 주소 조회
+  const getJibunAddress = useCallback((x: string, y: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const geocoder = geocoderRef.current
+      const kakao = (window as any).kakao
+
+      if (!geocoder || !kakao) {
+        resolve('')
+        return
+      }
+
+      geocoder.coord2Address(parseFloat(x), parseFloat(y), (result: any[], status: string) => {
+        if (status === kakao.maps.services.Status.OK && result[0]) {
+          const address = result[0].address
+          if (address) {
+            resolve(address.address_name)
+          } else if (result[0].road_address) {
+            resolve(result[0].road_address.address_name)
+          } else {
+            resolve('')
+          }
+        } else {
+          resolve('')
+        }
+      })
+    })
+  }, [])
+
   // 주변 음식점 검색 (내 주변)
   const searchNearbyPlaces = useCallback((lat: number, lng: number) => {
     const places = placesServiceRef.current
@@ -287,33 +318,40 @@ export default function SearchPage() {
     setIsLoading(true)
     const location = new kakao.maps.LatLng(lat, lng)
 
-    places.categorySearch('FD6', (results: any[], status: string) => {
-      setIsLoading(false)
+    places.categorySearch('FD6', async (results: any[], status: string) => {
       if (status === kakao.maps.services.Status.OK) {
-        const kakaoPlaces: KakaoPlace[] = results.map((r: any) => ({
-          id: r.id,
-          name: r.place_name,
-          category: r.category_name,
-          phone: r.phone,
-          address: r.address_name,
-          roadAddress: r.road_address_name,
-          x: r.x,
-          y: r.y,
-          distance: r.distance || "0"
-        }))
+        // 각 결과에 대해 좌표로 지번 주소 조회
+        const kakaoPlaces: KakaoPlace[] = await Promise.all(
+          results.map(async (r: any) => {
+            const jibunAddress = await getJibunAddress(r.x, r.y)
+            return {
+              id: r.id,
+              name: r.place_name,
+              category: r.category_name,
+              phone: r.phone,
+              address: jibunAddress || r.address_name,
+              roadAddress: r.road_address_name,
+              x: r.x,
+              y: r.y,
+              distance: r.distance || "0"
+            }
+          })
+        )
 
         const matched: NearbyRestaurant[] = kakaoPlaces.map(kp => {
           const dbMatch = dbRestaurants.find(db =>
             db.name === kp.name ||
-            db.address.includes(kp.roadAddress?.split(' ').slice(0, 3).join(' ') || '')
+            db.address.includes(kp.address?.split(' ').slice(0, 3).join(' ') || '')
           )
           return { kakaoPlace: kp, dbRestaurant: dbMatch }
         })
 
         setNearbyRestaurants(matched)
         displayMarkers(matched)
+        setIsLoading(false)
       } else {
         setNearbyRestaurants([])
+        setIsLoading(false)
       }
     }, {
       location,
@@ -321,7 +359,7 @@ export default function SearchPage() {
       size: 15,
       sort: kakao.maps.services.SortBy.DISTANCE
     })
-  }, [dbRestaurants])
+  }, [dbRestaurants, getJibunAddress])
 
   // 두 좌표 간 거리 계산 (Haversine 공식)
   const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
@@ -344,43 +382,47 @@ export default function SearchPage() {
 
     setIsLoading(true)
 
-    places.keywordSearch(keyword, (results: any[], status: string) => {
-      setIsLoading(false)
+    places.keywordSearch(keyword, async (results: any[], status: string) => {
       if (status === kakao.maps.services.Status.OK) {
-        const kakaoPlaces: KakaoPlace[] = results.map((r: any) => {
-          // 현재 위치 기준 거리 계산
-          let distance = "0"
-          if (currentPosition) {
-            distance = String(calculateDistance(
-              currentPosition.lat,
-              currentPosition.lng,
-              parseFloat(r.y),
-              parseFloat(r.x)
-            ))
-          }
-          return {
-            id: r.id,
-            name: r.place_name,
-            category: r.category_name,
-            phone: r.phone,
-            address: r.address_name,
-            roadAddress: r.road_address_name,
-            x: r.x,
-            y: r.y,
-            distance
-          }
-        })
+        // 각 결과에 대해 좌표로 지번 주소 조회
+        const kakaoPlaces: KakaoPlace[] = await Promise.all(
+          results.map(async (r: any) => {
+            const jibunAddress = await getJibunAddress(r.x, r.y)
+            // 현재 위치 기준 거리 계산
+            let distance = "0"
+            if (currentPosition) {
+              distance = String(calculateDistance(
+                currentPosition.lat,
+                currentPosition.lng,
+                parseFloat(r.y),
+                parseFloat(r.x)
+              ))
+            }
+            return {
+              id: r.id,
+              name: r.place_name,
+              category: r.category_name,
+              phone: r.phone,
+              address: jibunAddress || r.address_name,
+              roadAddress: r.road_address_name,
+              x: r.x,
+              y: r.y,
+              distance
+            }
+          })
+        )
 
         const matched: NearbyRestaurant[] = kakaoPlaces.map(kp => {
           const dbMatch = dbRestaurants.find(db =>
             db.name === kp.name ||
-            db.address.includes(kp.roadAddress?.split(' ').slice(0, 3).join(' ') || '')
+            db.address.includes(kp.address?.split(' ').slice(0, 3).join(' ') || '')
           )
           return { kakaoPlace: kp, dbRestaurant: dbMatch }
         })
 
         setNearbyRestaurants(matched)
         displayMarkers(matched)
+        setIsLoading(false)
 
         // 검색 결과로 지도 이동
         if (results.length > 0 && map) {
@@ -392,11 +434,12 @@ export default function SearchPage() {
         }
       } else {
         setNearbyRestaurants([])
+        setIsLoading(false)
       }
     }, {
       size: 15
     })
-  }, [dbRestaurants, currentPosition])
+  }, [dbRestaurants, currentPosition, getJibunAddress])
 
   // 마커 표시
   const displayMarkers = useCallback((restaurants: NearbyRestaurant[]) => {
@@ -921,10 +964,11 @@ function SelectedPlaceCard({
       return `/write?restaurantId=${dbRestaurant.id}`
     }
     // DB에 없는 음식점: 카카오 장소 정보를 쿼리 파라미터로 전달
+    // 지번 주소(구주소)를 기본 주소로 사용 (시/구/동 파싱에 용이)
     const params = new URLSearchParams({
       kakaoPlaceId: kakaoPlace.id,
       name: kakaoPlace.name,
-      address: kakaoPlace.roadAddress || kakaoPlace.address,
+      address: kakaoPlace.address, // 지번 주소(구주소) 사용
       jibunAddress: kakaoPlace.address, // 지번 주소 (지역 파싱용)
       category: kakaoPlace.category,
       phone: kakaoPlace.phone || '',
@@ -983,7 +1027,7 @@ function SelectedPlaceCard({
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <span>{formatDistance(kakaoPlace.distance)}</span>
             <span>·</span>
-            <span className="truncate">{kakaoPlace.roadAddress || kakaoPlace.address}</span>
+            <span className="truncate">{kakaoPlace.address}</span>
           </div>
         </div>
       </div>
@@ -992,7 +1036,7 @@ function SelectedPlaceCard({
       <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2">
         {dbRestaurant ? (
           <>
-            <Link href={`/restaurant/${dbRestaurant.id}`} className="flex-1">
+            <Link href={`/restaurant/${dbRestaurant.uuid}`} className="flex-1">
               <button className="w-full py-2 px-4 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors">
                 {t.search.viewDetails}
               </button>

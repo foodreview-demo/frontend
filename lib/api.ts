@@ -386,6 +386,10 @@ class ApiClient {
     return this.request<ApiResponse<Restaurant>>(`/restaurants/${restaurantId}`);
   }
 
+  async getRestaurantByUuid(uuid: string) {
+    return this.request<ApiResponse<Restaurant>>(`/restaurants/uuid/${uuid}`);
+  }
+
   async searchRestaurants(keyword: string, region?: string, district?: string, neighborhood?: string, category?: string, page = 0, size = 20) {
     const params = new URLSearchParams({ keyword, page: String(page), size: String(size) });
     if (region && region !== '전체') params.append('region', region);
@@ -445,6 +449,10 @@ class ApiClient {
 
   async getRestaurantReviews(restaurantId: number, page = 0, size = 20) {
     return this.request<ApiResponse<PageResponse<Review>>>(`/restaurants/${restaurantId}/reviews?page=${page}&size=${size}`);
+  }
+
+  async getRestaurantReviewsByUuid(uuid: string, page = 0, size = 20) {
+    return this.request<ApiResponse<PageResponse<Review>>>(`/restaurants/uuid/${uuid}/reviews?page=${page}&size=${size}`);
   }
 
   async getUserReviews(userId: number, page = 0, size = 20) {
@@ -828,6 +836,7 @@ export interface RecommendedUser extends User {
 
 export interface Restaurant {
   id: number;
+  uuid: string;
   name: string;
   category: string;
   categoryDisplay: string;

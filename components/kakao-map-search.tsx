@@ -42,6 +42,7 @@ export function KakaoMapSearch({
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const placesServiceRef = useRef<any>(null)
+  const geocoderRef = useRef<any>(null)
   const markersRef = useRef<any[]>([])
 
   const [searchQuery, setSearchQuery] = useState("")
@@ -68,9 +69,11 @@ export function KakaoMapSearch({
       })
 
       const placesService = new kakao.maps.services.Places()
+      const geocoder = new kakao.maps.services.Geocoder()
 
       mapInstanceRef.current = mapInstance
       placesServiceRef.current = placesService
+      geocoderRef.current = geocoder
       setIsMapLoaded(true)
       setError(null)
 
@@ -136,8 +139,37 @@ export function KakaoMapSearch({
     markersRef.current = []
   }, [])
 
+  // 좌표로 지번 주소 조회
+  const getJibunAddress = useCallback((x: string, y: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const geocoder = geocoderRef.current
+      const kakao = (window as any).kakao
+
+      if (!geocoder || !kakao) {
+        resolve('')
+        return
+      }
+
+      geocoder.coord2Address(parseFloat(x), parseFloat(y), (result: any[], status: string) => {
+        if (status === kakao.maps.services.Status.OK && result[0]) {
+          // 지번 주소 우선, 없으면 도로명 주소
+          const address = result[0].address
+          if (address) {
+            resolve(address.address_name)
+          } else if (result[0].road_address) {
+            resolve(result[0].road_address.address_name)
+          } else {
+            resolve('')
+          }
+        } else {
+          resolve('')
+        }
+      })
+    })
+  }, [])
+
   // 장소 검색
-  const searchPlaces = useCallback(() => {
+  const searchPlaces = useCallback(async () => {
     const places = placesServiceRef.current
     const map = mapInstanceRef.current
     const kakao = (window as any).kakao
@@ -150,25 +182,33 @@ export function KakaoMapSearch({
     // 음식점 카테고리로 검색 (FD6: 음식점)
     places.keywordSearch(
       searchQuery,
-      (results: any[], status: string) => {
-        setIsLoading(false)
-
+      async (results: any[], status: string) => {
         if (status === kakao.maps.services.Status.OK) {
-          const placeResults: KakaoPlace[] = results.map((result: any) => ({
-            id: result.id,
-            name: result.place_name,
-            category: result.category_name,
-            categoryCode: result.category_group_code,
-            phone: result.phone,
-            address: result.address_name,
-            roadAddress: result.road_address_name,
-            x: result.x,
-            y: result.y,
-            placeUrl: result.place_url,
-            distance: result.distance
-          }))
+          // 각 결과에 대해 좌표로 지번 주소 조회
+          const placeResults: KakaoPlace[] = await Promise.all(
+            results.map(async (result: any) => {
+              // 좌표로 지번 주소 조회
+              const jibunAddress = await getJibunAddress(result.x, result.y)
+
+              return {
+                id: result.id,
+                name: result.place_name,
+                category: result.category_name,
+                categoryCode: result.category_group_code,
+                phone: result.phone,
+                // 지번 주소 우선 사용 (coord2Address로 조회한 값 > 기존 address_name)
+                address: jibunAddress || result.address_name,
+                roadAddress: result.road_address_name,
+                x: result.x,
+                y: result.y,
+                placeUrl: result.place_url,
+                distance: result.distance
+              }
+            })
+          )
 
           setSearchResults(placeResults)
+          setIsLoading(false)
 
           // 마커 생성
           if (map) {
@@ -203,16 +243,18 @@ export function KakaoMapSearch({
           }
         } else if (status === kakao.maps.services.Status.ZERO_RESULT) {
           setSearchResults([])
+          setIsLoading(false)
         } else {
           console.error("검색 오류:", status)
           setSearchResults([])
+          setIsLoading(false)
         }
       },
       {
         size: 15
       }
     )
-  }, [searchQuery, clearMarkers, onSelectPlace])
+  }, [searchQuery, clearMarkers, onSelectPlace, getJibunAddress])
 
   // 선택된 장소로 지도 이동
   useEffect(() => {
@@ -301,7 +343,7 @@ export function KakaoMapSearch({
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {selectedPlace.roadAddress || selectedPlace.address}
+                {selectedPlace.address}
               </p>
               {selectedPlace.phone && (
                 <p className="text-xs text-muted-foreground">{selectedPlace.phone}</p>
@@ -347,7 +389,7 @@ export function KakaoMapSearch({
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                    {place.roadAddress || place.address}
+                    {place.address}
                   </p>
                 </div>
                 {place.distance && (

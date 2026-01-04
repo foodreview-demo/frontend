@@ -365,6 +365,10 @@ class ApiClient {
     return this.request<ApiResponse<RecommendedUser[]>>(`/users/recommendations?limit=${limit}`);
   }
 
+  async searchUsers(query: string, page = 0, size = 20) {
+    return this.request<ApiResponse<PageResponse<UserSearchResult>>>(`/users/search?query=${encodeURIComponent(query)}&page=${page}&size=${size}`);
+  }
+
   // Ranking API
   async getRanking(region?: string, page = 0, size = 20) {
     const params = new URLSearchParams({ page: String(page), size: String(size) });
@@ -756,6 +760,18 @@ class ApiClient {
     return this.request<ApiResponse<boolean>>(`/users/${userId}/is-blocked`);
   }
 
+  // Notification Settings API
+  async getNotificationSettings() {
+    return this.request<ApiResponse<NotificationSettings>>('/users/me/notifications');
+  }
+
+  async updateNotificationSettings(data: NotificationSettings) {
+    return this.request<ApiResponse<NotificationSettings>>('/users/me/notifications', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
   // Chat Report API
   async createChatReport(data: CreateChatReportRequest) {
     return this.request<ApiResponse<ChatReportResponse>>('/chat/reports', {
@@ -834,6 +850,17 @@ export interface RecommendedUser extends User {
   recommendReason: string;
 }
 
+export interface UserSearchResult {
+  id: number;
+  name: string;
+  avatar?: string;
+  region: string;
+  tasteScore: number;
+  tasteGrade: string;
+  reviewCount: number;
+  isFollowing: boolean;
+}
+
 export interface Restaurant {
   id: number;
   uuid: string;
@@ -875,6 +902,9 @@ export type ReceiptVerificationStatus =
   | 'MANUALLY_APPROVED' // 수동 승인
   | 'MANUALLY_REJECTED'; // 수동 거부
 
+// 음식점을 알게 된 경로
+export type ReferenceType = 'NONE' | 'PASSING' | 'FRIEND' | 'REVIEW';
+
 export interface Review {
   id: number;
   user: User;
@@ -896,6 +926,7 @@ export interface Review {
   sympathyCount: number;
   isFirstReview: boolean;
   hasSympathized: boolean;
+  referenceType?: ReferenceType;
   referenceInfo?: ReferenceInfo;
   referenceCount?: number;
 }
@@ -913,6 +944,7 @@ export interface CreateReviewRequest {
   menu?: string;
   price?: string;
   visitDate?: string;
+  referenceType?: ReferenceType;
   referenceReviewId?: number;
 }
 
@@ -933,6 +965,8 @@ export interface UpdateReviewRequest {
   menu?: string;
   price?: string;
   visitDate?: string;
+  referenceType?: ReferenceType;
+  referenceReviewId?: number;
 }
 
 export interface ChatRoom {
@@ -1097,6 +1131,13 @@ export interface Notification {
 
 export interface UnreadCountResponse {
   count: number;
+}
+
+export interface NotificationSettings {
+  reviews: boolean;
+  follows: boolean;
+  messages: boolean;
+  marketing: boolean;
 }
 
 // Report types

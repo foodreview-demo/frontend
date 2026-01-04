@@ -154,29 +154,39 @@ npx cap open android       # Android Studio 열기
 - `ReceiptVerificationStatus`: NONE, PENDING_REVIEW, MANUALLY_APPROVED, MANUALLY_REJECTED
 - `lib/feed-settings-context.tsx`: 피드 설정 Context (localStorage 저장)
 
-## TODO (Future Development)
+## Completed Features
 
-### 음식점 상세페이지 개선
-- [x] 음식점 ID를 UUID로 변경 (현재: `/restaurant/2` → 변경: `/restaurant/a1b2c3d4...`)
-  - Backend: Restaurant 엔티티에 uuid 필드 추가 (@PrePersist로 자동 생성)
-  - Backend: /api/restaurants/uuid/{uuid} 엔드포인트 추가
-  - Frontend: URL에서 UUID/숫자 ID 자동 감지하여 처리
-  - 하위 호환성: 기존 숫자 ID URL도 계속 지원
-- [ ] 카카오 지도 표시 (위도/경도 활용)
-- [ ] 세부 별점 표시 (맛/가격/분위기/서비스)
-- [ ] 전화걸기 버튼 추가
+### 음식점 상세페이지
+- [x] 음식점 ID를 UUID로 변경
+- [x] 세부 별점 표시 (맛/가격/분위기/서비스 평균)
 
 ### 기타
-- [ ] 음식점 검색 기능
-- [ ] 알림 기능 (내 리뷰에 댓글/좋아요 알림)
-- [ ] 리뷰 좋아요 기능
-- [ ] 사용자 팔로우 기능
-- Todos
-  ☒ 지도 중앙 정렬 수정 (relayout)
-  ☒ 지도에서 기존 음식점 마커 클릭 시 정보 표시 + 줌업
-  ☒ 디버그 로그 제거 및 빌드 테스트
-  ☒ 검색 마커 핀 형태로 변경, 클릭 시 다른 마커 숨김
-  ☒ 마커 더블클릭 시 음식점 페이지 이동
-  ☒ 음식점 매칭 로직 개선 (주소→이름 기반, 같은 건물 다른 가게 구분)
-  ☒ 카테고리 필터 UI 개선 (헤더 드롭다운 통합, 한글 표시)
-  ☐ 기존 DB에 잘못 매칭된 리뷰 확인 필요
+- [x] 음식점 검색 기능 (`app/search/page.tsx`)
+- [x] 알림 기능 (`domain/notification/`)
+- [x] 리뷰 좋아요 기능 (공감 기능으로 구현: `Sympathy` 엔티티)
+- [x] 사용자 팔로우 기능 (`Follow` 엔티티, `app/follows/page.tsx`)
+- [x] 지도 기능 (중앙 정렬, 마커 클릭, 검색, 카테고리 필터)
+- [x] 사용자 검색 API (`GET /api/users/search?query=`) - 닉네임, 리뷰 개수, 맛잘알 점수 표시
+- [x] 리뷰 수정/삭제 UI (`review-card.tsx` 드롭다운 메뉴, `/write?editReviewId=`)
+- [x] 리뷰 수정 시 "참고 리뷰" 타입 저장/복원 (`referenceType` 필드)
+- [x] 채팅 미리보기 답장 형식 파싱 (`formatMessagePreview()`)
+- [x] 알림 설정 DB 저장 연동 (`User` 엔티티에 notify 필드 추가, `GET/PUT /api/users/me/notifications`)
+
+## TODO (Future Development)
+
+### 우선순위 높음
+- [ ] 계정 삭제(회원 탈퇴) 기능
+- [ ] 친구 추천 알고리즘 개선
+  - 현재: 같은 지역만 추천
+  - 개선: 2촌 관계, 공감 기반, 같은 음식점 리뷰 작성자
+
+### 우선순위 중간
+- [ ] 홈 피드 무한 스크롤
+- [ ] Skeleton 로딩 UI
+- [ ] 댓글 수정/삭제 UI
+- [ ] 전화걸기 버튼 (음식점 상세)
+
+### 우선순위 낮음
+- [ ] Push 알림 (FCM)
+- [ ] 배지/도전과제 시스템
+- [ ] 팔로잉 전용 피드

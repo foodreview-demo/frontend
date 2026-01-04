@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { api, RecommendedUser, User } from "@/lib/api"
+import { api, RecommendedUser, User, UserSearchResult } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { useTranslation } from "@/lib/i18n-context"
 import { cn } from "@/lib/utils"
@@ -33,7 +33,7 @@ export default function FollowsPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [searchQuery, setSearchQuery] = useState("")
-  const [searchResults, setSearchResults] = useState<User[]>([])
+  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
 
   useEffect(() => {
@@ -75,17 +75,24 @@ export default function FollowsPage() {
     }
     setIsSearching(true)
     try {
-      // TODO: 사용자 검색 API가 추가되면 여기서 호출
-      // 현재는 추천 목록에서 필터링하여 mock 검색
-      const mockResults = recommendations.filter(u => u.name.toLowerCase().includes(query.toLowerCase()));
-      setSearchResults(mockResults);
-
+      const result = await api.searchUsers(query)
+      if (result.success) {
+        setSearchResults(result.data.content)
+        // 검색 결과의 팔로우 상태 동기화
+        const newFollowingIds = new Set(followingIds)
+        result.data.content.forEach(user => {
+          if (user.isFollowing) {
+            newFollowingIds.add(user.id)
+          }
+        })
+        setFollowingIds(newFollowingIds)
+      }
     } catch (err) {
       console.error("검색 실패:", err)
     } finally {
       setIsSearching(false)
     }
-  }, [recommendations])
+  }, [followingIds])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -246,7 +253,13 @@ export default function FollowsPage() {
                         <span className="font-medium text-foreground truncate">{user.name}</span>
                         <Badge variant="secondary" className={cn("text-[10px] px-1.5 py-0", level.color)}>{level.label}</Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground">{user.region}</p>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span>{user.region}</span>
+                        <span className="text-border">·</span>
+                        <span className="text-primary font-medium">{user.tasteScore.toLocaleString()}점</span>
+                        <span className="text-border">·</span>
+                        <span>리뷰 {user.reviewCount}개</span>
+                      </div>
                     </div>
                     {!isMe && (
                       <Button

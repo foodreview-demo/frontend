@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import {
@@ -37,19 +37,52 @@ import { useAuth } from "@/lib/auth-context"
 import { useI18n } from "@/lib/i18n-context"
 import { locales, type Locale } from "@/lib/i18n"
 import { useFeedSettings } from "@/lib/feed-settings-context"
+import { api, NotificationSettings } from "@/lib/api"
 
 export default function SettingsPage() {
   const router = useRouter()
   const { user, logout } = useAuth()
   const { locale, setLocale, t } = useI18n()
   const { showVerifiedOnly, setShowVerifiedOnly } = useFeedSettings()
-  const [notifications, setNotifications] = useState({
+  const [notifications, setNotifications] = useState<NotificationSettings>({
     reviews: true,
     follows: true,
     messages: true,
     marketing: false,
   })
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(true)
   const [showLanguageSelect, setShowLanguageSelect] = useState(false)
+
+  // 알림 설정 불러오기
+  useEffect(() => {
+    const loadNotificationSettings = async () => {
+      try {
+        const result = await api.getNotificationSettings()
+        if (result.success) {
+          setNotifications(result.data)
+        }
+      } catch (error) {
+        console.error('알림 설정 로드 실패:', error)
+      } finally {
+        setIsLoadingNotifications(false)
+      }
+    }
+    loadNotificationSettings()
+  }, [])
+
+  // 알림 설정 업데이트
+  const updateNotificationSetting = useCallback(async (key: keyof NotificationSettings, value: boolean) => {
+    const newSettings = { ...notifications, [key]: value }
+    setNotifications(newSettings)
+
+    try {
+      await api.updateNotificationSettings(newSettings)
+    } catch (error) {
+      console.error('알림 설정 저장 실패:', error)
+      // 실패 시 원래 값으로 롤백
+      setNotifications(notifications)
+    }
+  }, [notifications])
 
   const handleLogout = () => {
     logout()
@@ -204,7 +237,8 @@ export default function SettingsPage() {
               </div>
               <Switch
                 checked={notifications.reviews}
-                onCheckedChange={(checked) => setNotifications(prev => ({ ...prev, reviews: checked }))}
+                onCheckedChange={(checked) => updateNotificationSetting('reviews', checked)}
+                disabled={isLoadingNotifications}
               />
             </div>
             <div className="flex items-center justify-between p-4">
@@ -217,7 +251,8 @@ export default function SettingsPage() {
               </div>
               <Switch
                 checked={notifications.follows}
-                onCheckedChange={(checked) => setNotifications(prev => ({ ...prev, follows: checked }))}
+                onCheckedChange={(checked) => updateNotificationSetting('follows', checked)}
+                disabled={isLoadingNotifications}
               />
             </div>
             <div className="flex items-center justify-between p-4">
@@ -230,7 +265,8 @@ export default function SettingsPage() {
               </div>
               <Switch
                 checked={notifications.messages}
-                onCheckedChange={(checked) => setNotifications(prev => ({ ...prev, messages: checked }))}
+                onCheckedChange={(checked) => updateNotificationSetting('messages', checked)}
+                disabled={isLoadingNotifications}
               />
             </div>
             <div className="flex items-center justify-between p-4">
@@ -243,7 +279,8 @@ export default function SettingsPage() {
               </div>
               <Switch
                 checked={notifications.marketing}
-                onCheckedChange={(checked) => setNotifications(prev => ({ ...prev, marketing: checked }))}
+                onCheckedChange={(checked) => updateNotificationSetting('marketing', checked)}
+                disabled={isLoadingNotifications}
               />
             </div>
           </Card>

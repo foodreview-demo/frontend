@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { KakaoMapSearch, KakaoPlace } from "@/components/kakao-map-search"
 import { RegionSelector } from "@/components/region-selector"
 import { cn } from "@/lib/utils"
-import { api, Restaurant, Review } from "@/lib/api"
+import { api, Restaurant, Review, ReferenceType } from "@/lib/api"
 import { parseAddress } from "@/lib/regions"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -29,6 +29,11 @@ function WriteReviewContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const restaurantIdParam = searchParams.get("restaurantId")
+  const editReviewIdParam = searchParams.get("editReviewId")
+
+  // 수정 모드
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [editReviewId, setEditReviewId] = useState<number | null>(null)
 
   // 검색 페이지에서 전달된 카카오 장소 정보
   const kakaoPlaceIdParam = searchParams.get("kakaoPlaceId")
@@ -132,6 +137,71 @@ function WriteReviewContent() {
     }
     loadPreselected()
   }, [restaurantIdParam, kakaoPlaceIdParam, kakaoNameParam, kakaoAddressParam, kakaoJibunAddressParam, kakaoCategoryParam, kakaoPhoneParam, kakaoXParam, kakaoYParam])
+
+  // 수정 모드: 기존 리뷰 데이터 로드
+  useEffect(() => {
+    const loadReviewForEdit = async () => {
+      if (!editReviewIdParam) return
+
+      try {
+        const reviewId = Number(editReviewIdParam)
+        const result = await api.getReview(reviewId)
+        if (result.success) {
+          const reviewData = result.data
+          setIsEditMode(true)
+          setEditReviewId(reviewId)
+
+          // 음식점 정보 설정
+          setSelectedRestaurant(reviewData.restaurant as Restaurant)
+
+          // 리뷰 데이터 채우기
+          setRating(reviewData.rating)
+          setTasteRating(reviewData.tasteRating || 0)
+          setPriceRating(reviewData.priceRating || 0)
+          setAtmosphereRating(reviewData.atmosphereRating || 0)
+          setServiceRating(reviewData.serviceRating || 0)
+          setContent(reviewData.content)
+          setMenu(reviewData.menu || "")
+          setPrice(reviewData.price || "")
+          setImages(reviewData.images || [])
+          setReceiptImage(reviewData.receiptImageUrl || null)
+
+          // 지역 정보
+          setRegion(reviewData.restaurant.region || "")
+          setDistrict(reviewData.restaurant.district || "")
+          setNeighborhood(reviewData.restaurant.neighborhood || "")
+
+          // 참고 리뷰 정보 복원
+          if (reviewData.referenceType) {
+            // API의 대문자를 로컬 상태의 소문자로 변환
+            const typeMap: Record<ReferenceType, "none" | "passing" | "friend" | "review"> = {
+              'NONE': 'none',
+              'PASSING': 'passing',
+              'FRIEND': 'friend',
+              'REVIEW': 'review'
+            }
+            const localType = typeMap[reviewData.referenceType]
+            if (localType && localType !== 'none') {
+              setReferenceType(localType)
+            }
+
+            // REVIEW 타입이면 참고 리뷰 전체 데이터 가져오기
+            if (reviewData.referenceType === 'REVIEW' && reviewData.referenceInfo) {
+              const refResult = await api.getReview(reviewData.referenceInfo.reviewId)
+              if (refResult.success) {
+                setSelectedReferenceReview(refResult.data)
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error("리뷰 로드 실패:", err)
+        alert("리뷰를 불러오는데 실패했습니다")
+        router.push("/")
+      }
+    }
+    loadReviewForEdit()
+  }, [editReviewIdParam, router])
 
   // 리뷰 목록을 가져올 음식점 ID (DB에 등록된 경우)
   const [existingRestaurantId, setExistingRestaurantId] = useState<number | null>(null)
@@ -459,28 +529,59 @@ function WriteReviewContent() {
         throw new Error('음식점을 선택해주세요')
       }
 
-      // 리뷰 작성
-      const reviewResult = await api.createReview({
-        restaurantId,
-        content,
-        rating,
-        tasteRating: tasteRating > 0 ? tasteRating : undefined,
-        priceRating: priceRating > 0 ? priceRating : undefined,
-        atmosphereRating: atmosphereRating > 0 ? atmosphereRating : undefined,
-        serviceRating: serviceRating > 0 ? serviceRating : undefined,
-        images: images.length > 0 ? images : undefined,
-        receiptImageUrl: receiptImage || undefined,
-        menu,
-        price: price || undefined,
-        referenceReviewId: selectedReferenceReview?.id,
-      })
+      // referenceType 변환 (로컬 소문자 → API 대문자)
+      const apiReferenceType: ReferenceType | undefined = referenceType
+        ? (referenceType.toUpperCase() as ReferenceType)
+        : undefined
 
-      if (!reviewResult.success) {
-        throw new Error(reviewResult.message || '리뷰 작성에 실패했습니다')
+      // 리뷰 작성 또는 수정
+      if (isEditMode && editReviewId) {
+        // 수정 모드
+        const updateResult = await api.updateReview(editReviewId, {
+          content,
+          rating,
+          tasteRating: tasteRating > 0 ? tasteRating : undefined,
+          priceRating: priceRating > 0 ? priceRating : undefined,
+          atmosphereRating: atmosphereRating > 0 ? atmosphereRating : undefined,
+          serviceRating: serviceRating > 0 ? serviceRating : undefined,
+          images: images.length > 0 ? images : undefined,
+          receiptImageUrl: receiptImage || undefined,
+          menu,
+          price: price || undefined,
+          referenceType: apiReferenceType,
+          referenceReviewId: selectedReferenceReview?.id,
+        })
+
+        if (!updateResult.success) {
+          throw new Error(updateResult.message || '리뷰 수정에 실패했습니다')
+        }
+
+        alert("리뷰가 수정되었습니다!")
+      } else {
+        // 새 리뷰 작성
+        const reviewResult = await api.createReview({
+          restaurantId,
+          content,
+          rating,
+          tasteRating: tasteRating > 0 ? tasteRating : undefined,
+          priceRating: priceRating > 0 ? priceRating : undefined,
+          atmosphereRating: atmosphereRating > 0 ? atmosphereRating : undefined,
+          serviceRating: serviceRating > 0 ? serviceRating : undefined,
+          images: images.length > 0 ? images : undefined,
+          receiptImageUrl: receiptImage || undefined,
+          menu,
+          price: price || undefined,
+          referenceType: apiReferenceType,
+          referenceReviewId: selectedReferenceReview?.id,
+        })
+
+        if (!reviewResult.success) {
+          throw new Error(reviewResult.message || '리뷰 작성에 실패했습니다')
+        }
+
+        const isFirst = reviewResult.data.isFirstReview
+        alert(isFirst ? "첫 리뷰 작성 완료! 맛잘알 점수가 2배로 적용됩니다!" : "리뷰가 등록되었습니다!")
       }
-
-      const isFirst = reviewResult.data.isFirstReview
-      alert(isFirst ? "첫 리뷰 작성 완료! 맛잘알 점수가 2배로 적용됩니다!" : "리뷰가 등록되었습니다!")
       router.push("/?refresh=true")
     } catch (error) {
       console.error("리뷰 작성 실패:", error)
@@ -500,13 +601,13 @@ function WriteReviewContent() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
-          <h1 className="font-bold text-lg text-foreground">리뷰 작성</h1>
+          <h1 className="font-bold text-lg text-foreground">{isEditMode ? "리뷰 수정" : "리뷰 작성"}</h1>
           <Button
             onClick={handleSubmit}
             disabled={!hasSelectedPlace || rating === 0 || !content || !menu || isSubmitting}
             className="bg-primary text-primary-foreground"
           >
-            {isSubmitting ? "등록 중..." : "등록"}
+            {isSubmitting ? (isEditMode ? "수정 중..." : "등록 중...") : (isEditMode ? "수정" : "등록")}
           </Button>
         </div>
       </header>

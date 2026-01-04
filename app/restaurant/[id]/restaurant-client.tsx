@@ -192,6 +192,41 @@ export function RestaurantClient({ id }: { id: string }) {
             )}
           </div>
 
+          {/* 세부 별점 */}
+          {(restaurant.averageTasteRating || restaurant.averagePriceRating ||
+            restaurant.averageAtmosphereRating || restaurant.averageServiceRating) && (
+            <div className="flex flex-wrap gap-3 mt-3 pt-3 border-t border-border text-sm">
+              {restaurant.averageTasteRating && (
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <span>맛</span>
+                  <Star className="h-3.5 w-3.5 fill-primary text-primary" />
+                  <span className="font-medium text-foreground">{restaurant.averageTasteRating}</span>
+                </div>
+              )}
+              {restaurant.averagePriceRating && (
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <span>가격</span>
+                  <Star className="h-3.5 w-3.5 fill-primary text-primary" />
+                  <span className="font-medium text-foreground">{restaurant.averagePriceRating}</span>
+                </div>
+              )}
+              {restaurant.averageAtmosphereRating && (
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <span>분위기</span>
+                  <Star className="h-3.5 w-3.5 fill-primary text-primary" />
+                  <span className="font-medium text-foreground">{restaurant.averageAtmosphereRating}</span>
+                </div>
+              )}
+              {restaurant.averageServiceRating && (
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <span>친절</span>
+                  <Star className="h-3.5 w-3.5 fill-primary text-primary" />
+                  <span className="font-medium text-foreground">{restaurant.averageServiceRating}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Write Review Button - 숫자 ID 사용 */}
           <Link href={`/write?restaurantId=${restaurant.id}`}>
             <Button className="w-full mt-4 bg-primary text-primary-foreground hover:bg-primary/90">

@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Heart, MessageCircle, Star, Sparkles, Users, MoreVertical, Flag, Receipt, ChevronLeft, ChevronRight } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Heart, MessageCircle, Star, Sparkles, Users, MoreVertical, Flag, Receipt, ChevronLeft, ChevronRight, Edit2, Trash2 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -12,6 +13,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { CommentSection } from "@/components/comment-section"
@@ -21,6 +23,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog"
 import { api, type Review } from "@/lib/api"
 import { cn } from "@/lib/utils"
@@ -29,16 +33,20 @@ import { useAuth } from "@/lib/auth-context"
 
 interface ReviewCardProps {
   review: Review
+  onDelete?: (reviewId: number) => void
 }
 
-export function ReviewCard({ review }: ReviewCardProps) {
+export function ReviewCard({ review, onDelete }: ReviewCardProps) {
   const { user } = useAuth()
+  const router = useRouter()
   const [sympathyCount, setSympathyCount] = useState(review.sympathyCount)
   const [hasSympathized, setHasSympathized] = useState(review.hasSympathized)
   const [showComments, setShowComments] = useState(false)
   const [commentCount, setCommentCount] = useState(0)
   const [showReportModal, setShowReportModal] = useState(false)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const tasteLevel = getTasteLevel(review.user.tasteScore)
   const isOwnReview = user?.id === review.user.id
@@ -47,6 +55,28 @@ export function ReviewCard({ review }: ReviewCardProps) {
   const allImages = review.images
   const hasMultipleImages = allImages.length > 1
   const [showReceiptModal, setShowReceiptModal] = useState(false)
+
+  const handleEdit = () => {
+    router.push(`/write?editReviewId=${review.id}`)
+  }
+
+  const handleDelete = async () => {
+    setIsDeleting(true)
+    try {
+      const result = await api.deleteReview(review.id)
+      if (result.success) {
+        setShowDeleteDialog(false)
+        onDelete?.(review.id)
+      } else {
+        alert("리뷰 삭제에 실패했습니다")
+      }
+    } catch (err) {
+      console.error("리뷰 삭제 실패:", err)
+      alert("리뷰 삭제에 실패했습니다")
+    } finally {
+      setIsDeleting(false)
+    }
+  }
 
   // 댓글 수 로드
   useEffect(() => {
@@ -132,7 +162,7 @@ export function ReviewCard({ review }: ReviewCardProps) {
             <Sparkles className="h-3 w-3" />첫 리뷰
           </Badge>
         )}
-        {user && !isOwnReview && (
+        {user && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -140,10 +170,24 @@ export function ReviewCard({ review }: ReviewCardProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setShowReportModal(true)} className="text-destructive">
-                <Flag className="h-4 w-4 mr-2" />
-                신고하기
-              </DropdownMenuItem>
+              {isOwnReview ? (
+                <>
+                  <DropdownMenuItem onClick={handleEdit}>
+                    <Edit2 className="h-4 w-4 mr-2" />
+                    수정하기
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setShowDeleteDialog(true)} className="text-destructive">
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    삭제하기
+                  </DropdownMenuItem>
+                </>
+              ) : (
+                <DropdownMenuItem onClick={() => setShowReportModal(true)} className="text-destructive">
+                  <Flag className="h-4 w-4 mr-2" />
+                  신고하기
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -346,6 +390,34 @@ export function ReviewCard({ review }: ReviewCardProps) {
               />
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="max-w-sm mx-auto">
+          <DialogHeader>
+            <DialogTitle>리뷰 삭제</DialogTitle>
+            <DialogDescription>
+              이 리뷰를 삭제하시겠습니까? 삭제된 리뷰는 복구할 수 없습니다.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteDialog(false)}
+              disabled={isDeleting}
+            >
+              취소
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "삭제 중..." : "삭제"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </Card>

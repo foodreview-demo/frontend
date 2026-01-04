@@ -49,6 +49,24 @@ function formatChatTime(dateStr: string): string {
   return date.toLocaleDateString("ko-KR", { month: "short", day: "numeric" })
 }
 
+// 답장 형식 메시지에서 실제 답장 내용만 추출
+// 형식: "> [메시지ID]발신자: 내용\n\n답장내용"
+function formatMessagePreview(message: string): string {
+  if (!message) return ""
+
+  // 답장 형식인지 확인 (> [숫자]로 시작)
+  if (message.startsWith("> [")) {
+    // \n\n 이후의 실제 답장 내용 추출
+    const parts = message.split("\n\n")
+    if (parts.length > 1) {
+      return parts.slice(1).join("\n\n")
+    }
+    // \n\n이 없으면 원본 반환
+  }
+
+  return message
+}
+
 interface ChatSidebarProps {
   children?: React.ReactNode
 }
@@ -82,7 +100,7 @@ export function ChatSidebar({ children }: ChatSidebarProps) {
     showBrowserNotification(
       `${notification.message.senderName}님의 메시지`,
       {
-        body: notification.message.content,
+        body: formatMessagePreview(notification.message.content),
         icon: notification.message.senderAvatar || "/placeholder.svg",
         tag: `chat-${notification.roomUuid}`,
         onClick: () => {
@@ -291,7 +309,7 @@ export function ChatSidebar({ children }: ChatSidebarProps) {
                           </span>
                         </div>
                         <p className={cn("text-sm truncate", room.unreadCount > 0 ? "text-foreground" : "text-muted-foreground")}>
-                          {room.lastMessage || "대화를 시작해보세요"}
+                          {formatMessagePreview(room.lastMessage) || "대화를 시작해보세요"}
                         </p>
                       </div>
                     </button>

@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense, useRef, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowLeft, Camera, Star, X, Sparkles, Search, MapPin, Loader2, Eye, Users, Navigation, Receipt } from "lucide-react"
+import { ArrowLeft, Camera, Star, X, Sparkles, Search, MapPin, Loader2, Eye, Users, Navigation, Receipt, Pencil, Check } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -71,6 +71,7 @@ function WriteReviewContent() {
   const [region, setRegion] = useState("")
   const [district, setDistrict] = useState("")
   const [neighborhood, setNeighborhood] = useState("")
+  const [isEditingRegion, setIsEditingRegion] = useState(false)
 
   // 앱 내 검색용 지역 필터
   const [appSearchRegion, setAppSearchRegion] = useState("")
@@ -299,6 +300,7 @@ function WriteReviewContent() {
     setRegion("")
     setDistrict("")
     setNeighborhood("")
+    setIsEditingRegion(false)
     setSelectedReferenceReview(null)
     setExistingReviews([])
     setReferenceType(null)
@@ -437,7 +439,7 @@ function WriteReviewContent() {
         const restaurantResult = await api.createRestaurant({
           name: selectedKakaoPlace.name,
           category,
-          address: selectedKakaoPlace.roadAddress || selectedKakaoPlace.address,
+          address: selectedKakaoPlace.address, // 지번 주소(구주소) 사용
           region: region || '서울',
           district: district || undefined,
           neighborhood: neighborhood || undefined,
@@ -553,46 +555,6 @@ function WriteReviewContent() {
                 <X className="h-4 w-4" />
               </Button>
             </Card>
-          ) : selectedKakaoPlace ? (
-            <Card className="p-3 border border-primary bg-primary/5">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-primary" />
-                    <h3 className="font-semibold text-foreground">{selectedKakaoPlace.name}</h3>
-                    <Badge variant="outline" className="text-xs">
-                      {selectedKakaoPlace.category.split(' > ').pop()}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {selectedKakaoPlace.roadAddress || selectedKakaoPlace.address}
-                  </p>
-                  {selectedKakaoPlace.phone && (
-                    <p className="text-xs text-muted-foreground">{selectedKakaoPlace.phone}</p>
-                  )}
-                  <Badge className="mt-2 bg-primary text-primary-foreground text-xs">
-                    <Sparkles className="h-3 w-3 mr-1" />
-                    첫 리뷰 가능
-                  </Badge>
-                </div>
-                <Button variant="ghost" size="icon" onClick={clearSelectedPlace}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              {/* 지역 선택 */}
-              <div className="mt-3 pt-3 border-t border-border">
-                <label className="text-xs font-medium text-muted-foreground mb-2 block">
-                  지역 설정 (수정 가능)
-                </label>
-                <RegionSelector
-                  region={region}
-                  district={district}
-                  neighborhood={neighborhood}
-                  onChange={handleRegionChange}
-                  size="sm"
-                />
-              </div>
-            </Card>
           ) : (
             <Tabs value={searchMode} onValueChange={(v) => setSearchMode(v as "app" | "kakao")}>
               <TabsList className="grid w-full grid-cols-2 mb-3">
@@ -611,6 +573,60 @@ function WriteReviewContent() {
                   onSelectPlace={handleKakaoPlaceSelect}
                   selectedPlace={selectedKakaoPlace}
                   onClear={clearSelectedPlace}
+                  region={region}
+                  district={district}
+                  neighborhood={neighborhood}
+                  regionSelector={
+                    selectedKakaoPlace && (
+                      isEditingRegion ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-medium text-muted-foreground">
+                              지역 수정
+                            </label>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => setIsEditingRegion(false)}
+                            >
+                              <Check className="h-3 w-3 mr-1" />
+                              완료
+                            </Button>
+                          </div>
+                          <RegionSelector
+                            region={region}
+                            district={district}
+                            neighborhood={neighborhood}
+                            onChange={handleRegionChange}
+                            size="sm"
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <MapPin className="h-3 w-3" />
+                            <span>
+                              {region && district ? (
+                                `${region} ${district}${neighborhood ? ` ${neighborhood}` : ''}`
+                              ) : (
+                                <span className="text-destructive">지역 정보를 설정해주세요</span>
+                              )}
+                            </span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            onClick={() => setIsEditingRegion(true)}
+                          >
+                            <Pencil className="h-3 w-3 mr-1" />
+                            수정
+                          </Button>
+                        </div>
+                      )
+                    )
+                  }
                 />
               </TabsContent>
 

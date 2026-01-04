@@ -10,8 +10,14 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { SaveToPlaylistDialog } from "@/components/save-to-playlist-dialog"
+import { ShareDialog } from "@/components/share-dialog"
 import { api, Restaurant, Review } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
+
+// UUID 형식 체크 (하이픈 포함된 36자 문자열)
+function isUuid(str: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
+}
 
 export function RestaurantClient({ id }: { id: string }) {
   const { user } = useAuth()
@@ -21,6 +27,7 @@ export function RestaurantClient({ id }: { id: string }) {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const [showShareDialog, setShowShareDialog] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
 
   useEffect(() => {
@@ -28,11 +35,26 @@ export function RestaurantClient({ id }: { id: string }) {
       setIsLoading(true)
       setError(null)
       try {
-        const restaurantId = Number(id)
-        const [restaurantResult, reviewsResult] = await Promise.all([
-          api.getRestaurant(restaurantId),
-          api.getRestaurantReviews(restaurantId),
-        ])
+        // UUID인지 숫자 ID인지 감지
+        const isUuidFormat = isUuid(id)
+
+        let restaurantResult
+        let reviewsResult
+
+        if (isUuidFormat) {
+          // UUID로 조회
+          [restaurantResult, reviewsResult] = await Promise.all([
+            api.getRestaurantByUuid(id),
+            api.getRestaurantReviewsByUuid(id),
+          ])
+        } else {
+          // 숫자 ID로 조회
+          const restaurantId = Number(id)
+          ;[restaurantResult, reviewsResult] = await Promise.all([
+            api.getRestaurant(restaurantId),
+            api.getRestaurantReviews(restaurantId),
+          ])
+        }
 
         if (restaurantResult.success) {
           setRestaurant(restaurantResult.data)
@@ -42,9 +64,9 @@ export function RestaurantClient({ id }: { id: string }) {
         }
 
         // 저장 상태 확인 (로그인한 경우에만)
-        if (user) {
+        if (user && restaurantResult.success && restaurantResult.data) {
           try {
-            const statusResult = await api.getRestaurantSaveStatus(restaurantId)
+            const statusResult = await api.getRestaurantSaveStatus(restaurantResult.data.id)
             if (statusResult.success) {
               setIsSaved(statusResult.data.isSaved)
             }
@@ -127,6 +149,7 @@ export function RestaurantClient({ id }: { id: string }) {
             variant="ghost"
             size="icon"
             className="bg-background/50 backdrop-blur-sm rounded-full"
+            onClick={() => setShowShareDialog(true)}
           >
             <Share2 className="h-5 w-5" />
           </Button>
@@ -169,8 +192,8 @@ export function RestaurantClient({ id }: { id: string }) {
             )}
           </div>
 
-          {/* Write Review Button */}
-          <Link href={`/write?restaurantId=${id}`}>
+          {/* Write Review Button - 숫자 ID 사용 */}
+          <Link href={`/write?restaurantId=${restaurant.id}`}>
             <Button className="w-full mt-4 bg-primary text-primary-foreground hover:bg-primary/90">
               {isFirstReviewAvailable ? (
                 <>
@@ -199,7 +222,7 @@ export function RestaurantClient({ id }: { id: string }) {
               <Sparkles className="h-12 w-12 mx-auto text-primary mb-4" />
               <h3 className="font-bold text-lg text-foreground mb-2">아직 리뷰가 없어요!</h3>
               <p className="text-muted-foreground text-sm mb-4">첫 번째 리뷰어가 되어 맛잘알 점수를 2배로 받으세요</p>
-              <Link href={`/write?restaurantId=${id}`}>
+              <Link href={`/write?restaurantId=${restaurant.id}`}>
                 <Button className="bg-primary text-primary-foreground">첫 리뷰 도전하기</Button>
               </Link>
             </div>
@@ -246,6 +269,15 @@ export function RestaurantClient({ id }: { id: string }) {
           restaurantId={restaurant.id}
           restaurantName={restaurant.name}
           onSaved={() => setIsSaved(true)}
+        />
+      )}
+
+      {/* Share Dialog */}
+      {restaurant && (
+        <ShareDialog
+          open={showShareDialog}
+          onOpenChange={setShowShareDialog}
+          restaurant={restaurant}
         />
       )}
     </MobileLayout>

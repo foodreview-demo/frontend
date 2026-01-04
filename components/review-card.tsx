@@ -150,7 +150,7 @@ export function ReviewCard({ review }: ReviewCardProps) {
       </div>
 
       {/* Restaurant Info */}
-      <Link href={`/restaurant/${review.restaurant.id}`}>
+      <Link href={`/restaurant/${review.restaurant.uuid}`}>
         <div className="px-4 pb-3">
           <div className="flex items-center gap-2">
             <h3 className="font-bold text-lg text-foreground">{review.restaurant.name}</h3>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
+import { useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import Script from "next/script"
@@ -40,10 +41,13 @@ type SortType = "distance" | "rating" | "reviews"
 
 export default function SearchPage() {
   const t = useTranslation()
+  const router = useRouter()
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const overlaysRef = useRef<any[]>([])
+  const selectedOverlayRef = useRef<any>(null) // 선택된 마커 오버레이
   const placesServiceRef = useRef<any>(null)
+  const geocoderRef = useRef<any>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
 
   const [isScriptLoaded, setIsScriptLoaded] = useState(false)
@@ -250,9 +254,11 @@ export default function SearchPage() {
         level: 4
       })
       const placesService = new kakao.maps.services.Places()
+      const geocoder = new kakao.maps.services.Geocoder()
 
       mapInstanceRef.current = mapInstance
       placesServiceRef.current = placesService
+      geocoderRef.current = geocoder
       setIsMapLoaded(true)
     } catch (err) {
       console.error("지도 초기화 오류:", err)
@@ -278,6 +284,34 @@ export default function SearchPage() {
     }
   }, [isScriptLoaded, initializeMap])
 
+  // 좌표로 지번 주소 조회
+  const getJibunAddress = useCallback((x: string, y: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const geocoder = geocoderRef.current
+      const kakao = (window as any).kakao
+
+      if (!geocoder || !kakao) {
+        resolve('')
+        return
+      }
+
+      geocoder.coord2Address(parseFloat(x), parseFloat(y), (result: any[], status: string) => {
+        if (status === kakao.maps.services.Status.OK && result[0]) {
+          const address = result[0].address
+          if (address) {
+            resolve(address.address_name)
+          } else if (result[0].road_address) {
+            resolve(result[0].road_address.address_name)
+          } else {
+            resolve('')
+          }
+        } else {
+          resolve('')
+        }
+      })
+    })
+  }, [])
+
   // 주변 음식점 검색 (내 주변)
   const searchNearbyPlaces = useCallback((lat: number, lng: number) => {
     const places = placesServiceRef.current
@@ -287,33 +321,38 @@ export default function SearchPage() {
     setIsLoading(true)
     const location = new kakao.maps.LatLng(lat, lng)
 
-    places.categorySearch('FD6', (results: any[], status: string) => {
-      setIsLoading(false)
+    places.categorySearch('FD6', async (results: any[], status: string) => {
       if (status === kakao.maps.services.Status.OK) {
-        const kakaoPlaces: KakaoPlace[] = results.map((r: any) => ({
-          id: r.id,
-          name: r.place_name,
-          category: r.category_name,
-          phone: r.phone,
-          address: r.address_name,
-          roadAddress: r.road_address_name,
-          x: r.x,
-          y: r.y,
-          distance: r.distance || "0"
-        }))
+        // 각 결과에 대해 좌표로 지번 주소 조회
+        const kakaoPlaces: KakaoPlace[] = await Promise.all(
+          results.map(async (r: any) => {
+            const jibunAddress = await getJibunAddress(r.x, r.y)
+            return {
+              id: r.id,
+              name: r.place_name,
+              category: r.category_name,
+              phone: r.phone,
+              address: jibunAddress || r.address_name,
+              roadAddress: r.road_address_name,
+              x: r.x,
+              y: r.y,
+              distance: r.distance || "0"
+            }
+          })
+        )
 
         const matched: NearbyRestaurant[] = kakaoPlaces.map(kp => {
-          const dbMatch = dbRestaurants.find(db =>
-            db.name === kp.name ||
-            db.address.includes(kp.roadAddress?.split(' ').slice(0, 3).join(' ') || '')
-          )
+          // 이름이 정확히 일치해야 매칭 (같은 건물 다른 가게 구분)
+          const dbMatch = dbRestaurants.find(db => db.name === kp.name)
           return { kakaoPlace: kp, dbRestaurant: dbMatch }
         })
 
         setNearbyRestaurants(matched)
         displayMarkers(matched)
+        setIsLoading(false)
       } else {
         setNearbyRestaurants([])
+        setIsLoading(false)
       }
     }, {
       location,
@@ -321,7 +360,7 @@ export default function SearchPage() {
       size: 15,
       sort: kakao.maps.services.SortBy.DISTANCE
     })
-  }, [dbRestaurants])
+  }, [dbRestaurants, getJibunAddress])
 
   // 두 좌표 간 거리 계산 (Haversine 공식)
   const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
@@ -344,43 +383,45 @@ export default function SearchPage() {
 
     setIsLoading(true)
 
-    places.keywordSearch(keyword, (results: any[], status: string) => {
-      setIsLoading(false)
+    places.keywordSearch(keyword, async (results: any[], status: string) => {
       if (status === kakao.maps.services.Status.OK) {
-        const kakaoPlaces: KakaoPlace[] = results.map((r: any) => {
-          // 현재 위치 기준 거리 계산
-          let distance = "0"
-          if (currentPosition) {
-            distance = String(calculateDistance(
-              currentPosition.lat,
-              currentPosition.lng,
-              parseFloat(r.y),
-              parseFloat(r.x)
-            ))
-          }
-          return {
-            id: r.id,
-            name: r.place_name,
-            category: r.category_name,
-            phone: r.phone,
-            address: r.address_name,
-            roadAddress: r.road_address_name,
-            x: r.x,
-            y: r.y,
-            distance
-          }
-        })
+        // 각 결과에 대해 좌표로 지번 주소 조회
+        const kakaoPlaces: KakaoPlace[] = await Promise.all(
+          results.map(async (r: any) => {
+            const jibunAddress = await getJibunAddress(r.x, r.y)
+            // 현재 위치 기준 거리 계산
+            let distance = "0"
+            if (currentPosition) {
+              distance = String(calculateDistance(
+                currentPosition.lat,
+                currentPosition.lng,
+                parseFloat(r.y),
+                parseFloat(r.x)
+              ))
+            }
+            return {
+              id: r.id,
+              name: r.place_name,
+              category: r.category_name,
+              phone: r.phone,
+              address: jibunAddress || r.address_name,
+              roadAddress: r.road_address_name,
+              x: r.x,
+              y: r.y,
+              distance
+            }
+          })
+        )
 
         const matched: NearbyRestaurant[] = kakaoPlaces.map(kp => {
-          const dbMatch = dbRestaurants.find(db =>
-            db.name === kp.name ||
-            db.address.includes(kp.roadAddress?.split(' ').slice(0, 3).join(' ') || '')
-          )
+          // 이름이 정확히 일치해야 매칭 (같은 건물 다른 가게 구분)
+          const dbMatch = dbRestaurants.find(db => db.name === kp.name)
           return { kakaoPlace: kp, dbRestaurant: dbMatch }
         })
 
         setNearbyRestaurants(matched)
         displayMarkers(matched)
+        setIsLoading(false)
 
         // 검색 결과로 지도 이동
         if (results.length > 0 && map) {
@@ -392,11 +433,12 @@ export default function SearchPage() {
         }
       } else {
         setNearbyRestaurants([])
+        setIsLoading(false)
       }
     }, {
       size: 15
     })
-  }, [dbRestaurants, currentPosition])
+  }, [dbRestaurants, currentPosition, getJibunAddress])
 
   // 마커 표시
   const displayMarkers = useCallback((restaurants: NearbyRestaurant[]) => {
@@ -434,36 +476,98 @@ export default function SearchPage() {
       content.innerHTML = `
         <div style="
           cursor:pointer;
-          background:${bgColor};
-          color:white;
-          padding:6px 10px;
-          border-radius:20px;
-          font-size:12px;
-          font-weight:600;
-          white-space:nowrap;
-          box-shadow:0 2px 12px rgba(0,0,0,0.25);
-          backdrop-filter:blur(4px);
+          display:flex;
+          flex-direction:column;
+          align-items:center;
           transition:transform 0.15s ease;
         " onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
-          ${labelText}
+          <div style="
+            background:${bgColor};
+            color:white;
+            padding:4px 8px;
+            border-radius:12px;
+            font-size:11px;
+            font-weight:600;
+            white-space:nowrap;
+            box-shadow:0 2px 8px rgba(0,0,0,0.25);
+            margin-bottom:4px;
+          ">${labelText}</div>
+          <div style="
+            width:12px;
+            height:12px;
+            background:${bgColor};
+            border:2px solid white;
+            border-radius:50%;
+            box-shadow:0 2px 6px rgba(0,0,0,0.3);
+          "></div>
+          <div style="
+            width:2px;
+            height:8px;
+            background:${bgColor};
+            margin-top:-2px;
+          "></div>
         </div>
       `
-      content.onclick = () => {
-        setSelectedPlace(restaurant)
-        setSheetHeight(MIN_SHEET_HEIGHT)
-        map.panTo(position)
-      }
-
       const overlay = new kakao.maps.CustomOverlay({
         position,
         content,
-        yAnchor: 1.2,
+        yAnchor: 1, // 마커 핀 하단이 정확한 위치
         map
       })
 
+      content.onclick = () => {
+        // 이미 선택된 마커를 다시 클릭하면 음식점 페이지로 이동 (DB에 있는 경우만)
+        if (selectedOverlayRef.current === overlay) {
+          if (dbRestaurant && dbRestaurant.uuid) {
+            router.push(`/restaurant/${dbRestaurant.uuid}`)
+          } else if (dbRestaurant && dbRestaurant.id) {
+            // uuid가 없으면 id로 이동
+            router.push(`/restaurant/${dbRestaurant.id}`)
+          } else {
+            // DB에 없는 음식점은 리뷰 작성 페이지로 이동
+            const params = new URLSearchParams({
+              kakaoPlaceId: kakaoPlace.id,
+              name: kakaoPlace.name,
+              address: kakaoPlace.address,
+              jibunAddress: kakaoPlace.address,
+              category: kakaoPlace.category,
+              phone: kakaoPlace.phone || '',
+              x: kakaoPlace.x,
+              y: kakaoPlace.y,
+            })
+            router.push(`/write?${params.toString()}`)
+          }
+          return
+        }
+
+        setSelectedPlace(restaurant)
+        setSheetHeight(MIN_SHEET_HEIGHT)
+
+        // 다른 마커들 숨기고 선택된 마커만 표시
+        overlaysRef.current.forEach(o => {
+          if (o !== overlay) o.setMap(null)
+        })
+        selectedOverlayRef.current = overlay
+
+        // 줌 레벨 설정 후 중심 이동
+        map.setLevel(3)
+        map.setCenter(position)
+        // idle 이벤트로 지도 렌더링 완료 후 오프셋 적용
+        kakao.maps.event.addListener(map, 'idle', function onIdle() {
+          kakao.maps.event.removeListener(map, 'idle', onIdle)
+          const projection = map.getProjection()
+          const centerPoint = projection.pointFromCoords(position)
+          const cardAndSheetHeight = MIN_SHEET_HEIGHT + 160
+          const offsetY = cardAndSheetHeight / 2
+          const offsetPoint = new kakao.maps.Point(centerPoint.x, centerPoint.y + offsetY)
+          const offsetCoords = projection.coordsFromPoint(offsetPoint)
+          map.setCenter(offsetCoords)
+        })
+      }
+
       overlaysRef.current.push(overlay)
     })
-  }, [])
+  }, [router])
 
   // 위치 권한 상태 확인
   const checkLocationPermission = useCallback(async () => {
@@ -792,7 +896,13 @@ export default function SearchPage() {
           <SelectedPlaceCard
             restaurant={selectedPlace}
             formatDistance={formatDistance}
-            onClose={() => setSelectedPlace(null)}
+            onClose={() => {
+              setSelectedPlace(null)
+              selectedOverlayRef.current = null
+              // 숨겨진 마커들 다시 표시
+              const map = mapInstanceRef.current
+              overlaysRef.current.forEach(o => o.setMap(map))
+            }}
             t={t}
           />
         </div>
@@ -870,12 +980,26 @@ export default function SearchPage() {
                     setSelectedPlace(restaurant)
                     setSheetHeight(MIN_SHEET_HEIGHT)
                     const kakao = (window as any).kakao
-                    if (kakao && mapInstanceRef.current) {
+                    const map = mapInstanceRef.current
+                    if (kakao && map) {
                       const pos = new kakao.maps.LatLng(
                         parseFloat(restaurant.kakaoPlace.y),
                         parseFloat(restaurant.kakaoPlace.x)
                       )
-                      mapInstanceRef.current.panTo(pos)
+                      // 줌 레벨 설정 후 중심 이동
+                      map.setLevel(3)
+                      map.setCenter(pos)
+                      // idle 이벤트로 지도 렌더링 완료 후 오프셋 적용
+                      kakao.maps.event.addListener(map, 'idle', function onIdle() {
+                        kakao.maps.event.removeListener(map, 'idle', onIdle)
+                        const projection = map.getProjection()
+                        const centerPoint = projection.pointFromCoords(pos)
+                        const cardAndSheetHeight = MIN_SHEET_HEIGHT + 160
+                        const offsetY = cardAndSheetHeight / 2
+                        const offsetPoint = new kakao.maps.Point(centerPoint.x, centerPoint.y + offsetY)
+                        const offsetCoords = projection.coordsFromPoint(offsetPoint)
+                        map.setCenter(offsetCoords)
+                      })
                     }
                   }}
                 />
@@ -921,10 +1045,11 @@ function SelectedPlaceCard({
       return `/write?restaurantId=${dbRestaurant.id}`
     }
     // DB에 없는 음식점: 카카오 장소 정보를 쿼리 파라미터로 전달
+    // 지번 주소(구주소)를 기본 주소로 사용 (시/구/동 파싱에 용이)
     const params = new URLSearchParams({
       kakaoPlaceId: kakaoPlace.id,
       name: kakaoPlace.name,
-      address: kakaoPlace.roadAddress || kakaoPlace.address,
+      address: kakaoPlace.address, // 지번 주소(구주소) 사용
       jibunAddress: kakaoPlace.address, // 지번 주소 (지역 파싱용)
       category: kakaoPlace.category,
       phone: kakaoPlace.phone || '',
@@ -983,7 +1108,7 @@ function SelectedPlaceCard({
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <span>{formatDistance(kakaoPlace.distance)}</span>
             <span>·</span>
-            <span className="truncate">{kakaoPlace.roadAddress || kakaoPlace.address}</span>
+            <span className="truncate">{kakaoPlace.address}</span>
           </div>
         </div>
       </div>
@@ -992,7 +1117,7 @@ function SelectedPlaceCard({
       <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2">
         {dbRestaurant ? (
           <>
-            <Link href={`/restaurant/${dbRestaurant.id}`} className="flex-1">
+            <Link href={`/restaurant/${dbRestaurant.uuid}`} className="flex-1">
               <button className="w-full py-2 px-4 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors">
                 {t.search.viewDetails}
               </button>

@@ -113,6 +113,17 @@ KAKAO_CLIENT_ID, KAKAO_CLIENT_SECRET, KAKAO_REDIRECT_URI
 ### 지역 필터링
 - 시/도 → 구/군 → 동 선택 (서울/경기: SVG 지도, 기타: 텍스트 리스트)
 - `lib/map-data.ts`: 지도 데이터
+- `lib/regions.ts`: 행정구역 데이터 (시/도 > 구/군 > 동, 행정동 기준)
+  - 경기도 대도시(수원/성남/고양/용인/안산/안양)는 "시 구" 형태로 district 저장
+- `lib/beopjeong-mapping.ts`: 법정동 → 행정동 매핑 테이블
+  - 카카오맵에서 법정동 주소가 오면 행정동으로 자동 변환
+  - 예: "서귀동" → "송산동", "논현동" → "논현1동"
+- `components/region-selector.tsx`: 지역 선택 UI
+  - 경기도 선택 시 시 → 구 → 동 4단계 셀렉터 표시
+  - 기타 지역은 시/도 → 구/군 → 동 3단계 셀렉터
+- `parseAddress()`: 카카오맵 주소 → region/district/neighborhood 파싱
+  - 경기도 대도시 주소 자동 감지 (장안구 등 "구"로 끝나는 경우)
+  - 법정동 → 행정동 자동 변환
 
 ### 리뷰 영향력 시스템
 - 리뷰 작성 시 "참고한 리뷰" 선택 → 참고된 리뷰어에게 포인트 지급

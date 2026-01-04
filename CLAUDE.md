@@ -113,17 +113,12 @@ KAKAO_CLIENT_ID, KAKAO_CLIENT_SECRET, KAKAO_REDIRECT_URI
 ### 지역 필터링
 - 시/도 → 구/군 → 동 선택 (서울/경기: SVG 지도, 기타: 텍스트 리스트)
 - `lib/map-data.ts`: 지도 데이터
-- `lib/regions.ts`: 행정구역 데이터 (시/도 > 구/군 > 동, 행정동 기준)
-  - 경기도 대도시(수원/성남/고양/용인/안산/안양)는 "시 구" 형태로 district 저장
-- `lib/beopjeong-mapping.ts`: 법정동 → 행정동 매핑 테이블
-  - 카카오맵에서 법정동 주소가 오면 행정동으로 자동 변환
-  - 예: "서귀동" → "송산동", "논현동" → "논현1동"
-- `components/region-selector.tsx`: 지역 선택 UI
-  - 경기도 선택 시 시 → 구 → 동 4단계 셀렉터 표시
-  - 기타 지역은 시/도 → 구/군 → 동 3단계 셀렉터
-- `parseAddress()`: 카카오맵 주소 → region/district/neighborhood 파싱
-  - 경기도 대도시 주소 자동 감지 (장안구 등 "구"로 끝나는 경우)
-  - 법정동 → 행정동 자동 변환
+
+### 카테고리 필터링
+- 헤더에 드롭다운으로 통합 (`home-header.tsx`)
+- Backend enum → 한글 표시: `category` (KOREAN, JAPANESE 등) / `categoryDisplay` (한식, 일식 등)
+- `lib/api.ts`의 `categoryToEnum()`: 한글 → enum 변환
+- 카테고리 목록: 전체, 한식, 일식, 중식, 양식, 카페, 베이커리, 분식
 
 ### 리뷰 영향력 시스템
 - 리뷰 작성 시 "참고한 리뷰" 선택 → 참고된 리뷰어에게 포인트 지급
@@ -158,3 +153,30 @@ npx cap open android       # Android Studio 열기
 - 설정에서 "인증된 리뷰만 보기" 필터 지원
 - `ReceiptVerificationStatus`: NONE, PENDING_REVIEW, MANUALLY_APPROVED, MANUALLY_REJECTED
 - `lib/feed-settings-context.tsx`: 피드 설정 Context (localStorage 저장)
+
+## TODO (Future Development)
+
+### 음식점 상세페이지 개선
+- [x] 음식점 ID를 UUID로 변경 (현재: `/restaurant/2` → 변경: `/restaurant/a1b2c3d4...`)
+  - Backend: Restaurant 엔티티에 uuid 필드 추가 (@PrePersist로 자동 생성)
+  - Backend: /api/restaurants/uuid/{uuid} 엔드포인트 추가
+  - Frontend: URL에서 UUID/숫자 ID 자동 감지하여 처리
+  - 하위 호환성: 기존 숫자 ID URL도 계속 지원
+- [ ] 카카오 지도 표시 (위도/경도 활용)
+- [ ] 세부 별점 표시 (맛/가격/분위기/서비스)
+- [ ] 전화걸기 버튼 추가
+
+### 기타
+- [ ] 음식점 검색 기능
+- [ ] 알림 기능 (내 리뷰에 댓글/좋아요 알림)
+- [ ] 리뷰 좋아요 기능
+- [ ] 사용자 팔로우 기능
+- Todos
+  ☒ 지도 중앙 정렬 수정 (relayout)
+  ☒ 지도에서 기존 음식점 마커 클릭 시 정보 표시 + 줌업
+  ☒ 디버그 로그 제거 및 빌드 테스트
+  ☒ 검색 마커 핀 형태로 변경, 클릭 시 다른 마커 숨김
+  ☒ 마커 더블클릭 시 음식점 페이지 이동
+  ☒ 음식점 매칭 로직 개선 (주소→이름 기반, 같은 건물 다른 가게 구분)
+  ☒ 카테고리 필터 UI 개선 (헤더 드롭다운 통합, 한글 표시)
+  ☐ 기존 DB에 잘못 매칭된 리뷰 확인 필요

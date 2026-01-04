@@ -5,7 +5,6 @@ import { useState, Suspense } from "react"
 import { HomeHeader } from "@/components/home-header"
 import { ReviewFeedClient } from "@/components/review-feed-client"
 import { Review } from "@/lib/api"
-import { CategoryFilter } from "./category-filter"
 import { Loader2 } from "lucide-react"
 import { RegionSelection } from "@/components/map-region-selector"
 
@@ -20,8 +19,12 @@ export function HomePageClientWrapper({ initialReviews, initialCategory = "ì „ì²
 
   return (
     <>
-      <HomeHeader selectedRegion={selectedRegion} onRegionChange={setSelectedRegion} />
-      <CategoryFilter selectedCategory={selectedCategory} onCategoryChange={setSelectedCategory} />
+      <HomeHeader
+        selectedRegion={selectedRegion}
+        onRegionChange={setSelectedRegion}
+        selectedCategory={selectedCategory}
+        onCategoryChange={setSelectedCategory}
+      />
       <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
         <ReviewFeedClient
           initialReviews={initialReviews}

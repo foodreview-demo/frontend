@@ -155,7 +155,7 @@ export function ReviewCard({ review }: ReviewCardProps) {
           <div className="flex items-center gap-2">
             <h3 className="font-bold text-lg text-foreground">{review.restaurant.name}</h3>
             <Badge variant="outline" className="text-xs">
-              {review.restaurant.category}
+              {review.restaurant.categoryDisplay || review.restaurant.category}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">{review.restaurant.address}</p>

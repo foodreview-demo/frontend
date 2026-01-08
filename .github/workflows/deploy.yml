@@ -110,15 +110,24 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x android/gradlew
 
-      - name: Build APK
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/matjalal-release.keystore
+
+      - name: Build Release APK
         working-directory: android
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleRelease
+        env:
+          KEYSTORE_FILE: matjalal-release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: app-release
+          path: android/app/build/outputs/apk/release/app-release.apk
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -129,4 +138,4 @@ jobs:
 
       - name: Upload APK to S3
         run: |
-          aws s3 cp android/app/build/outputs/apk/debug/app-debug.apk s3://${{ secrets.S3_BUCKET_NAME }}/downloads/app-debug.apk --content-type application/vnd.android.package-archive
+          aws s3 cp android/app/build/outputs/apk/release/app-release.apk s3://${{ secrets.S3_BUCKET_NAME }}/downloads/matjalal.apk --content-type application/vnd.android.package-archive

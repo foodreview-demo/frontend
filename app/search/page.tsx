@@ -571,6 +571,15 @@ export default function SearchPage() {
 
   // 위치 권한 상태 확인
   const checkLocationPermission = useCallback(async () => {
+    // 이전에 "다음에 하기"를 선택했는지 확인
+    const locationSkipped = localStorage.getItem('locationPromptSkipped')
+    if (locationSkipped === 'true') {
+      setLocationPermissionChecked(true)
+      setIsLoading(false)
+      searchNearbyPlaces(37.5665, 126.9780) // 서울 중심으로 검색
+      return
+    }
+
     // permissions API 지원 여부 확인
     if (!navigator.permissions) {
       // permissions API가 없으면 바로 위치 요청
@@ -584,6 +593,7 @@ export default function SearchPage() {
 
       if (permission.state === 'granted') {
         // 이미 허용됨 - 바로 위치 가져오기
+        localStorage.removeItem('locationPromptSkipped') // 스킵 플래그 제거
         setLocationPermissionChecked(true)
         const pos = await getCurrentLocation()
         searchNearbyPlaces(pos.lat, pos.lng)
@@ -620,6 +630,8 @@ export default function SearchPage() {
   const handleLocationConsent = async () => {
     setShowLocationPrompt(false)
     setIsLoading(true)
+    // 위치 공유 허용 시 스킵 플래그 제거
+    localStorage.removeItem('locationPromptSkipped')
     try {
       const pos = await getCurrentLocation()
       searchNearbyPlaces(pos.lat, pos.lng)
@@ -633,6 +645,8 @@ export default function SearchPage() {
   const handleLocationDeny = () => {
     setShowLocationPrompt(false)
     setIsLoading(false)
+    // 사용자 선택 저장 (다시 묻지 않음)
+    localStorage.setItem('locationPromptSkipped', 'true')
     searchNearbyPlaces(37.5665, 126.9780) // 서울 중심으로 검색
   }
 

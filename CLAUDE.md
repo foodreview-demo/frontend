@@ -132,6 +132,28 @@ npx cap sync android       # Android 동기화
 npx cap open android       # Android Studio 열기
 ```
 
+### Capacitor 설정
+- **App ID**: `com.matjalal.app`
+- **App Name**: 맛잘알
+- **Android Scheme**: `https` (CapacitorHttp로 CORS 우회)
+- **Deep Link**: `matjalal://callback` (카카오 로그인 콜백)
+
+### Android 권한 (AndroidManifest.xml)
+- `INTERNET` - 네트워크 접근
+- `ACCESS_FINE_LOCATION` - GPS 정밀 위치
+- `ACCESS_COARSE_LOCATION` - 네트워크 기반 위치
+
+### 카카오 로그인 플로우 (앱)
+1. 앱에서 카카오 로그인 버튼 클릭 → 외부 브라우저로 카카오 인증
+2. 카카오 인증 완료 → 웹 콜백 페이지(`/oauth/kakao/callback`)
+3. 웹 콜백에서 토큰 발급 → `matjalal://callback?token=xxx&refreshToken=xxx`로 앱 복귀
+4. `auth-context.tsx`의 전역 리스너가 토큰 수신 → 쿠키 저장 → 홈 이동
+
+### 위치 권한 동의 (localStorage)
+- `locationPermissionGranted`: 위치 공유 허용 시 저장 (다시 묻지 않음)
+- `locationPromptSkipped`: "다음에 하기" 선택 시 저장 (다시 묻지 않음)
+- 권한 취소 시 플래그 자동 제거
+
 ## Admin System
 
 - Dashboard: `/api/admin/stats`
@@ -171,6 +193,13 @@ npx cap open android       # Android Studio 열기
 - [x] 리뷰 수정 시 "참고 리뷰" 타입 저장/복원 (`referenceType` 필드)
 - [x] 채팅 미리보기 답장 형식 파싱 (`formatMessagePreview()`)
 - [x] 알림 설정 DB 저장 연동 (`User` 엔티티에 notify 필드 추가, `GET/PUT /api/users/me/notifications`)
+
+### Capacitor 앱 (2026-01-08)
+- [x] 카카오 로그인 Deep Link 수정 (전역 리스너로 이동)
+- [x] Android 위치 권한 추가 (ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION)
+- [x] 위치 권한 동의 선택 localStorage 저장 (매번 묻지 않음)
+- [x] 지도 페이지 진입 시 내 위치 자동 검색
+- [x] 카카오맵 Capacitor 에러 처리 개선
 
 ## TODO (Future Development)
 

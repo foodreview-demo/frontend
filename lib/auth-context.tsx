@@ -2,6 +2,9 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { api, User } from './api'
+import { Capacitor } from '@capacitor/core'
+import { App } from '@capacitor/app'
+import { Browser } from '@capacitor/browser'
 
 interface AuthContextType {
   user: User | null
@@ -82,6 +85,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     initAuth()
+
+    // Capacitor 앱에서 Deep Link 처리 (카카오 로그인 콜백)
+    if (Capacitor.isNativePlatform()) {
+      const handleAppUrlOpen = App.addListener('appUrlOpen', async (event) => {
+        const url = new URL(event.url)
+        // matjalal://callback?token=xxx&refreshToken=xxx
+        if (url.host === 'callback') {
+          const token = url.searchParams.get('token')
+          const refreshTokenParam = url.searchParams.get('refreshToken')
+
+          // 브라우저 닫기
+          try {
+            await Browser.close()
+          } catch (e) {
+            // 브라우저가 이미 닫혀있을 수 있음
+          }
+
+          if (token && refreshTokenParam) {
+            // 쿠키에 토큰 저장
+            document.cookie = `accessToken=${token}; path=/; max-age=${60*60*24}; SameSite=Strict`
+            document.cookie = `refreshToken=${refreshTokenParam}; path=/; max-age=${60*60*24*7}; SameSite=Strict`
+            // 사용자 정보 갱신
+            await refreshUser()
+            // 홈으로 이동
+            window.location.href = '/'
+          }
+        }
+      })
+
+      return () => {
+        handleAppUrlOpen.remove()
+      }
+    }
   }, [refreshUser])
 
   const login = async (email: string, password: string) => {

@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, useCallback } from "react"
 import Script from "next/script"
-import { Search, MapPin, Loader2, X, Navigation, Sparkles } from "lucide-react"
+import { Search, MapPin, Loader2, X, Navigation, Sparkles, AlertCircle } from "lucide-react"
+import { Capacitor } from "@capacitor/core"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -110,9 +111,26 @@ export function KakaoMapSearch({
         )
       }
     } catch (err) {
+      console.error("지도 초기화 실패:", err)
       setError("지도를 초기화하는데 실패했습니다")
     }
   }, [])
+
+  // Capacitor 앱에서 스크립트 로드 상태 모니터링
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      const checkKakaoLoaded = setTimeout(() => {
+        const kakao = (window as any).kakao
+        if (!kakao || !kakao.maps) {
+          console.warn("카카오맵 SDK가 로드되지 않음 (5초 경과)")
+          if (!isMapLoaded && !error) {
+            setError("카카오맵 로드 중... 카카오 개발자 콘솔에서 'localhost' 도메인이 등록되어 있는지 확인해주세요.")
+          }
+        }
+      }, 5000)
+      return () => clearTimeout(checkKakaoLoaded)
+    }
+  }, [isMapLoaded, error])
 
   // 스크립트 로드 후 지도 초기화
   useEffect(() => {
@@ -147,7 +165,13 @@ export function KakaoMapSearch({
   }
 
   const handleScriptError = () => {
-    setError("카카오맵을 불러오는데 실패했습니다. API 키와 도메인 설정을 확인해주세요.")
+    const isNative = Capacitor.isNativePlatform()
+    if (isNative) {
+      setError("카카오맵을 불러올 수 없습니다. 카카오 개발자 콘솔에서 'localhost' 도메인을 등록해주세요.")
+    } else {
+      setError("카카오맵을 불러오는데 실패했습니다. API 키와 도메인 설정을 확인해주세요.")
+    }
+    console.error("카카오맵 스크립트 로드 실패", { isNative, apiKey: KAKAO_MAP_API_KEY ? "설정됨" : "미설정" })
   }
 
   // 마커 초기화

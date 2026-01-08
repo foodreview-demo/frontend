@@ -57,9 +57,13 @@ export default function SettingsPage() {
   useEffect(() => {
     const loadNotificationSettings = async () => {
       try {
+        console.log('알림 설정 로드 시작')
         const result = await api.getNotificationSettings()
+        console.log('알림 설정 로드 결과:', result)
         if (result.success) {
           setNotifications(result.data)
+        } else {
+          console.error('알림 설정 로드 실패 (서버 응답):', result.message)
         }
       } catch (error) {
         console.error('알림 설정 로드 실패:', error)
@@ -73,14 +77,21 @@ export default function SettingsPage() {
   // 알림 설정 업데이트
   const updateNotificationSetting = useCallback(async (key: keyof NotificationSettings, value: boolean) => {
     const newSettings = { ...notifications, [key]: value }
+    const previousSettings = { ...notifications }
     setNotifications(newSettings)
 
     try {
-      await api.updateNotificationSettings(newSettings)
+      console.log('알림 설정 업데이트 시도:', newSettings)
+      const result = await api.updateNotificationSettings(newSettings)
+      console.log('알림 설정 업데이트 결과:', result)
+      if (!result.success) {
+        console.error('알림 설정 저장 실패 (서버 응답):', result.message)
+        setNotifications(previousSettings)
+      }
     } catch (error) {
       console.error('알림 설정 저장 실패:', error)
       // 실패 시 원래 값으로 롤백
-      setNotifications(notifications)
+      setNotifications(previousSettings)
     }
   }, [notifications])
 

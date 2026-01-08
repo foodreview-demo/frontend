@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
@@ -8,13 +8,16 @@ import { useTranslation } from "@/lib/i18n-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Loader2, Eye, EyeOff, Mail, Lock } from "lucide-react"
+import { Capacitor } from "@capacitor/core"
+import { Browser } from "@capacitor/browser"
+import { App } from "@capacitor/app"
 
 const KAKAO_CLIENT_ID = process.env.NEXT_PUBLIC_KAKAO_CLIENT_ID
 const KAKAO_REDIRECT_URI = process.env.NEXT_PUBLIC_KAKAO_REDIRECT_URI || 'http://localhost:3000/oauth/kakao/callback'
 
 export default function LoginPage() {
   const router = useRouter()
-  const { login } = useAuth()
+  const { login, loginWithKakao } = useAuth()
   const t = useTranslation()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -23,9 +26,49 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [focusedField, setFocusedField] = useState<string | null>(null)
 
-  const handleKakaoLogin = () => {
-    const kakaoAuthUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${KAKAO_CLIENT_ID}&redirect_uri=${encodeURIComponent(KAKAO_REDIRECT_URI)}&response_type=code`
-    window.location.href = kakaoAuthUrl
+  // Capacitor 앱에서 Deep Link 처리 (앱 복귀 시)
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+
+    const handleAppUrlOpen = App.addListener('appUrlOpen', async (event) => {
+      const url = new URL(event.url)
+      // matjalal://callback?token=xxx&refreshToken=xxx
+      if (url.host === 'callback') {
+        const token = url.searchParams.get('token')
+        const refreshToken = url.searchParams.get('refreshToken')
+
+        // 브라우저 닫기
+        await Browser.close()
+
+        if (token && refreshToken) {
+          // 토큰 저장
+          localStorage.setItem('accessToken', token)
+          localStorage.setItem('refreshToken', refreshToken)
+          window.location.href = '/'
+        } else {
+          setError('로그인에 실패했습니다')
+        }
+      }
+    })
+
+    return () => {
+      handleAppUrlOpen.remove()
+    }
+  }, [])
+
+  const handleKakaoLogin = async () => {
+    const isNative = Capacitor.isNativePlatform()
+    // 앱에서도 웹 redirect URI 사용, 콜백 페이지에서 앱으로 복귀 처리
+    const redirectUri = KAKAO_REDIRECT_URI
+    const kakaoAuthUrl = `https://kauth.kakao.com/oauth/authorize?client_id=${KAKAO_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code`
+
+    if (isNative) {
+      // Capacitor 앱: 외부 브라우저로 열기
+      await Browser.open({ url: kakaoAuthUrl })
+    } else {
+      // 웹: 기존 방식
+      window.location.href = kakaoAuthUrl
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

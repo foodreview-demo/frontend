@@ -4,11 +4,14 @@ import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { Loader2 } from "lucide-react"
+import { api } from "@/lib/api"
 
 function KakaoCallbackContent() {
   const router = useRouter()
   const { loginWithKakao } = useAuth()
   const [error, setError] = useState<string | null>(null)
+  const [showAppButton, setShowAppButton] = useState(false)
+  const [appRedirectUrl, setAppRedirectUrl] = useState<string | null>(null)
   const processedRef = useRef(false)
 
   useEffect(() => {
@@ -36,8 +39,30 @@ function KakaoCallbackContent() {
 
     const handleLogin = async () => {
       try {
-        await loginWithKakao(code)
-        router.push('/')
+        // 직접 API 호출하여 토큰 받기
+        const result = await api.loginWithKakao(code)
+
+        if (result.success) {
+          const { accessToken, refreshToken } = result.data
+
+          // 외부 브라우저에서 열렸는지 확인 (앱에서 온 경우)
+          // User-Agent나 referrer로는 판단하기 어려우므로, 앱으로 돌아가는 버튼 표시
+          const appUrl = `matjalal://callback?token=${encodeURIComponent(accessToken)}&refreshToken=${encodeURIComponent(refreshToken)}`
+          setAppRedirectUrl(appUrl)
+
+          // 자동으로 앱 열기 시도
+          window.location.href = appUrl
+
+          // 2초 후에도 여기 있으면 (앱이 안 열렸으면) 웹으로 처리
+          setTimeout(() => {
+            // 아직 이 페이지에 있으면 웹 브라우저에서 열린 것
+            setShowAppButton(true)
+            // 웹에서는 그냥 홈으로 이동
+            router.push('/')
+          }, 2000)
+        } else {
+          throw new Error(result.message || '카카오 로그인 실패')
+        }
       } catch (err) {
         console.error('카카오 로그인 실패:', err)
         setError(err instanceof Error ? err.message : '카카오 로그인에 실패했습니다')
@@ -46,7 +71,7 @@ function KakaoCallbackContent() {
     }
 
     handleLogin()
-  }, [loginWithKakao, router])
+  }, [router])
 
   return (
     <div className="text-center">

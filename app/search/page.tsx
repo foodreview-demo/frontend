@@ -580,6 +580,22 @@ export default function SearchPage() {
       return
     }
 
+    // 이전에 위치 권한을 허용했는지 확인
+    const locationGranted = localStorage.getItem('locationPermissionGranted')
+    if (locationGranted === 'true') {
+      setLocationPermissionChecked(true)
+      try {
+        const pos = await getCurrentLocation()
+        searchNearbyPlaces(pos.lat, pos.lng)
+      } catch {
+        // 권한이 취소되었을 수 있음
+        localStorage.removeItem('locationPermissionGranted')
+        setShowLocationPrompt(true)
+        setIsLoading(false)
+      }
+      return
+    }
+
     // permissions API 지원 여부 확인
     if (!navigator.permissions) {
       // permissions API가 없으면 바로 위치 요청
@@ -634,6 +650,8 @@ export default function SearchPage() {
     localStorage.removeItem('locationPromptSkipped')
     try {
       const pos = await getCurrentLocation()
+      // 위치 획득 성공 시 플래그 저장 (다시 묻지 않음)
+      localStorage.setItem('locationPermissionGranted', 'true')
       searchNearbyPlaces(pos.lat, pos.lng)
     } catch {
       setIsLoading(false)

@@ -584,6 +584,7 @@ export default function SearchPage() {
     const locationGranted = localStorage.getItem('locationPermissionGranted')
     if (locationGranted === 'true') {
       setLocationPermissionChecked(true)
+      setIsLoading(true)
       try {
         const pos = await getCurrentLocation()
         searchNearbyPlaces(pos.lat, pos.lng)
@@ -610,7 +611,9 @@ export default function SearchPage() {
       if (permission.state === 'granted') {
         // 이미 허용됨 - 바로 위치 가져오기
         localStorage.removeItem('locationPromptSkipped') // 스킵 플래그 제거
+        localStorage.setItem('locationPermissionGranted', 'true')
         setLocationPermissionChecked(true)
+        setIsLoading(true)
         const pos = await getCurrentLocation()
         searchNearbyPlaces(pos.lat, pos.lng)
       } else if (permission.state === 'denied') {

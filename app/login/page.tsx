@@ -62,7 +62,7 @@ export default function LoginPage() {
         {/* Logo & Branding */}
         <div className="text-center mb-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="relative inline-block mb-6">
-            <div className="w-24 h-24 bg-gradient-to-br from-primary to-primary/80 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-primary/30 transform hover:scale-105 transition-transform duration-300">
+            <div className="w-24 h-24 bg-gradient-to-br from-orange-500 to-orange-600 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-orange-500/30 transform hover:scale-105 transition-transform duration-300">
               <span className="text-5xl">🍽️</span>
             </div>
             <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center border-4 border-background">

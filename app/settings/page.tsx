@@ -16,7 +16,7 @@ import {
   Settings2,
   UserX,
   Receipt,
-  Filter
+  Users
 } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { Button } from "@/components/ui/button"
@@ -38,12 +38,15 @@ import { useI18n } from "@/lib/i18n-context"
 import { locales, type Locale } from "@/lib/i18n"
 import { useFeedSettings } from "@/lib/feed-settings-context"
 import { api, NotificationSettings } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
 
 export default function SettingsPage() {
   const router = useRouter()
   const { user, logout } = useAuth()
   const { locale, setLocale, t } = useI18n()
-  const { showVerifiedOnly, setShowVerifiedOnly } = useFeedSettings()
+  const { showVerifiedOnly, setShowVerifiedOnly, showFollowingOnly, setShowFollowingOnly } = useFeedSettings()
+  const { toast } = useToast()
+  const [isWithdrawing, setIsWithdrawing] = useState(false)
   const [notifications, setNotifications] = useState<NotificationSettings>({
     reviews: true,
     follows: true,
@@ -100,10 +103,23 @@ export default function SettingsPage() {
     router.push("/login")
   }
 
-  const handleDeleteAccount = () => {
-    // TODO: API 연동 - 계정 삭제
-    logout()
-    router.push("/login")
+  const handleDeleteAccount = async () => {
+    setIsWithdrawing(true)
+    try {
+      const result = await api.withdraw()
+      if (result.success) {
+        toast({ title: "회원 탈퇴가 완료되었습니다" })
+        logout()
+        router.push("/login")
+      } else {
+        toast({ title: result.message || "회원 탈퇴에 실패했습니다", variant: "destructive" })
+      }
+    } catch (error) {
+      console.error("회원 탈퇴 실패:", error)
+      toast({ title: "회원 탈퇴에 실패했습니다", variant: "destructive" })
+    } finally {
+      setIsWithdrawing(false)
+    }
   }
 
   const handleLanguageChange = (newLocale: Locale) => {
@@ -218,6 +234,19 @@ export default function SettingsPage() {
         <div>
           <h2 className="text-sm font-medium text-muted-foreground mb-2 px-1">피드 설정</h2>
           <Card className="divide-y divide-border">
+            <div className="flex items-center justify-between p-4">
+              <div className="flex items-center gap-3">
+                <Users className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">팔로잉 리뷰만 보기</p>
+                  <p className="text-sm text-muted-foreground">팔로우한 사람들의 리뷰만 표시합니다</p>
+                </div>
+              </div>
+              <Switch
+                checked={showFollowingOnly}
+                onCheckedChange={setShowFollowingOnly}
+              />
+            </div>
             <div className="flex items-center justify-between p-4">
               <div className="flex items-center gap-3">
                 <Receipt className="h-5 w-5 text-muted-foreground" />
@@ -361,9 +390,10 @@ export default function SettingsPage() {
                 <AlertDialogCancel>{t.common.cancel}</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={handleDeleteAccount}
+                  disabled={isWithdrawing}
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
-                  {t.common.delete}
+                  {isWithdrawing ? "탈퇴 처리 중..." : t.common.delete}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

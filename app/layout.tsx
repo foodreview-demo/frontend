@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 import { AuthProvider } from "@/lib/auth-context"
 import { I18nProvider } from "@/lib/i18n-context"
 import { FeedSettingsProvider } from "@/lib/feed-settings-context"
+import { PushNotificationProvider } from "@/lib/push-notification-provider"
 import { PWARegister } from "@/components/pwa-register"
 import "./globals.css"
 
@@ -54,7 +55,9 @@ export default function RootLayout({
         <I18nProvider>
           <FeedSettingsProvider>
             <AuthProvider>
-              {children}
+              <PushNotificationProvider>
+                {children}
+              </PushNotificationProvider>
             </AuthProvider>
           </FeedSettingsProvider>
         </I18nProvider>

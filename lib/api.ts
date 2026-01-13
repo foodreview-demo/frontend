@@ -425,13 +425,15 @@ class ApiClient {
     page = 0,
     size = 20,
     district?: string,
-    neighborhood?: string
+    neighborhood?: string,
+    followingOnly = false
   ) {
     const params = new URLSearchParams({ page: String(page), size: String(size) });
     if (region && region !== '전체') params.append('region', region);
     if (district && district !== '전체') params.append('district', district);
     if (neighborhood && neighborhood !== '전체') params.append('neighborhood', neighborhood);
     if (category && category !== '전체') params.append('category', categoryToEnum(category));
+    if (followingOnly) params.append('followingOnly', 'true');
     return this.request<ApiResponse<PageResponse<Review>>>(`/reviews?${params}`);
   }
 
@@ -805,6 +807,31 @@ class ApiClient {
   async deleteReviewByAdmin(reviewId: number) {
     return this.request<ApiResponse<void>>(`/admin/reviews/${reviewId}`, {
       method: 'DELETE',
+    });
+  }
+
+  // 회원 탈퇴
+  async withdraw() {
+    return this.request<ApiResponse<void>>('/users/me', {
+      method: 'DELETE',
+    });
+  }
+
+  // FCM 토큰 등록
+  async registerFcmToken(token: string, deviceType: string = 'ANDROID', deviceId?: string) {
+    return this.request<ApiResponse<void>>('/fcm/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, deviceType, deviceId }),
+    });
+  }
+
+  // FCM 토큰 해제
+  async unregisterFcmToken(token: string) {
+    return this.request<ApiResponse<void>>('/fcm/token', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
     });
   }
 }

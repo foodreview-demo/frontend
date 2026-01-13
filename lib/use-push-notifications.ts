@@ -1,35 +1,47 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { Capacitor } from "@capacitor/core";
-import { PushNotifications, Token, PushNotificationSchema, ActionPerformed } from "@capacitor/push-notifications";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+
+// 동적으로 로드되는 PushNotifications 타입
+type PushNotificationsPlugin = typeof import("@capacitor/push-notifications").PushNotifications;
 
 export function usePushNotifications() {
   const { user } = useAuth();
   const tokenRef = useRef<string | null>(null);
   const isRegisteredRef = useRef(false);
+  const [pushPlugin, setPushPlugin] = useState<PushNotificationsPlugin | null>(null);
+
+  // 플러그인 동적 로드 (클라이언트에서만)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!Capacitor.isNativePlatform()) return;
+
+    import("@capacitor/push-notifications")
+      .then((module) => {
+        setPushPlugin(module.PushNotifications);
+        console.log("PushNotifications plugin loaded");
+      })
+      .catch((err) => {
+        console.warn("Failed to load PushNotifications plugin:", err);
+      });
+  }, []);
 
   // 푸시 알림 초기화 및 권한 요청
   const initializePush = useCallback(async () => {
-    if (!Capacitor.isNativePlatform()) {
-      console.log("Push notifications only available on native platform");
-      return;
-    }
-
-    // PushNotifications 플러그인 사용 가능 여부 확인
-    if (!PushNotifications) {
-      console.log("PushNotifications plugin not available");
+    if (!pushPlugin) {
+      console.log("PushNotifications plugin not loaded yet");
       return;
     }
 
     try {
       // 권한 확인
-      let permStatus = await PushNotifications.checkPermissions();
+      let permStatus = await pushPlugin.checkPermissions();
 
       if (permStatus.receive === "prompt") {
-        permStatus = await PushNotifications.requestPermissions();
+        permStatus = await pushPlugin.requestPermissions();
       }
 
       if (permStatus.receive !== "granted") {
@@ -38,12 +50,11 @@ export function usePushNotifications() {
       }
 
       // 푸시 등록
-      await PushNotifications.register();
+      await pushPlugin.register();
     } catch (error) {
-      // 플러그인 에러 발생 시 조용히 로깅만 하고 앱 크래시 방지
       console.warn("Push initialization error (non-fatal):", error);
     }
-  }, []);
+  }, [pushPlugin]);
 
   // FCM 토큰을 서버에 등록
   const registerTokenWithServer = useCallback(async (token: string) => {
@@ -53,7 +64,7 @@ export function usePushNotifications() {
     }
 
     try {
-      const deviceType = Capacitor.getPlatform().toUpperCase(); // "ANDROID" or "IOS"
+      const deviceType = Capacitor.getPlatform().toUpperCase();
       const deviceId = localStorage.getItem("deviceId") || undefined;
 
       const result = await api.registerFcmToken(token, deviceType, deviceId);
@@ -81,65 +92,66 @@ export function usePushNotifications() {
     }
   }, []);
 
+  // 리스너 등록
   useEffect(() => {
-    if (!Capacitor.isNativePlatform() || !PushNotifications) return;
+    if (!pushPlugin) return;
 
-    let tokenListener: Promise<{ remove: () => void }> | null = null;
-    let errorListener: Promise<{ remove: () => void }> | null = null;
-    let notificationListener: Promise<{ remove: () => void }> | null = null;
-    let actionListener: Promise<{ remove: () => void }> | null = null;
+    let tokenListener: { remove: () => void } | null = null;
+    let errorListener: { remove: () => void } | null = null;
+    let notificationListener: { remove: () => void } | null = null;
+    let actionListener: { remove: () => void } | null = null;
 
-    try {
-      // 토큰 등록 이벤트
-      tokenListener = PushNotifications.addListener("registration", (token: Token) => {
-        console.log("Push registration success, token:", token.value.substring(0, 20) + "...");
-        tokenRef.current = token.value;
+    const setupListeners = async () => {
+      try {
+        tokenListener = await pushPlugin.addListener("registration", (token) => {
+          console.log("Push registration success, token:", token.value.substring(0, 20) + "...");
+          tokenRef.current = token.value;
 
-        if (user) {
-          registerTokenWithServer(token.value);
-        }
-      });
-
-      // 토큰 등록 실패 이벤트
-      errorListener = PushNotifications.addListener("registrationError", (error) => {
-        console.error("Push registration error:", error.error);
-      });
-
-      // 푸시 알림 수신 (앱이 포그라운드일 때)
-      notificationListener = PushNotifications.addListener(
-        "pushNotificationReceived",
-        (notification: PushNotificationSchema) => {
-          console.log("Push notification received:", notification);
-        }
-      );
-
-      // 푸시 알림 클릭/탭 이벤트
-      actionListener = PushNotifications.addListener(
-        "pushNotificationActionPerformed",
-        (action: ActionPerformed) => {
-          console.log("Push notification action:", action);
-          const clickAction = action.notification.data?.click_action;
-          if (clickAction && typeof window !== "undefined") {
-            window.location.href = clickAction;
+          if (user) {
+            registerTokenWithServer(token.value);
           }
-        }
-      );
+        });
 
-      // 사용자가 로그인되어 있으면 푸시 초기화
-      if (user) {
-        initializePush();
+        errorListener = await pushPlugin.addListener("registrationError", (error) => {
+          console.error("Push registration error:", error.error);
+        });
+
+        notificationListener = await pushPlugin.addListener(
+          "pushNotificationReceived",
+          (notification) => {
+            console.log("Push notification received:", notification);
+          }
+        );
+
+        actionListener = await pushPlugin.addListener(
+          "pushNotificationActionPerformed",
+          (action) => {
+            console.log("Push notification action:", action);
+            const clickAction = action.notification.data?.click_action;
+            if (clickAction && typeof window !== "undefined") {
+              window.location.href = clickAction;
+            }
+          }
+        );
+
+        // 사용자가 로그인되어 있으면 푸시 초기화
+        if (user) {
+          initializePush();
+        }
+      } catch (error) {
+        console.warn("Push notifications setup error (non-fatal):", error);
       }
-    } catch (error) {
-      console.warn("Push notifications setup error (non-fatal):", error);
-    }
+    };
+
+    setupListeners();
 
     return () => {
-      tokenListener?.then((l) => l.remove()).catch(() => {});
-      errorListener?.then((l) => l.remove()).catch(() => {});
-      notificationListener?.then((l) => l.remove()).catch(() => {});
-      actionListener?.then((l) => l.remove()).catch(() => {});
+      tokenListener?.remove();
+      errorListener?.remove();
+      notificationListener?.remove();
+      actionListener?.remove();
     };
-  }, [user, initializePush, registerTokenWithServer]);
+  }, [pushPlugin, user, initializePush, registerTokenWithServer]);
 
   // 사용자 변경 시 토큰 재등록
   useEffect(() => {

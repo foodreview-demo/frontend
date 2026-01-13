@@ -1,7 +1,9 @@
 ﻿node_modules/
 .next/
 out/
-.env*.local*.keystore
+.env*.local
+.env.app
+*.keystore
 
 # Firebase/Google services (sensitive)
 google-services.json

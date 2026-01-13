@@ -92,6 +92,17 @@ export function usePushNotifications() {
     }
   }, []);
 
+  // 알림 클릭 시 페이지 이동 처리
+  const handleNotificationAction = useCallback((clickAction: string) => {
+    if (!clickAction || typeof window === "undefined") return;
+
+    console.log("Navigating to:", clickAction);
+    // 약간의 딜레이 후 이동 (앱 초기화 대기)
+    setTimeout(() => {
+      window.location.href = clickAction;
+    }, 100);
+  }, []);
+
   // 리스너 등록
   useEffect(() => {
     if (!pushPlugin) return;
@@ -128,11 +139,13 @@ export function usePushNotifications() {
           (action) => {
             console.log("Push notification action:", action);
             const clickAction = action.notification.data?.click_action;
-            if (clickAction && typeof window !== "undefined") {
-              window.location.href = clickAction;
-            }
+            handleNotificationAction(clickAction);
           }
         );
+
+        // 앱이 알림으로 열렸을 때 처리 (앱이 종료 상태였던 경우)
+        const delivered = await pushPlugin.getDeliveredNotifications();
+        console.log("Delivered notifications:", delivered.notifications.length);
 
         // 사용자가 로그인되어 있으면 푸시 초기화
         if (user) {
@@ -151,7 +164,7 @@ export function usePushNotifications() {
       notificationListener?.remove();
       actionListener?.remove();
     };
-  }, [pushPlugin, user, initializePush, registerTokenWithServer]);
+  }, [pushPlugin, user, initializePush, registerTokenWithServer, handleNotificationAction]);
 
   // 사용자 변경 시 토큰 재등록
   useEffect(() => {

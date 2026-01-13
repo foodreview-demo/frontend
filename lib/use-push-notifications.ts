@@ -18,6 +18,12 @@ export function usePushNotifications() {
       return;
     }
 
+    // PushNotifications 플러그인 사용 가능 여부 확인
+    if (!PushNotifications) {
+      console.log("PushNotifications plugin not available");
+      return;
+    }
+
     try {
       // 권한 확인
       let permStatus = await PushNotifications.checkPermissions();
@@ -34,7 +40,8 @@ export function usePushNotifications() {
       // 푸시 등록
       await PushNotifications.register();
     } catch (error) {
-      console.error("Push initialization error:", error);
+      // 플러그인 에러 발생 시 조용히 로깅만 하고 앱 크래시 방지
+      console.warn("Push initialization error (non-fatal):", error);
     }
   }, []);
 
@@ -75,56 +82,62 @@ export function usePushNotifications() {
   }, []);
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
+    if (!Capacitor.isNativePlatform() || !PushNotifications) return;
 
-    // 토큰 등록 이벤트
-    const tokenListener = PushNotifications.addListener("registration", (token: Token) => {
-      console.log("Push registration success, token:", token.value.substring(0, 20) + "...");
-      tokenRef.current = token.value;
+    let tokenListener: Promise<{ remove: () => void }> | null = null;
+    let errorListener: Promise<{ remove: () => void }> | null = null;
+    let notificationListener: Promise<{ remove: () => void }> | null = null;
+    let actionListener: Promise<{ remove: () => void }> | null = null;
 
-      if (user) {
-        registerTokenWithServer(token.value);
-      }
-    });
+    try {
+      // 토큰 등록 이벤트
+      tokenListener = PushNotifications.addListener("registration", (token: Token) => {
+        console.log("Push registration success, token:", token.value.substring(0, 20) + "...");
+        tokenRef.current = token.value;
 
-    // 토큰 등록 실패 이벤트
-    const errorListener = PushNotifications.addListener("registrationError", (error) => {
-      console.error("Push registration error:", error.error);
-    });
-
-    // 푸시 알림 수신 (앱이 포그라운드일 때)
-    const notificationListener = PushNotifications.addListener(
-      "pushNotificationReceived",
-      (notification: PushNotificationSchema) => {
-        console.log("Push notification received:", notification);
-        // 포그라운드에서 알림을 받았을 때 처리
-        // 필요하다면 로컬 알림이나 토스트 표시
-      }
-    );
-
-    // 푸시 알림 클릭/탭 이벤트
-    const actionListener = PushNotifications.addListener(
-      "pushNotificationActionPerformed",
-      (action: ActionPerformed) => {
-        console.log("Push notification action:", action);
-        const clickAction = action.notification.data?.click_action;
-        if (clickAction && typeof window !== "undefined") {
-          // 해당 페이지로 이동
-          window.location.href = clickAction;
+        if (user) {
+          registerTokenWithServer(token.value);
         }
-      }
-    );
+      });
 
-    // 사용자가 로그인되어 있으면 푸시 초기화
-    if (user) {
-      initializePush();
+      // 토큰 등록 실패 이벤트
+      errorListener = PushNotifications.addListener("registrationError", (error) => {
+        console.error("Push registration error:", error.error);
+      });
+
+      // 푸시 알림 수신 (앱이 포그라운드일 때)
+      notificationListener = PushNotifications.addListener(
+        "pushNotificationReceived",
+        (notification: PushNotificationSchema) => {
+          console.log("Push notification received:", notification);
+        }
+      );
+
+      // 푸시 알림 클릭/탭 이벤트
+      actionListener = PushNotifications.addListener(
+        "pushNotificationActionPerformed",
+        (action: ActionPerformed) => {
+          console.log("Push notification action:", action);
+          const clickAction = action.notification.data?.click_action;
+          if (clickAction && typeof window !== "undefined") {
+            window.location.href = clickAction;
+          }
+        }
+      );
+
+      // 사용자가 로그인되어 있으면 푸시 초기화
+      if (user) {
+        initializePush();
+      }
+    } catch (error) {
+      console.warn("Push notifications setup error (non-fatal):", error);
     }
 
     return () => {
-      tokenListener.then((l) => l.remove());
-      errorListener.then((l) => l.remove());
-      notificationListener.then((l) => l.remove());
-      actionListener.then((l) => l.remove());
+      tokenListener?.then((l) => l.remove()).catch(() => {});
+      errorListener?.then((l) => l.remove()).catch(() => {});
+      notificationListener?.then((l) => l.remove()).catch(() => {});
+      actionListener?.then((l) => l.remove()).catch(() => {});
     };
   }, [user, initializePush, registerTokenWithServer]);
 

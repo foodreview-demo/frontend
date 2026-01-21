@@ -1,20 +1,12 @@
 import { ReviewDetailClient } from "./review-detail-client"
 
-// 정적 빌드를 위한 빈 params (런타임에 동적으로 처리)
 export function generateStaticParams() {
-  return []
+  // Static export에서는 모든 가능한 경로를 미리 생성해야 함
+  // 1~1000까지 ID 생성 (리뷰는 프로필보다 많을 수 있으므로 범위 확대)
+  return Array.from({ length: 1000 }, (_, i) => ({ id: String(i + 1) }))
 }
 
-// 동적 params 허용
-export const dynamicParams = true
-
-interface PageProps {
-  params: Promise<{ id: string }>
-}
-
-export default async function ReviewDetailPage({ params }: PageProps) {
+export default async function ReviewDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const reviewId = Number(id)
-
-  return <ReviewDetailClient reviewId={reviewId} />
+  return <ReviewDetailClient reviewId={Number(id)} />
 }

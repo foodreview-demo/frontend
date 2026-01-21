@@ -34,14 +34,16 @@ import { useAuth } from "@/lib/auth-context"
 interface ReviewCardProps {
   review: Review
   onDelete?: (reviewId: number) => void
+  defaultShowComments?: boolean
+  highlightCommentId?: number
 }
 
-export function ReviewCard({ review, onDelete }: ReviewCardProps) {
+export function ReviewCard({ review, onDelete, defaultShowComments, highlightCommentId }: ReviewCardProps) {
   const { user } = useAuth()
   const router = useRouter()
   const [sympathyCount, setSympathyCount] = useState(review.sympathyCount)
   const [hasSympathized, setHasSympathized] = useState(review.hasSympathized)
-  const [showComments, setShowComments] = useState(false)
+  const [showComments, setShowComments] = useState(defaultShowComments ?? false)
   const [commentCount, setCommentCount] = useState(0)
   const [showReportModal, setShowReportModal] = useState(false)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
@@ -360,7 +362,11 @@ export function ReviewCard({ review, onDelete }: ReviewCardProps) {
       {/* Comments Section */}
       {showComments && (
         <div className="border-t border-border">
-          <CommentSection reviewId={review.id} reviewUserId={review.user.id} />
+          <CommentSection
+            reviewId={review.id}
+            reviewUserId={review.user.id}
+            highlightCommentId={highlightCommentId}
+          />
         </div>
       )}
 

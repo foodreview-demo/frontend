@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { MessageCircle, Send, MoreHorizontal, ChevronDown, ChevronUp, Loader2, Trash2, Edit2, X, CornerDownRight } from "lucide-react"
@@ -20,9 +20,10 @@ import { cn } from "@/lib/utils"
 interface CommentSectionProps {
   reviewId: number
   reviewUserId: number // 리뷰 작성자 ID (삭제 권한용)
+  highlightCommentId?: number // 하이라이트할 댓글 ID (푸시 알림 클릭 시)
 }
 
-export function CommentSection({ reviewId, reviewUserId }: CommentSectionProps) {
+export function CommentSection({ reviewId, reviewUserId, highlightCommentId }: CommentSectionProps) {
   const { user, isAuthenticated } = useAuth()
   const [comments, setComments] = useState<Comment[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -34,6 +35,8 @@ export function CommentSection({ reviewId, reviewUserId }: CommentSectionProps) 
   const [expandedReplies, setExpandedReplies] = useState<Set<number>>(new Set())
   const [replies, setReplies] = useState<Record<number, Comment[]>>({})
   const [loadingReplies, setLoadingReplies] = useState<Set<number>>(new Set())
+  const [highlightedId, setHighlightedId] = useState<number | undefined>(highlightCommentId)
+  const commentRefs = useRef<Record<number, HTMLDivElement | null>>({})
 
   // 댓글 목록 로드
   const loadComments = useCallback(async () => {
@@ -52,6 +55,68 @@ export function CommentSection({ reviewId, reviewUserId }: CommentSectionProps) 
   useEffect(() => {
     loadComments()
   }, [loadComments])
+
+  // 하이라이트할 댓글로 스크롤
+  useEffect(() => {
+    if (!highlightCommentId || isLoading) return
+
+    const scrollToComment = async () => {
+      // 먼저 최상위 댓글에서 찾기
+      const topLevelComment = comments.find(c => c.id === highlightCommentId)
+
+      if (topLevelComment) {
+        // 최상위 댓글인 경우 바로 스크롤
+        setTimeout(() => {
+          const element = commentRefs.current[highlightCommentId]
+          if (element) {
+            element.scrollIntoView({ behavior: "smooth", block: "center" })
+          }
+        }, 100)
+        return
+      }
+
+      // 대댓글인 경우: 모든 부모 댓글의 대댓글을 로드해서 찾기
+      for (const comment of comments) {
+        if (comment.replyCount > 0) {
+          // 대댓글 로드
+          try {
+            const result = await api.getReplies(comment.id, 0, 100)
+            if (result.success) {
+              const foundReply = result.data.content.find((r: Comment) => r.id === highlightCommentId)
+              if (foundReply) {
+                // 해당 부모 댓글의 대댓글 섹션 펼치기
+                setReplies(prev => ({ ...prev, [comment.id]: result.data.content }))
+                setExpandedReplies(prev => new Set([...prev, comment.id]))
+
+                // 스크롤
+                setTimeout(() => {
+                  const element = commentRefs.current[highlightCommentId]
+                  if (element) {
+                    element.scrollIntoView({ behavior: "smooth", block: "center" })
+                  }
+                }, 200)
+                return
+              }
+            }
+          } catch (error) {
+            console.error("대댓글 로드 실패:", error)
+          }
+        }
+      }
+    }
+
+    scrollToComment()
+  }, [highlightCommentId, isLoading, comments])
+
+  // 하이라이트 효과 제거 (3초 후)
+  useEffect(() => {
+    if (highlightedId) {
+      const timer = setTimeout(() => {
+        setHighlightedId(undefined)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [highlightedId])
 
   // 대댓글 로드
   const loadReplies = async (commentId: number) => {
@@ -247,8 +312,17 @@ export function CommentSection({ reviewId, reviewUserId }: CommentSectionProps) 
       )
     }
 
+    const isHighlighted = highlightedId === comment.id
+
     return (
-      <div className={cn("py-3", isReply && "pl-8")}>
+      <div
+        ref={(el) => { commentRefs.current[comment.id] = el }}
+        className={cn(
+          "py-3 transition-colors duration-500 rounded-lg -mx-2 px-2",
+          isReply && "pl-8",
+          isHighlighted && "bg-primary/10 animate-pulse"
+        )}
+      >
         <div className="flex gap-3">
           {isReply && (
             <CornerDownRight className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />

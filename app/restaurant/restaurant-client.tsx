@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import { ArrowLeft, MapPin, Star, Clock, Sparkles, Share2, Phone, Loader2, Bookmark } from "lucide-react"
@@ -19,7 +20,10 @@ function isUuid(str: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
 }
 
-export function RestaurantClient({ id }: { id: string }) {
+export function RestaurantClient() {
+  const searchParams = useSearchParams()
+  const id = searchParams.get("id")
+
   const { user } = useAuth()
   const [activeTab, setActiveTab] = useState("reviews")
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null)
@@ -31,6 +35,12 @@ export function RestaurantClient({ id }: { id: string }) {
   const [isSaved, setIsSaved] = useState(false)
 
   useEffect(() => {
+    if (!id) {
+      setIsLoading(false)
+      setError("음식점 ID가 없습니다")
+      return
+    }
+
     const fetchData = async () => {
       setIsLoading(true)
       setError(null)

@@ -72,9 +72,16 @@ export default function NotificationsPage() {
       }
     }
 
-    // 해당 리뷰로 이동
+    // 알림 타입에 따라 이동
     if (notification.referenceId) {
-      router.push(`/restaurant/${notification.referenceId}`)
+      // COMMENT, SYMPATHY, REPLY 등은 리뷰 상세로 이동
+      if (notification.type === 'COMMENT' || notification.type === 'SYMPATHY' || notification.type === 'REPLY' || notification.type === 'REFERENCE') {
+        router.push(`/reviews/${notification.referenceId}`)
+      } else if (notification.type === 'FOLLOW') {
+        router.push(`/profile/${notification.referenceId}`)
+      } else {
+        router.push(`/reviews/${notification.referenceId}`)
+      }
     }
   }
 

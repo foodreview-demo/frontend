@@ -196,7 +196,7 @@ export function ReviewCard({ review, onDelete, defaultShowComments, highlightCom
       </div>
 
       {/* Restaurant Info */}
-      <Link href={`/restaurant/${review.restaurant.uuid}`}>
+      <Link href={`/restaurant?id=${review.restaurant.uuid}`}>
         <div className="px-4 pb-3">
           <div className="flex items-center gap-2">
             <h3 className="font-bold text-lg text-foreground">{review.restaurant.name}</h3>

@@ -519,10 +519,10 @@ export default function SearchPage() {
         // 이미 선택된 마커를 다시 클릭하면 음식점 페이지로 이동 (DB에 있는 경우만)
         if (selectedOverlayRef.current === overlay) {
           if (dbRestaurant && dbRestaurant.uuid) {
-            router.push(`/restaurant/${dbRestaurant.uuid}`)
+            router.push(`/restaurant?id=${dbRestaurant.uuid}`)
           } else if (dbRestaurant && dbRestaurant.id) {
             // uuid가 없으면 id로 이동
-            router.push(`/restaurant/${dbRestaurant.id}`)
+            router.push(`/restaurant?id=${dbRestaurant.id}`)
           } else {
             // DB에 없는 음식점은 리뷰 작성 페이지로 이동
             const params = new URLSearchParams({
@@ -1152,7 +1152,7 @@ function SelectedPlaceCard({
       <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2">
         {dbRestaurant ? (
           <>
-            <Link href={`/restaurant/${dbRestaurant.uuid}`} className="flex-1">
+            <Link href={`/restaurant?id=${dbRestaurant.uuid}`} className="flex-1">
               <button className="w-full py-2 px-4 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors">
                 {t.search.viewDetails}
               </button>

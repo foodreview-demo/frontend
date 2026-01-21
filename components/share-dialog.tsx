@@ -33,9 +33,9 @@ export function ShareDialog({ open, onOpenChange, restaurant }: ShareDialogProps
   const [copied, setCopied] = useState(false)
   const [kakaoReady, setKakaoReady] = useState(false)
 
-  // 현재 페이지 URL (UUID 기반)
+  // 현재 페이지 URL (query param 기반)
   const shareUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/restaurant/${restaurant.uuid}`
+    ? `${window.location.origin}/restaurant?id=${restaurant.uuid}`
     : ""
 
   // 카카오 SDK 초기화 체크

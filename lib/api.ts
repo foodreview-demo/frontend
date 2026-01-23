@@ -834,6 +834,30 @@ class ApiClient {
       body: JSON.stringify({ token }),
     });
   }
+
+  // Badge API
+  async getBadges() {
+    return this.request<ApiResponse<Badge[]>>('/badges');
+  }
+
+  async getBadgesByCategory(category: BadgeCategory) {
+    return this.request<ApiResponse<Badge[]>>(`/badges/category/${category}`);
+  }
+
+  async getMyBadges() {
+    return this.request<ApiResponse<Badge[]>>('/badges/my');
+  }
+
+  async getDisplayedBadges(userId: number) {
+    return this.request<ApiResponse<SimpleBadge[]>>(`/badges/user/${userId}/displayed`);
+  }
+
+  async toggleBadgeDisplay(badgeId: number, display: boolean) {
+    return this.request<ApiResponse<void>>(`/badges/${badgeId}/display`, {
+      method: 'PUT',
+      body: JSON.stringify({ badgeId, display }),
+    });
+  }
 }
 
 // 카테고리 한글 -> Enum 변환
@@ -1269,6 +1293,29 @@ export interface ChatReportResponse {
   status: ReportStatus;
   statusDescription: string;
   createdAt: string;
+}
+
+// Badge types
+export type BadgeCategory = 'GRADE' | 'ACHIEVEMENT';
+
+export interface Badge {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  icon: string;
+  category: BadgeCategory;
+  conditionValue: number;
+  acquired: boolean;
+  acquiredAt: string | null;
+  isDisplayed: boolean | null;
+}
+
+export interface SimpleBadge {
+  id: number;
+  name: string;
+  icon: string;
+  category: BadgeCategory;
 }
 
 export const api = new ApiClient(API_BASE_URL);

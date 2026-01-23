@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Settings, MapPin, Edit2, ChevronRight, Loader2, ListMusic, Users } from "lucide-react"
+import { Settings, MapPin, Edit2, ChevronRight, Loader2, ListMusic, Users, Award } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { TasteScoreCard } from "@/components/taste-score-card"
 import { ScoreHistory } from "@/components/score-history"
@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { useAuth } from "@/lib/auth-context"
 import { useTranslation } from "@/lib/i18n-context"
-import { api, Review, User, InfluenceStats } from "@/lib/api"
+import { api, Review, User, InfluenceStats, SimpleBadge } from "@/lib/api"
 
 export default function ProfilePage() {
   const { user: currentUser } = useAuth()
@@ -23,6 +23,7 @@ export default function ProfilePage() {
   const [reviews, setReviews] = useState<Review[]>([])
   const [followingCount, setFollowingCount] = useState(0)
   const [influenceStats, setInfluenceStats] = useState<InfluenceStats | null>(null)
+  const [displayedBadges, setDisplayedBadges] = useState<SimpleBadge[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -30,10 +31,11 @@ export default function ProfilePage() {
       if (!currentUser) return
       setIsLoading(true)
       try {
-        const [reviewsResult, followingsResult, influenceResult] = await Promise.all([
+        const [reviewsResult, followingsResult, influenceResult, badgesResult] = await Promise.all([
           api.getUserReviews(currentUser.id),
           api.getFollowings(currentUser.id),
           api.getInfluenceStats(currentUser.id),
+          api.getDisplayedBadges(currentUser.id),
         ])
 
         if (reviewsResult.success) {
@@ -44,6 +46,9 @@ export default function ProfilePage() {
         }
         if (influenceResult.success) {
           setInfluenceStats(influenceResult.data)
+        }
+        if (badgesResult.success) {
+          setDisplayedBadges(badgesResult.data)
         }
       } catch (err) {
         console.error("프로필 데이터 로드 실패:", err)
@@ -164,6 +169,32 @@ export default function ProfilePage() {
             </div>
           </Card>
         )}
+
+        {/* Badges Section */}
+        <Link href="/badges">
+          <Card className="p-4 hover:bg-secondary/50 transition-colors border border-border">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Award className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">배지</p>
+                  {displayedBadges.length > 0 ? (
+                    <div className="flex gap-1 mt-1">
+                      {displayedBadges.map(badge => (
+                        <span key={badge.id} className="text-lg">{badge.icon}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">배지를 선택해서 프로필에 표시하세요</p>
+                  )}
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </div>
+          </Card>
+        </Link>
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>

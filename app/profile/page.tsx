@@ -2,19 +2,20 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Settings, MapPin, Edit2, ChevronRight, Loader2, ListMusic, Users, Award } from "lucide-react"
+import { Settings, MapPin, Edit2, Loader2, ListMusic, Users, Award, Check, Lock } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { TasteScoreCard } from "@/components/taste-score-card"
 import { ScoreHistory } from "@/components/score-history"
 import { ReviewCard } from "@/components/review-card"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
+import { Badge as BadgeUI } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { useAuth } from "@/lib/auth-context"
 import { useTranslation } from "@/lib/i18n-context"
-import { api, Review, User, InfluenceStats, SimpleBadge } from "@/lib/api"
+import { api, Review, User, InfluenceStats, Badge } from "@/lib/api"
 
 export default function ProfilePage() {
   const { user: currentUser } = useAuth()
@@ -23,8 +24,12 @@ export default function ProfilePage() {
   const [reviews, setReviews] = useState<Review[]>([])
   const [followingCount, setFollowingCount] = useState(0)
   const [influenceStats, setInfluenceStats] = useState<InfluenceStats | null>(null)
-  const [displayedBadges, setDisplayedBadges] = useState<SimpleBadge[]>([])
+  const [myBadges, setMyBadges] = useState<Badge[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [badgeSheetOpen, setBadgeSheetOpen] = useState(false)
+
+  const displayedBadges = myBadges.filter(b => b.isDisplayed)
+  const acquiredBadges = myBadges.filter(b => b.acquired)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -35,7 +40,7 @@ export default function ProfilePage() {
           api.getUserReviews(currentUser.id),
           api.getFollowings(currentUser.id),
           api.getInfluenceStats(currentUser.id),
-          api.getDisplayedBadges(currentUser.id),
+          api.getBadges(),
         ])
 
         if (reviewsResult.success) {
@@ -48,7 +53,7 @@ export default function ProfilePage() {
           setInfluenceStats(influenceResult.data)
         }
         if (badgesResult.success) {
-          setDisplayedBadges(badgesResult.data)
+          setMyBadges(badgesResult.data)
         }
       } catch (err) {
         console.error("프로필 데이터 로드 실패:", err)
@@ -59,6 +64,22 @@ export default function ProfilePage() {
 
     fetchData()
   }, [currentUser])
+
+  const handleToggleBadgeDisplay = async (badge: Badge) => {
+    if (!badge.acquired) return
+
+    try {
+      const newDisplayState = !badge.isDisplayed
+      await api.toggleBadgeDisplay(badge.id, newDisplayState)
+      setMyBadges(prev =>
+        prev.map(b =>
+          b.id === badge.id ? { ...b, isDisplayed: newDisplayState } : b
+        )
+      )
+    } catch (error) {
+      console.error("배지 표시 토글 실패:", error)
+    }
+  }
 
   if (!currentUser) {
     return (
@@ -97,17 +118,139 @@ export default function ProfilePage() {
                 <Edit2 className="h-3.5 w-3.5" />
               </button>
             </div>
-            <div className="flex-1">
-              <h2 className="text-xl font-bold text-foreground">{currentUser.name}</h2>
-              <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                <MapPin className="h-4 w-4" />
-                <span>{currentUser.region}</span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h2 className="text-xl font-bold text-foreground">{currentUser.name}</h2>
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                    <MapPin className="h-4 w-4 flex-shrink-0" />
+                    <span>{currentUser.region}</span>
+                  </div>
+                </div>
+                {/* Badge Display Area */}
+                <Sheet open={badgeSheetOpen} onOpenChange={setBadgeSheetOpen}>
+                  <SheetTrigger asChild>
+                    <button className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-secondary/50 transition-colors">
+                      {displayedBadges.length > 0 ? (
+                        <div className="flex gap-0.5">
+                          {displayedBadges.slice(0, 3).map(badge => (
+                            <span key={badge.id} className="text-xl">{badge.icon}</span>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Award className="h-4 w-4" />
+                          <span>배지</span>
+                        </div>
+                      )}
+                    </button>
+                  </SheetTrigger>
+                  <SheetContent side="bottom" className="h-[70vh]">
+                    <SheetHeader>
+                      <SheetTitle className="flex items-center justify-between">
+                        <span>배지</span>
+                        <span className="text-sm font-normal text-muted-foreground">
+                          획득 {acquiredBadges.length}개 / 전체 {myBadges.length}개
+                        </span>
+                      </SheetTitle>
+                    </SheetHeader>
+                    <div className="mt-4 space-y-6 overflow-y-auto max-h-[calc(70vh-80px)] pb-4">
+                      {/* 등급 배지 */}
+                      {myBadges.filter(b => b.category === 'GRADE').length > 0 && (
+                        <div>
+                          <h3 className="text-sm font-medium text-muted-foreground mb-3">등급 배지</h3>
+                          <div className="grid grid-cols-3 gap-3">
+                            {myBadges.filter(b => b.category === 'GRADE').map(badge => (
+                              <button
+                                key={badge.id}
+                                onClick={() => badge.acquired && handleToggleBadgeDisplay(badge)}
+                                disabled={!badge.acquired}
+                                className={`p-3 rounded-xl border-2 transition-all relative ${
+                                  !badge.acquired
+                                    ? "border-border bg-muted/30 opacity-50"
+                                    : badge.isDisplayed
+                                      ? "border-primary bg-primary/10"
+                                      : "border-border hover:border-primary/50"
+                                }`}
+                              >
+                                {badge.acquired && badge.isDisplayed && (
+                                  <div className="absolute top-1 right-1">
+                                    <Check className="h-3 w-3 text-primary" />
+                                  </div>
+                                )}
+                                <div className="flex flex-col items-center text-center">
+                                  <span className={`text-2xl mb-1 ${!badge.acquired && "grayscale"}`}>
+                                    {badge.icon}
+                                  </span>
+                                  <span className="text-xs font-medium truncate w-full">{badge.name}</span>
+                                  {!badge.acquired && (
+                                    <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground mt-1">
+                                      <Lock className="h-2.5 w-2.5" />
+                                      <span>{badge.conditionValue}점</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 도전과제 배지 */}
+                      {myBadges.filter(b => b.category === 'ACHIEVEMENT').length > 0 && (
+                        <div>
+                          <h3 className="text-sm font-medium text-muted-foreground mb-3">도전과제 배지</h3>
+                          <div className="grid grid-cols-2 gap-3">
+                            {myBadges.filter(b => b.category === 'ACHIEVEMENT').map(badge => (
+                              <button
+                                key={badge.id}
+                                onClick={() => badge.acquired && handleToggleBadgeDisplay(badge)}
+                                disabled={!badge.acquired}
+                                className={`p-3 rounded-xl border-2 transition-all relative ${
+                                  !badge.acquired
+                                    ? "border-border bg-muted/30 opacity-50"
+                                    : badge.isDisplayed
+                                      ? "border-primary bg-primary/10"
+                                      : "border-border hover:border-primary/50"
+                                }`}
+                              >
+                                {badge.acquired && badge.isDisplayed && (
+                                  <div className="absolute top-1 right-1">
+                                    <Check className="h-3 w-3 text-primary" />
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-3 text-left">
+                                  <span className={`text-2xl flex-shrink-0 ${!badge.acquired && "grayscale"}`}>
+                                    {badge.icon}
+                                  </span>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-medium truncate">{badge.name}</p>
+                                    <p className="text-[10px] text-muted-foreground line-clamp-2">
+                                      {badge.description}
+                                    </p>
+                                  </div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {myBadges.length === 0 && (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <Award className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                          <p>배지 정보를 불러오는 중...</p>
+                        </div>
+                      )}
+                    </div>
+                  </SheetContent>
+                </Sheet>
               </div>
               <div className="flex flex-wrap gap-1 mt-2">
                 {currentUser.favoriteCategories.map((category) => (
-                  <Badge key={category} variant="secondary" className="text-xs">
+                  <BadgeUI key={category} variant="secondary" className="text-xs">
                     {category}
-                  </Badge>
+                  </BadgeUI>
                 ))}
               </div>
             </div>
@@ -169,32 +312,6 @@ export default function ProfilePage() {
             </div>
           </Card>
         )}
-
-        {/* Badges Section */}
-        <Link href="/badges">
-          <Card className="p-4 hover:bg-secondary/50 transition-colors border border-border">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Award className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium text-foreground">배지</p>
-                  {displayedBadges.length > 0 ? (
-                    <div className="flex gap-1 mt-1">
-                      {displayedBadges.map(badge => (
-                        <span key={badge.id} className="text-lg">{badge.icon}</span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">배지를 선택해서 프로필에 표시하세요</p>
-                  )}
-                </div>
-              </div>
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-            </div>
-          </Card>
-        </Link>
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>

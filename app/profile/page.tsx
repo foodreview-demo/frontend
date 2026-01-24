@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Settings, MapPin, Edit2, Loader2, ListMusic, Users, Award, Check, Lock } from "lucide-react"
+import { Settings, MapPin, Edit2, Loader2, ListMusic, Users, Award, Check, Lock, X } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { TasteScoreCard } from "@/components/taste-score-card"
 import { ScoreHistory } from "@/components/score-history"
@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge as BadgeUI } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from "@/components/ui/sheet"
 import { useAuth } from "@/lib/auth-context"
 import { useTranslation } from "@/lib/i18n-context"
 import { api, Review, User, InfluenceStats, Badge } from "@/lib/api"
@@ -145,103 +145,116 @@ export default function ProfilePage() {
                       )}
                     </button>
                   </SheetTrigger>
-                  <SheetContent side="bottom" className="h-[70vh]">
-                    <SheetHeader>
-                      <SheetTitle className="flex items-center justify-between">
-                        <span>배지</span>
-                        <span className="text-sm font-normal text-muted-foreground">
+                  <SheetContent side="bottom" className="h-[70vh] p-0 bg-transparent border-0">
+                    <div className="flex flex-col h-full bg-gradient-to-b from-amber-50 to-orange-50 dark:from-gray-900 dark:to-gray-800 max-w-md mx-auto rounded-t-3xl border border-b-0 border-amber-200 dark:border-gray-700">
+                      {/* 헤더 */}
+                      <SheetHeader className="p-4 space-y-0 border-b border-amber-200/50 dark:border-gray-700 relative">
+                        <SheetClose className="absolute right-3 top-3 rounded-full p-1 hover:bg-black/10 transition-colors">
+                          <X className="h-5 w-5 text-muted-foreground" />
+                        </SheetClose>
+                        <SheetTitle className="text-lg font-bold text-center">배지</SheetTitle>
+                        <p className="text-sm text-muted-foreground text-center">
                           획득 {acquiredBadges.length}개 / 전체 {myBadges.length}개
-                        </span>
-                      </SheetTitle>
-                    </SheetHeader>
-                    <div className="mt-4 space-y-6 overflow-y-auto max-h-[calc(70vh-80px)] pb-4">
-                      {/* 등급 배지 */}
-                      {myBadges.filter(b => b.category === 'GRADE').length > 0 && (
-                        <div>
-                          <h3 className="text-sm font-medium text-muted-foreground mb-3">등급 배지</h3>
-                          <div className="grid grid-cols-3 gap-3">
-                            {myBadges.filter(b => b.category === 'GRADE').map(badge => (
-                              <button
-                                key={badge.id}
-                                onClick={() => badge.acquired && handleToggleBadgeDisplay(badge)}
-                                disabled={!badge.acquired}
-                                className={`p-3 rounded-xl border-2 transition-all relative ${
-                                  !badge.acquired
-                                    ? "border-border bg-muted/30 opacity-50"
-                                    : badge.isDisplayed
-                                      ? "border-primary bg-primary/10"
-                                      : "border-border hover:border-primary/50"
-                                }`}
-                              >
-                                {badge.acquired && badge.isDisplayed && (
-                                  <div className="absolute top-1 right-1">
-                                    <Check className="h-3 w-3 text-primary" />
-                                  </div>
-                                )}
-                                <div className="flex flex-col items-center text-center">
-                                  <span className={`text-2xl mb-1 ${!badge.acquired && "grayscale"}`}>
-                                    {badge.icon}
-                                  </span>
-                                  <span className="text-xs font-medium truncate w-full">{badge.name}</span>
-                                  {!badge.acquired && (
-                                    <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground mt-1">
-                                      <Lock className="h-2.5 w-2.5" />
-                                      <span>{badge.conditionValue}점</span>
+                        </p>
+                      </SheetHeader>
+
+                      {/* 컨텐츠 */}
+                      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                        {/* 등급 배지 */}
+                        {myBadges.filter(b => b.category === 'GRADE').length > 0 && (
+                          <div>
+                            <h3 className="text-sm font-medium text-muted-foreground mb-3">등급 배지</h3>
+                            <div className="grid grid-cols-3 gap-2">
+                              {myBadges.filter(b => b.category === 'GRADE').map(badge => (
+                                <button
+                                  key={badge.id}
+                                  onClick={() => badge.acquired && handleToggleBadgeDisplay(badge)}
+                                  disabled={!badge.acquired}
+                                  className={`p-3 rounded-xl border-2 transition-all relative bg-white/80 dark:bg-gray-800/80 ${
+                                    !badge.acquired
+                                      ? "border-gray-200 dark:border-gray-700 opacity-50"
+                                      : badge.isDisplayed
+                                        ? "border-primary bg-primary/10"
+                                        : "border-amber-200 dark:border-amber-700 hover:border-primary"
+                                  }`}
+                                >
+                                  {badge.acquired && badge.isDisplayed && (
+                                    <div className="absolute top-1 right-1">
+                                      <Check className="h-3 w-3 text-primary" />
                                     </div>
                                   )}
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* 도전과제 배지 */}
-                      {myBadges.filter(b => b.category === 'ACHIEVEMENT').length > 0 && (
-                        <div>
-                          <h3 className="text-sm font-medium text-muted-foreground mb-3">도전과제 배지</h3>
-                          <div className="grid grid-cols-2 gap-3">
-                            {myBadges.filter(b => b.category === 'ACHIEVEMENT').map(badge => (
-                              <button
-                                key={badge.id}
-                                onClick={() => badge.acquired && handleToggleBadgeDisplay(badge)}
-                                disabled={!badge.acquired}
-                                className={`p-3 rounded-xl border-2 transition-all relative ${
-                                  !badge.acquired
-                                    ? "border-border bg-muted/30 opacity-50"
-                                    : badge.isDisplayed
-                                      ? "border-primary bg-primary/10"
-                                      : "border-border hover:border-primary/50"
-                                }`}
-                              >
-                                {badge.acquired && badge.isDisplayed && (
-                                  <div className="absolute top-1 right-1">
-                                    <Check className="h-3 w-3 text-primary" />
+                                  <div className="flex flex-col items-center text-center">
+                                    <span className={`text-2xl mb-1 ${!badge.acquired && "grayscale"}`}>
+                                      {badge.icon}
+                                    </span>
+                                    <span className="text-xs font-medium truncate w-full">{badge.name}</span>
+                                    {!badge.acquired && (
+                                      <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground mt-1">
+                                        <Lock className="h-2.5 w-2.5" />
+                                        <span>{badge.conditionValue}점</span>
+                                      </div>
+                                    )}
                                   </div>
-                                )}
-                                <div className="flex items-center gap-3 text-left">
-                                  <span className={`text-2xl flex-shrink-0 ${!badge.acquired && "grayscale"}`}>
-                                    {badge.icon}
-                                  </span>
-                                  <div className="min-w-0">
-                                    <p className="text-xs font-medium truncate">{badge.name}</p>
-                                    <p className="text-[10px] text-muted-foreground line-clamp-2">
-                                      {badge.description}
-                                    </p>
-                                  </div>
-                                </div>
-                              </button>
-                            ))}
+                                </button>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
 
-                      {myBadges.length === 0 && (
-                        <div className="text-center py-8 text-muted-foreground">
-                          <Award className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                          <p>배지 정보를 불러오는 중...</p>
-                        </div>
-                      )}
+                        {/* 도전과제 배지 */}
+                        {myBadges.filter(b => b.category === 'ACHIEVEMENT').length > 0 && (
+                          <div>
+                            <h3 className="text-sm font-medium text-muted-foreground mb-3">도전과제 배지</h3>
+                            <div className="grid grid-cols-2 gap-2">
+                              {myBadges.filter(b => b.category === 'ACHIEVEMENT').map(badge => (
+                                <button
+                                  key={badge.id}
+                                  onClick={() => badge.acquired && handleToggleBadgeDisplay(badge)}
+                                  disabled={!badge.acquired}
+                                  className={`p-3 rounded-xl border-2 transition-all relative bg-white/80 dark:bg-gray-800/80 ${
+                                    !badge.acquired
+                                      ? "border-gray-200 dark:border-gray-700 opacity-50"
+                                      : badge.isDisplayed
+                                        ? "border-primary bg-primary/10"
+                                        : "border-amber-200 dark:border-amber-700 hover:border-primary"
+                                  }`}
+                                >
+                                  {badge.acquired && badge.isDisplayed && (
+                                    <div className="absolute top-1 right-1">
+                                      <Check className="h-3 w-3 text-primary" />
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-3 text-left">
+                                    <span className={`text-2xl flex-shrink-0 ${!badge.acquired && "grayscale"}`}>
+                                      {badge.icon}
+                                    </span>
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-medium truncate">{badge.name}</p>
+                                      <p className="text-[10px] text-muted-foreground line-clamp-2">
+                                        {badge.description}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {myBadges.length === 0 && (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <Award className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                            <p>배지 정보를 불러오는 중...</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 하단 안내 */}
+                      <div className="p-3 text-center border-t border-amber-200/50 dark:border-gray-700 bg-white/50 dark:bg-gray-900/50">
+                        <p className="text-xs text-muted-foreground">
+                          배지를 탭하여 프로필에 표시할 배지를 선택하세요
+                        </p>
+                      </div>
                     </div>
                   </SheetContent>
                 </Sheet>

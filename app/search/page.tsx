@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import Script from "next/script"
-import { Search, Star, MapPin, Sparkles, Loader2, Navigation, X, ChevronUp, ChevronDown, Home, PenSquare, User, Users } from "lucide-react"
+import { Search, Star, MapPin, Sparkles, Loader2, Navigation, X, ChevronUp, ChevronDown, Home, PenSquare, User, Users, Clock, Trash2 } from "lucide-react"
 import { RequireAuth } from "@/components/require-auth"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -65,6 +65,48 @@ export default function SearchPage() {
   const [isDbLoaded, setIsDbLoaded] = useState(false)
   const [showLocationPrompt, setShowLocationPrompt] = useState(false)
   const [locationPermissionChecked, setLocationPermissionChecked] = useState(false)
+  const [showSearchHereButton, setShowSearchHereButton] = useState(false)
+  const lastSearchCenter = useRef<{ lat: number; lng: number } | null>(null)
+  const [recentSearches, setRecentSearches] = useState<string[]>([])
+  const [showRecentSearches, setShowRecentSearches] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const [hasMoreResults, setHasMoreResults] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const paginationRef = useRef<any>(null)
+  const displayMarkersRef = useRef<(restaurants: NearbyRestaurant[]) => void>(() => {})
+
+  // 최근 검색어 로드
+  useEffect(() => {
+    const saved = localStorage.getItem('recentSearches')
+    if (saved) {
+      try {
+        setRecentSearches(JSON.parse(saved))
+      } catch (e) {
+        console.error('최근 검색어 로드 실패:', e)
+      }
+    }
+  }, [])
+
+  // 최근 검색어 저장
+  const saveRecentSearch = (query: string) => {
+    if (!query.trim()) return
+    const updated = [query, ...recentSearches.filter(s => s !== query)].slice(0, 10)
+    setRecentSearches(updated)
+    localStorage.setItem('recentSearches', JSON.stringify(updated))
+  }
+
+  // 최근 검색어 삭제
+  const removeRecentSearch = (query: string) => {
+    const updated = recentSearches.filter(s => s !== query)
+    setRecentSearches(updated)
+    localStorage.setItem('recentSearches', JSON.stringify(updated))
+  }
+
+  // 최근 검색어 전체 삭제
+  const clearRecentSearches = () => {
+    setRecentSearches([])
+    localStorage.removeItem('recentSearches')
+  }
 
   // 초기 시트 높이 설정 (화면의 45%)
   useEffect(() => {
@@ -284,6 +326,39 @@ export default function SearchPage() {
     }
   }, [isScriptLoaded, initializeMap])
 
+  // 지도 이동 감지 - "이 지역 검색" 버튼 표시
+  useEffect(() => {
+    if (!isMapLoaded) return
+    const kakao = (window as any).kakao
+    const map = mapInstanceRef.current
+    if (!kakao || !map) return
+
+    const handleIdle = () => {
+      // 선택된 장소가 있으면 버튼 표시 안함
+      if (selectedPlace) return
+
+      const center = map.getCenter()
+      const newCenter = { lat: center.getLat(), lng: center.getLng() }
+
+      // 마지막 검색 위치와 비교 (100m 이상 이동 시 버튼 표시)
+      if (lastSearchCenter.current) {
+        const dist = Math.sqrt(
+          Math.pow((newCenter.lat - lastSearchCenter.current.lat) * 111000, 2) +
+          Math.pow((newCenter.lng - lastSearchCenter.current.lng) * 88000, 2)
+        )
+        if (dist > 100) {
+          setShowSearchHereButton(true)
+        }
+      }
+    }
+
+    kakao.maps.event.addListener(map, 'idle', handleIdle)
+
+    return () => {
+      kakao.maps.event.removeListener(map, 'idle', handleIdle)
+    }
+  }, [isMapLoaded, selectedPlace])
+
   // 좌표로 지번 주소 조회
   const getJibunAddress = useCallback((x: string, y: string): Promise<string> => {
     return new Promise((resolve) => {
@@ -319,6 +394,8 @@ export default function SearchPage() {
     if (!places || !kakao) return
 
     setIsLoading(true)
+    setShowSearchHereButton(false)
+    lastSearchCenter.current = { lat, lng }
     const location = new kakao.maps.LatLng(lat, lng)
 
     places.categorySearch('FD6', async (results: any[], status: string) => {
@@ -348,7 +425,7 @@ export default function SearchPage() {
         })
 
         setNearbyRestaurants(matched)
-        displayMarkers(matched)
+        displayMarkersRef.current(matched)
         setIsLoading(false)
       } else {
         setNearbyRestaurants([])
@@ -382,9 +459,18 @@ export default function SearchPage() {
     if (!places || !kakao || !keyword.trim()) return
 
     setIsLoading(true)
+    setHasMoreResults(false)
+    paginationRef.current = null
 
-    places.keywordSearch(keyword, async (results: any[], status: string) => {
+    places.keywordSearch(keyword, async (results: any[], status: string, pagination: any) => {
       if (status === kakao.maps.services.Status.OK) {
+        // pagination 객체 저장
+        paginationRef.current = pagination
+        setHasMoreResults(pagination.hasNextPage)
+
+        // 첫 페이지인지 추가 로드인지 확인
+        const isFirstPage = pagination.current === 1
+
         // 각 결과에 대해 좌표로 지번 주소 조회
         const kakaoPlaces: KakaoPlace[] = await Promise.all(
           results.map(async (r: any) => {
@@ -419,26 +505,56 @@ export default function SearchPage() {
           return { kakaoPlace: kp, dbRestaurant: dbMatch }
         })
 
-        setNearbyRestaurants(matched)
-        displayMarkers(matched)
-        setIsLoading(false)
+        if (isFirstPage) {
+          // 새 검색: 기존 결과 교체
+          setNearbyRestaurants(matched)
+          displayMarkersRef.current(matched)
 
-        // 검색 결과로 지도 이동
-        if (results.length > 0 && map) {
-          const bounds = new kakao.maps.LatLngBounds()
-          results.forEach((r: any) => {
-            bounds.extend(new kakao.maps.LatLng(parseFloat(r.y), parseFloat(r.x)))
+          // 검색 결과로 지도 이동 (첫 페이지에서만)
+          if (results.length > 0 && map) {
+            const bounds = new kakao.maps.LatLngBounds()
+            results.forEach((r: any) => {
+              bounds.extend(new kakao.maps.LatLng(parseFloat(r.y), parseFloat(r.x)))
+            })
+            map.setBounds(bounds)
+          }
+        } else {
+          // 추가 로드: 기존 결과에 append
+          setNearbyRestaurants(prev => {
+            // 중복 제거
+            const existingIds = new Set(prev.map(r => r.kakaoPlace.id))
+            const newItems = matched.filter(r => !existingIds.has(r.kakaoPlace.id))
+            const updated = [...prev, ...newItems]
+            // 마커 업데이트 (모든 결과 표시)
+            displayMarkersRef.current(updated)
+            return updated
           })
-          map.setBounds(bounds)
         }
-      } else {
-        setNearbyRestaurants([])
+
         setIsLoading(false)
+        setIsLoadingMore(false)
+      } else {
+        if (paginationRef.current?.current === 1 || !paginationRef.current) {
+          setNearbyRestaurants([])
+        }
+        setHasMoreResults(false)
+        setIsLoading(false)
+        setIsLoadingMore(false)
       }
     }, {
       size: 15
     })
   }, [dbRestaurants, currentPosition, getJibunAddress])
+
+  // 더 많은 결과 로드
+  const loadMoreResults = useCallback(() => {
+    const pagination = paginationRef.current
+    if (!pagination || !pagination.hasNextPage || isLoadingMore) return
+
+    setIsLoadingMore(true)
+    // pagination.nextPage()는 searchByKeyword의 콜백을 다시 호출함
+    pagination.nextPage()
+  }, [isLoadingMore])
 
   // 마커 표시
   const displayMarkers = useCallback((restaurants: NearbyRestaurant[]) => {
@@ -567,7 +683,12 @@ export default function SearchPage() {
 
       overlaysRef.current.push(overlay)
     })
-  }, [router])
+  }, [router, t.search.firstReview])
+
+  // displayMarkers ref 업데이트
+  useEffect(() => {
+    displayMarkersRef.current = displayMarkers
+  }, [displayMarkers])
 
   // 위치 권한 상태 확인
   const checkLocationPermission = useCallback(async () => {
@@ -694,13 +815,23 @@ export default function SearchPage() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
+    setShowRecentSearches(false)
     if (searchQuery.trim()) {
       // 키워드가 있으면 전국 검색
+      saveRecentSearch(searchQuery.trim())
       searchByKeyword(searchQuery)
     } else if (currentPosition) {
       // 키워드 없으면 내 주변 검색
       searchNearbyPlaces(currentPosition.lat, currentPosition.lng)
     }
+  }
+
+  // 최근 검색어 클릭
+  const handleRecentSearchClick = (query: string) => {
+    setSearchQuery(query)
+    setShowRecentSearches(false)
+    saveRecentSearch(query)
+    searchByKeyword(query)
   }
 
   const moveToCurrentLocation = async () => {
@@ -726,6 +857,30 @@ export default function SearchPage() {
         searchNearbyPlaces(currentPosition.lat, currentPosition.lng)
       }
     }
+  }
+
+  // 이 지역 검색 버튼 클릭 (바텀 시트 높이 감안)
+  const searchHere = () => {
+    const kakao = (window as any).kakao
+    const map = mapInstanceRef.current
+    if (!kakao || !map) return
+
+    // 바텀 시트가 올라와 있으면 실제 보이는 중심은 지도 중심보다 위쪽
+    const projection = map.getProjection()
+    const center = map.getCenter()
+    const centerPoint = projection.pointFromCoords(center)
+
+    // 바텀 시트 높이의 절반만큼 위로 이동한 좌표가 실제 보이는 중심
+    const offsetY = sheetHeight / 2
+    const visibleCenterPoint = new kakao.maps.Point(centerPoint.x, centerPoint.y - offsetY)
+    const visibleCenter = projection.coordsFromPoint(visibleCenterPoint)
+
+    const lat = visibleCenter.getLat()
+    const lng = visibleCenter.getLng()
+
+    setCurrentPosition({ lat, lng })
+    setCenterWithOffset(lat, lng, sheetHeight)
+    searchNearbyPlaces(lat, lng)
   }
 
   const formatDistance = (distance: string) => {
@@ -847,13 +1002,18 @@ export default function SearchPage() {
       {/* 검색 헤더 - 지도 위에 플로팅 */}
       <div className="absolute top-0 left-0 right-0 z-20 p-3">
         <form onSubmit={handleSearch} className="relative">
-          <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+          <div className={cn(
+            "bg-white shadow-lg border border-gray-100 overflow-hidden transition-all",
+            showRecentSearches && recentSearches.length > 0 ? "rounded-2xl" : "rounded-2xl"
+          )}>
             <div className="flex items-center px-4 py-3">
               <Search className="h-5 w-5 text-gray-400 mr-3" />
               <Input
+                ref={searchInputRef}
                 placeholder={t.search.placeholder}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setShowRecentSearches(true)}
                 className="border-0 p-0 h-auto text-base focus-visible:ring-0 placeholder:text-gray-400"
               />
               {searchQuery && (
@@ -862,8 +1022,59 @@ export default function SearchPage() {
                 </button>
               )}
             </div>
+
+            {/* 최근 검색어 목록 */}
+            {showRecentSearches && recentSearches.length > 0 && !searchQuery && (
+              <div className="border-t border-gray-100">
+                <div className="flex items-center justify-between px-4 py-2 bg-gray-50">
+                  <span className="text-xs font-medium text-gray-500">최근 검색</span>
+                  <button
+                    type="button"
+                    onClick={clearRecentSearches}
+                    className="text-xs text-gray-400 hover:text-gray-600"
+                  >
+                    전체 삭제
+                  </button>
+                </div>
+                <div className="max-h-48 overflow-y-auto">
+                  {recentSearches.map((query, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 cursor-pointer"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => handleRecentSearchClick(query)}
+                        className="flex items-center gap-3 flex-1 text-left"
+                      >
+                        <Clock className="h-4 w-4 text-gray-300" />
+                        <span className="text-sm text-gray-700">{query}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          removeRecentSearch(query)
+                        }}
+                        className="p-1 hover:bg-gray-200 rounded"
+                      >
+                        <X className="h-3.5 w-3.5 text-gray-400" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </form>
+
+        {/* 배경 클릭 시 최근 검색어 닫기 */}
+        {showRecentSearches && (
+          <div
+            className="fixed inset-0 z-[-1]"
+            onClick={() => setShowRecentSearches(false)}
+          />
+        )}
       </div>
 
       {/* 현위치 버튼 */}
@@ -873,6 +1084,17 @@ export default function SearchPage() {
       >
         <Navigation className="h-5 w-5 text-gray-600" />
       </button>
+
+      {/* 이 지역 검색 버튼 */}
+      {showSearchHereButton && !selectedPlace && (
+        <button
+          onClick={searchHere}
+          className="absolute left-1/2 -translate-x-1/2 top-20 z-20 bg-orange-500 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium hover:bg-orange-600 active:scale-95 transition-all animate-in fade-in slide-in-from-top-2 duration-200"
+        >
+          <Search className="h-4 w-4" />
+          이 지역 검색
+        </button>
+      )}
 
       {/* 지도 */}
       <div ref={mapRef} className="absolute inset-0 z-0" />
@@ -1005,41 +1227,65 @@ export default function SearchPage() {
               <Loader2 className="h-6 w-6 animate-spin text-orange-500" />
             </div>
           ) : sortedRestaurants.length > 0 ? (
-            <div className="divide-y divide-gray-100">
-              {sortedRestaurants.map((restaurant) => (
-                <RestaurantListItem
-                  key={restaurant.kakaoPlace.id}
-                  restaurant={restaurant}
-                  formatDistance={formatDistance}
-                  onSelect={() => {
-                    setSelectedPlace(restaurant)
-                    setSheetHeight(MIN_SHEET_HEIGHT)
-                    const kakao = (window as any).kakao
-                    const map = mapInstanceRef.current
-                    if (kakao && map) {
-                      const pos = new kakao.maps.LatLng(
-                        parseFloat(restaurant.kakaoPlace.y),
-                        parseFloat(restaurant.kakaoPlace.x)
-                      )
-                      // 줌 레벨 설정 후 중심 이동
-                      map.setLevel(3)
-                      map.setCenter(pos)
-                      // idle 이벤트로 지도 렌더링 완료 후 오프셋 적용
-                      kakao.maps.event.addListener(map, 'idle', function onIdle() {
-                        kakao.maps.event.removeListener(map, 'idle', onIdle)
-                        const projection = map.getProjection()
-                        const centerPoint = projection.pointFromCoords(pos)
-                        const cardAndSheetHeight = MIN_SHEET_HEIGHT + 160
-                        const offsetY = cardAndSheetHeight / 2
-                        const offsetPoint = new kakao.maps.Point(centerPoint.x, centerPoint.y + offsetY)
-                        const offsetCoords = projection.coordsFromPoint(offsetPoint)
-                        map.setCenter(offsetCoords)
-                      })
-                    }
-                  }}
-                />
-              ))}
-            </div>
+            <>
+              <div className="divide-y divide-gray-100">
+                {sortedRestaurants.map((restaurant) => (
+                  <RestaurantListItem
+                    key={restaurant.kakaoPlace.id}
+                    restaurant={restaurant}
+                    formatDistance={formatDistance}
+                    onSelect={() => {
+                      setSelectedPlace(restaurant)
+                      setSheetHeight(MIN_SHEET_HEIGHT)
+                      const kakao = (window as any).kakao
+                      const map = mapInstanceRef.current
+                      if (kakao && map) {
+                        const pos = new kakao.maps.LatLng(
+                          parseFloat(restaurant.kakaoPlace.y),
+                          parseFloat(restaurant.kakaoPlace.x)
+                        )
+                        // 줌 레벨 설정 후 중심 이동
+                        map.setLevel(3)
+                        map.setCenter(pos)
+                        // idle 이벤트로 지도 렌더링 완료 후 오프셋 적용
+                        kakao.maps.event.addListener(map, 'idle', function onIdle() {
+                          kakao.maps.event.removeListener(map, 'idle', onIdle)
+                          const projection = map.getProjection()
+                          const centerPoint = projection.pointFromCoords(pos)
+                          const cardAndSheetHeight = MIN_SHEET_HEIGHT + 160
+                          const offsetY = cardAndSheetHeight / 2
+                          const offsetPoint = new kakao.maps.Point(centerPoint.x, centerPoint.y + offsetY)
+                          const offsetCoords = projection.coordsFromPoint(offsetPoint)
+                          map.setCenter(offsetCoords)
+                        })
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+              {/* 더보기 버튼 */}
+              {hasMoreResults && (
+                <div className="py-4 px-4">
+                  <button
+                    onClick={loadMoreResults}
+                    disabled={isLoadingMore}
+                    className="w-full py-3 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 rounded-xl text-sm font-medium text-gray-700 disabled:text-gray-400 transition-colors flex items-center justify-center gap-2"
+                  >
+                    {isLoadingMore ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        불러오는 중...
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-4 w-4" />
+                        더 많은 결과 보기
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </>
           ) : (
             <div className="flex flex-col items-center justify-center py-12 text-gray-400">
               <MapPin className="h-10 w-10 mb-2" />

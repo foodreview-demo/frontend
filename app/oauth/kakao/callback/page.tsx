@@ -1,17 +1,11 @@
 "use client"
 
 import { useEffect, useState, useRef } from "react"
-import { useRouter } from "next/navigation"
-import { useAuth } from "@/lib/auth-context"
 import { Loader2 } from "lucide-react"
 import { api } from "@/lib/api"
 
 function KakaoCallbackContent() {
-  const router = useRouter()
-  const { loginWithKakao } = useAuth()
   const [error, setError] = useState<string | null>(null)
-  const [showAppButton, setShowAppButton] = useState(false)
-  const [appRedirectUrl, setAppRedirectUrl] = useState<string | null>(null)
   const processedRef = useRef(false)
 
   useEffect(() => {
@@ -25,13 +19,13 @@ function KakaoCallbackContent() {
 
     if (errorParam) {
       setError('카카오 로그인이 취소되었습니다')
-      setTimeout(() => router.push('/login'), 2000)
+      setTimeout(() => { window.location.href = '/login' }, 2000)
       return
     }
 
     if (!code) {
       setError('인증 코드가 없습니다')
-      setTimeout(() => router.push('/login'), 2000)
+      setTimeout(() => { window.location.href = '/login' }, 2000)
       return
     }
 
@@ -45,33 +39,34 @@ function KakaoCallbackContent() {
         if (result.success) {
           const { accessToken, refreshToken } = result.data
 
-          // 외부 브라우저에서 열렸는지 확인 (앱에서 온 경우)
-          // User-Agent나 referrer로는 판단하기 어려우므로, 앱으로 돌아가는 버튼 표시
+          // 앱 딥링크 URL
           const appUrl = `matjalal://callback?token=${encodeURIComponent(accessToken)}&refreshToken=${encodeURIComponent(refreshToken)}`
-          setAppRedirectUrl(appUrl)
 
-          // 자동으로 앱 열기 시도
-          window.location.href = appUrl
+          // 앱 열기 시도 (iframe 방식으로 에러 방지)
+          const iframe = document.createElement('iframe')
+          iframe.style.display = 'none'
+          iframe.src = appUrl
+          document.body.appendChild(iframe)
 
-          // 2초 후에도 여기 있으면 (앱이 안 열렸으면) 웹으로 처리
+          // 1초 후 iframe 제거 및 웹으로 이동
+          // 앱이 열렸으면 이 코드는 실행되지 않음 (페이지 이탈)
           setTimeout(() => {
-            // 아직 이 페이지에 있으면 웹 브라우저에서 열린 것
-            setShowAppButton(true)
-            // 웹에서는 그냥 홈으로 이동
-            router.push('/')
-          }, 2000)
+            document.body.removeChild(iframe)
+            // full reload로 AuthContext 재초기화
+            window.location.href = '/'
+          }, 1000)
         } else {
           throw new Error(result.message || '카카오 로그인 실패')
         }
       } catch (err) {
         console.error('카카오 로그인 실패:', err)
         setError(err instanceof Error ? err.message : '카카오 로그인에 실패했습니다')
-        setTimeout(() => router.push('/login'), 3000)
+        setTimeout(() => { window.location.href = '/login' }, 3000)
       }
     }
 
     handleLogin()
-  }, [router])
+  }, [])
 
   return (
     <div className="text-center">

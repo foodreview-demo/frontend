@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import Script from "next/script"
-import { Search, Star, MapPin, Sparkles, Loader2, Navigation, X, ChevronUp, ChevronDown, Home, PenSquare, User, Users, Clock, Trash2 } from "lucide-react"
+import { Search, Star, MapPin, Sparkles, Loader2, Navigation, X, ChevronUp, ChevronDown, Home, PenSquare, User, Users, Clock, Trash2, SlidersHorizontal, Check } from "lucide-react"
 import { RequireAuth } from "@/components/require-auth"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -38,6 +38,25 @@ interface NearbyRestaurant {
 }
 
 type SortType = "distance" | "rating" | "reviews"
+
+// 카테고리 목록 (카카오맵 category_name에서 필터링)
+const FOOD_CATEGORIES = [
+  { key: "all", label: "전체" },
+  { key: "한식", label: "한식" },
+  { key: "일식", label: "일식" },
+  { key: "중식", label: "중식" },
+  { key: "양식", label: "양식" },
+  { key: "카페", label: "카페" },
+  { key: "베이커리", label: "베이커리" },
+  { key: "분식", label: "분식" },
+]
+
+// 검색 반경 옵션
+const RADIUS_OPTIONS = [
+  { value: 500, label: "500m" },
+  { value: 1000, label: "1km" },
+  { value: 3000, label: "3km" },
+]
 
 export default function SearchPage() {
   const t = useTranslation()
@@ -74,6 +93,12 @@ export default function SearchPage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const paginationRef = useRef<any>(null)
   const displayMarkersRef = useRef<(restaurants: NearbyRestaurant[]) => void>(() => {})
+
+  // 필터 상태
+  const [showFilterSheet, setShowFilterSheet] = useState(false)
+  const [searchRadius, setSearchRadius] = useState(1000)
+  const [selectedCategory, setSelectedCategory] = useState("all")
+  const [showOnlyWithReviews, setShowOnlyWithReviews] = useState(false)
 
   // 최근 검색어 로드
   useEffect(() => {
@@ -387,6 +412,15 @@ export default function SearchPage() {
     })
   }, [])
 
+  // 카테고리 필터링 함수
+  const matchesCategory = useCallback((categoryName: string, filterCategory: string): boolean => {
+    if (filterCategory === "all") return true
+    // 카카오맵 카테고리 형식: "음식점 > 한식 > 삼계탕" 또는 "카페 > 테마카페"
+    const lowerCategory = categoryName.toLowerCase()
+    const lowerFilter = filterCategory.toLowerCase()
+    return lowerCategory.includes(lowerFilter)
+  }, [])
+
   // 주변 음식점 검색 (내 주변)
   const searchNearbyPlaces = useCallback((lat: number, lng: number) => {
     const places = placesServiceRef.current
@@ -398,7 +432,10 @@ export default function SearchPage() {
     lastSearchCenter.current = { lat, lng }
     const location = new kakao.maps.LatLng(lat, lng)
 
-    places.categorySearch('FD6', async (results: any[], status: string) => {
+    // 카페 카테고리가 선택된 경우 CE7(카페) 카테고리도 검색
+    const categoryCode = selectedCategory === "카페" ? "CE7" : "FD6"
+
+    places.categorySearch(categoryCode, async (results: any[], status: string) => {
       if (status === kakao.maps.services.Status.OK) {
         // 각 결과에 대해 좌표로 지번 주소 조회
         const kakaoPlaces: KakaoPlace[] = await Promise.all(
@@ -418,11 +455,19 @@ export default function SearchPage() {
           })
         )
 
-        const matched: NearbyRestaurant[] = kakaoPlaces.map(kp => {
+        // 카테고리 필터링 적용
+        const filteredPlaces = kakaoPlaces.filter(kp => matchesCategory(kp.category, selectedCategory))
+
+        let matched: NearbyRestaurant[] = filteredPlaces.map(kp => {
           // 이름이 정확히 일치해야 매칭 (같은 건물 다른 가게 구분)
           const dbMatch = dbRestaurants.find(db => db.name === kp.name)
           return { kakaoPlace: kp, dbRestaurant: dbMatch }
         })
+
+        // 리뷰 있는 곳만 필터
+        if (showOnlyWithReviews) {
+          matched = matched.filter(r => r.dbRestaurant && r.dbRestaurant.reviewCount > 0)
+        }
 
         setNearbyRestaurants(matched)
         displayMarkersRef.current(matched)
@@ -433,11 +478,11 @@ export default function SearchPage() {
       }
     }, {
       location,
-      radius: 1000,
+      radius: searchRadius,
       size: 15,
       sort: kakao.maps.services.SortBy.DISTANCE
     })
-  }, [dbRestaurants, getJibunAddress])
+  }, [dbRestaurants, getJibunAddress, searchRadius, selectedCategory, showOnlyWithReviews, matchesCategory])
 
   // 두 좌표 간 거리 계산 (Haversine 공식)
   const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
@@ -499,11 +544,19 @@ export default function SearchPage() {
           })
         )
 
-        const matched: NearbyRestaurant[] = kakaoPlaces.map(kp => {
+        // 카테고리 필터링 적용
+        const filteredPlaces = kakaoPlaces.filter(kp => matchesCategory(kp.category, selectedCategory))
+
+        let matched: NearbyRestaurant[] = filteredPlaces.map(kp => {
           // 이름이 정확히 일치해야 매칭 (같은 건물 다른 가게 구분)
           const dbMatch = dbRestaurants.find(db => db.name === kp.name)
           return { kakaoPlace: kp, dbRestaurant: dbMatch }
         })
+
+        // 리뷰 있는 곳만 필터
+        if (showOnlyWithReviews) {
+          matched = matched.filter(r => r.dbRestaurant && r.dbRestaurant.reviewCount > 0)
+        }
 
         if (isFirstPage) {
           // 새 검색: 기존 결과 교체
@@ -511,10 +564,10 @@ export default function SearchPage() {
           displayMarkersRef.current(matched)
 
           // 검색 결과로 지도 이동 (첫 페이지에서만)
-          if (results.length > 0 && map) {
+          if (matched.length > 0 && map) {
             const bounds = new kakao.maps.LatLngBounds()
-            results.forEach((r: any) => {
-              bounds.extend(new kakao.maps.LatLng(parseFloat(r.y), parseFloat(r.x)))
+            matched.forEach((r) => {
+              bounds.extend(new kakao.maps.LatLng(parseFloat(r.kakaoPlace.y), parseFloat(r.kakaoPlace.x)))
             })
             map.setBounds(bounds)
           }
@@ -544,7 +597,7 @@ export default function SearchPage() {
     }, {
       size: 15
     })
-  }, [dbRestaurants, currentPosition, getJibunAddress])
+  }, [dbRestaurants, currentPosition, getJibunAddress, selectedCategory, showOnlyWithReviews, matchesCategory])
 
   // 더 많은 결과 로드
   const loadMoreResults = useCallback(() => {
@@ -1147,6 +1200,120 @@ export default function SearchPage() {
         </div>
       )}
 
+      {/* 필터 시트 */}
+      {showFilterSheet && (
+        <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/30 backdrop-blur-sm">
+          <div
+            className="w-full max-w-md bg-white rounded-t-3xl shadow-2xl animate-in slide-in-from-bottom duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 헤더 */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h3 className="text-lg font-bold text-gray-900">필터</h3>
+              <button
+                onClick={() => setShowFilterSheet(false)}
+                className="p-1 rounded-full hover:bg-gray-100"
+              >
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-6 max-h-[60vh] overflow-y-auto">
+              {/* 검색 반경 */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900 mb-3">검색 반경</h4>
+                <div className="flex gap-2">
+                  {RADIUS_OPTIONS.map(({ value, label }) => (
+                    <button
+                      key={value}
+                      onClick={() => setSearchRadius(value)}
+                      className={cn(
+                        "flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors",
+                        searchRadius === value
+                          ? "bg-orange-500 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 카테고리 */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900 mb-3">카테고리</h4>
+                <div className="flex flex-wrap gap-2">
+                  {FOOD_CATEGORIES.map(({ key, label }) => (
+                    <button
+                      key={key}
+                      onClick={() => setSelectedCategory(key)}
+                      className={cn(
+                        "px-4 py-2 rounded-xl text-sm font-medium transition-colors",
+                        selectedCategory === key
+                          ? "bg-orange-500 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 리뷰 있는 곳만 */}
+              <div>
+                <button
+                  onClick={() => setShowOnlyWithReviews(!showOnlyWithReviews)}
+                  className="w-full flex items-center justify-between py-3 px-4 bg-gray-50 rounded-xl"
+                >
+                  <span className="text-sm font-medium text-gray-900">리뷰 있는 곳만 보기</span>
+                  <div className={cn(
+                    "w-10 h-6 rounded-full transition-colors flex items-center px-1",
+                    showOnlyWithReviews ? "bg-orange-500 justify-end" : "bg-gray-300 justify-start"
+                  )}>
+                    <div className="w-4 h-4 bg-white rounded-full shadow" />
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* 하단 버튼 */}
+            <div className="flex gap-3 p-5 border-t border-gray-100">
+              <button
+                onClick={() => {
+                  setSearchRadius(1000)
+                  setSelectedCategory("all")
+                  setShowOnlyWithReviews(false)
+                }}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors"
+              >
+                초기화
+              </button>
+              <button
+                onClick={() => {
+                  setShowFilterSheet(false)
+                  // 필터 적용 후 재검색
+                  if (searchQuery.trim()) {
+                    searchByKeyword(searchQuery)
+                  } else if (currentPosition) {
+                    searchNearbyPlaces(currentPosition.lat, currentPosition.lng)
+                  }
+                }}
+                className="flex-1 py-3 bg-orange-500 text-white rounded-xl text-sm font-medium hover:bg-orange-600 transition-colors"
+              >
+                적용하기
+              </button>
+            </div>
+          </div>
+          {/* 배경 클릭 시 닫기 */}
+          <div
+            className="absolute inset-0 -z-10"
+            onClick={() => setShowFilterSheet(false)}
+          />
+        </div>
+      )}
+
       {/* 선택된 음식점 카드 */}
       {selectedPlace && (
         <div className="absolute left-3 right-3 z-30 animate-in slide-in-from-bottom-4 duration-200" style={{ bottom: "calc(72px + 70px)" }}>
@@ -1198,26 +1365,44 @@ export default function SearchPage() {
           </div>
         </div>
 
-        {/* 정렬 버튼 */}
-        <div className="px-4 pb-2 flex gap-2 border-b border-gray-100">
-          {[
-            { key: "distance", label: t.search.sortDistance },
-            { key: "rating", label: t.search.sortRating },
-            { key: "reviews", label: t.search.sortReviews }
-          ].map(({ key, label }) => (
-            <button
-              key={key}
-              className={cn(
-                "px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
-                sortType === key
-                  ? "bg-orange-500 text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              )}
-              onClick={() => setSortType(key as SortType)}
-            >
-              {label}
-            </button>
-          ))}
+        {/* 정렬 및 필터 버튼 */}
+        <div className="px-4 pb-2 flex items-center gap-2 border-b border-gray-100">
+          <div className="flex gap-2 flex-1">
+            {[
+              { key: "distance", label: t.search.sortDistance },
+              { key: "rating", label: t.search.sortRating },
+              { key: "reviews", label: t.search.sortReviews }
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                className={cn(
+                  "px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
+                  sortType === key
+                    ? "bg-orange-500 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                )}
+                onClick={() => setSortType(key as SortType)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {/* 필터 버튼 */}
+          <button
+            onClick={() => setShowFilterSheet(true)}
+            className={cn(
+              "flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
+              (selectedCategory !== "all" || searchRadius !== 1000 || showOnlyWithReviews)
+                ? "bg-orange-100 text-orange-600 border border-orange-200"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            )}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            필터
+            {(selectedCategory !== "all" || searchRadius !== 1000 || showOnlyWithReviews) && (
+              <span className="w-1.5 h-1.5 bg-orange-500 rounded-full" />
+            )}
+          </button>
         </div>
 
         {/* 음식점 목록 */}

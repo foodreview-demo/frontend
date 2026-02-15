@@ -13,6 +13,7 @@ import { api, Restaurant } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import { cn } from "@/lib/utils"
 import { useTranslation } from "@/lib/i18n-context"
+import { GatheringSearchTab } from "@/components/gathering-search-tab"
 
 const KAKAO_MAP_API_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_API_KEY
 
@@ -62,6 +63,10 @@ const RADIUS_OPTIONS = [
 export default function SearchPage() {
   const t = useTranslation()
   const router = useRouter()
+
+  // 메인 탭 상태 (음식점 / 번개모임)
+  const [mainTab, setMainTab] = useState<"restaurant" | "gathering">("restaurant")
+
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   const overlaysRef = useRef<any[]>([])
@@ -1128,14 +1133,50 @@ export default function SearchPage() {
   const isSheetFull = windowHeight > 0 && sheetHeight >= (windowHeight - BOTTOM_NAV_HEIGHT) * MAX_SHEET_RATIO - 10
 
   const content = (
-    <div className="h-screen w-full max-w-md mx-auto relative overflow-hidden bg-background">
-      <Script
-        src={`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_MAP_API_KEY}&libraries=services&autoload=false`}
-        strategy="afterInteractive"
-        onLoad={() => setIsScriptLoaded(true)}
-      />
+    <div className="h-screen w-full max-w-md mx-auto relative overflow-hidden bg-background flex flex-col">
+      {/* 메인 탭 (음식점 / 번개모임) */}
+      <div className="flex border-b bg-background shrink-0 z-30">
+        <button
+          className={cn(
+            "flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors border-b-2",
+            mainTab === "restaurant"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          )}
+          onClick={() => setMainTab("restaurant")}
+        >
+          <MapPin className="w-4 h-4" />
+          음식점
+        </button>
+        <button
+          className={cn(
+            "flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors border-b-2",
+            mainTab === "gathering"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          )}
+          onClick={() => setMainTab("gathering")}
+        >
+          <Users className="w-4 h-4" />
+          번개모임
+        </button>
+      </div>
 
-      {/* 검색 헤더 - 지도 위에 플로팅 */}
+      {/* 번개모임 탭 */}
+      {mainTab === "gathering" ? (
+        <div className="flex-1 overflow-hidden" style={{ marginBottom: `${BOTTOM_NAV_HEIGHT}px` }}>
+          <GatheringSearchTab />
+        </div>
+      ) : (
+        /* 음식점 탭 (기존 지도 기반 검색) */
+        <div className="flex-1 relative">
+          <Script
+            src={`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_MAP_API_KEY}&libraries=services&autoload=false`}
+            strategy="afterInteractive"
+            onLoad={() => setIsScriptLoaded(true)}
+          />
+
+          {/* 검색 헤더 - 지도 위에 플로팅 */}
       <div className="absolute top-0 left-0 right-0 z-20 p-3">
         <form onSubmit={handleSearch} className="relative">
           <div className={cn(
@@ -1672,6 +1713,9 @@ export default function SearchPage() {
           )}
         </div>
       </div>
+
+        </div>
+      )}
 
       {/* 하단 네비게이션 */}
       <BottomNav />

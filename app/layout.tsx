@@ -1,6 +1,7 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
+import Script from "next/script"
 import { AuthProvider } from "@/lib/auth-context"
 import { I18nProvider } from "@/lib/i18n-context"
 import { FeedSettingsProvider } from "@/lib/feed-settings-context"
@@ -50,6 +51,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
+      <head>
+        <Script
+          src="https://cdn.portone.io/v2/browser-sdk.js"
+          strategy="beforeInteractive"
+        />
+      </head>
       <body className={`font-sans antialiased`}>
         <PWARegister />
         <I18nProvider>

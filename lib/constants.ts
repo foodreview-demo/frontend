@@ -34,11 +34,11 @@ export interface TasteLevel {
 }
 
 const TASTE_LEVELS: TasteLevel[] = [
-  { label: "마스터", minScore: 2000, maxScore: 3000, color: "bg-primary text-primary-foreground", bgColor: "bg-primary/10" },
-  { label: "전문가", minScore: 1500, maxScore: 2000, color: "bg-accent text-accent-foreground", bgColor: "bg-accent/30" },
-  { label: "미식가", minScore: 1000, maxScore: 1500, color: "bg-secondary text-secondary-foreground", bgColor: "bg-secondary" },
-  { label: "탐험가", minScore: 500, maxScore: 1000, color: "bg-muted text-muted-foreground", bgColor: "bg-muted" },
-  { label: "입문자", minScore: 0, maxScore: 500, color: "bg-muted text-muted-foreground", bgColor: "bg-muted" },
+  { label: "다이아몬드", minScore: 2000, maxScore: 3000, color: "bg-primary text-primary-foreground", bgColor: "bg-primary/10" },
+  { label: "플래티넘", minScore: 1500, maxScore: 2000, color: "bg-accent text-accent-foreground", bgColor: "bg-accent/30" },
+  { label: "골드", minScore: 1000, maxScore: 1500, color: "bg-secondary text-secondary-foreground", bgColor: "bg-secondary" },
+  { label: "실버", minScore: 500, maxScore: 1000, color: "bg-muted text-muted-foreground", bgColor: "bg-muted" },
+  { label: "브론즈", minScore: 0, maxScore: 500, color: "bg-muted text-muted-foreground", bgColor: "bg-muted" },
 ]
 
 // 맛잘알 등급 계산 (간단 버전 - Badge 표시용)

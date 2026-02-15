@@ -10,6 +10,7 @@ import { RequireAuth } from "@/components/require-auth"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { api, Restaurant } from "@/lib/api"
+import { useAuth } from "@/lib/auth-context"
 import { cn } from "@/lib/utils"
 import { useTranslation } from "@/lib/i18n-context"
 
@@ -99,6 +100,30 @@ export default function SearchPage() {
   const [searchRadius, setSearchRadius] = useState(1000)
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [showOnlyWithReviews, setShowOnlyWithReviews] = useState(false)
+  // 리뷰 수 필터: [min, max] - null이면 제한 없음
+  const [reviewCountMin, setReviewCountMin] = useState<number | null>(null)
+  const [reviewCountMax, setReviewCountMax] = useState<number | null>(null)
+  const [showOnlyFollowingReviews, setShowOnlyFollowingReviews] = useState(false)
+  const [followingReviewedKakaoPlaceIds, setFollowingReviewedKakaoPlaceIds] = useState<Set<string>>(new Set())
+  const [isLoadingFollowingData, setIsLoadingFollowingData] = useState(false)
+
+  // 리뷰 수 필터 프리셋
+  const REVIEW_COUNT_PRESETS = [
+    { label: "전체", min: null, max: null },
+    { label: "첫 리뷰", min: 0, max: 0, bonus: true },
+    { label: "1~5개", min: 1, max: 5 },
+    { label: "5개+", min: 5, max: null },
+    { label: "10개+", min: 10, max: null },
+  ]
+
+  // 현재 선택된 프리셋 확인
+  const getActivePreset = () => {
+    return REVIEW_COUNT_PRESETS.find(
+      p => p.min === reviewCountMin && p.max === reviewCountMax
+    ) || null
+  }
+
+  const { user } = useAuth()
 
   // 최근 검색어 로드
   useEffect(() => {
@@ -111,6 +136,34 @@ export default function SearchPage() {
       }
     }
   }, [])
+
+  // 팔로잉 필터 활성화 시 팔로잉 리뷰 음식점 목록 로드
+  useEffect(() => {
+    const loadFollowingReviewedPlaces = async () => {
+      if (!showOnlyFollowingReviews || !user) {
+        return
+      }
+
+      // 이미 데이터가 있으면 로드하지 않음
+      if (followingReviewedKakaoPlaceIds.size > 0) {
+        return
+      }
+
+      setIsLoadingFollowingData(true)
+      try {
+        const result = await api.getFollowingReviewedKakaoPlaceIds()
+        if (result.success) {
+          setFollowingReviewedKakaoPlaceIds(new Set(result.data))
+        }
+      } catch (err) {
+        console.error('팔로잉 리뷰 음식점 로드 실패:', err)
+      } finally {
+        setIsLoadingFollowingData(false)
+      }
+    }
+
+    loadFollowingReviewedPlaces()
+  }, [showOnlyFollowingReviews, user, followingReviewedKakaoPlaceIds.size])
 
   // 최근 검색어 저장
   const saveRecentSearch = (query: string) => {
@@ -469,6 +522,21 @@ export default function SearchPage() {
           matched = matched.filter(r => r.dbRestaurant && r.dbRestaurant.reviewCount > 0)
         }
 
+        // 리뷰 수 범위 필터
+        if (reviewCountMin !== null || reviewCountMax !== null) {
+          matched = matched.filter(r => {
+            const count = r.dbRestaurant?.reviewCount ?? 0
+            if (reviewCountMin !== null && count < reviewCountMin) return false
+            if (reviewCountMax !== null && count > reviewCountMax) return false
+            return true
+          })
+        }
+
+        // 팔로잉 리뷰만 필터
+        if (showOnlyFollowingReviews && followingReviewedKakaoPlaceIds.size > 0) {
+          matched = matched.filter(r => followingReviewedKakaoPlaceIds.has(r.kakaoPlace.id))
+        }
+
         setNearbyRestaurants(matched)
         displayMarkersRef.current(matched)
         setIsLoading(false)
@@ -482,7 +550,7 @@ export default function SearchPage() {
       size: 15,
       sort: kakao.maps.services.SortBy.DISTANCE
     })
-  }, [dbRestaurants, getJibunAddress, searchRadius, selectedCategory, showOnlyWithReviews, matchesCategory])
+  }, [dbRestaurants, getJibunAddress, searchRadius, selectedCategory, showOnlyWithReviews, reviewCountMin, reviewCountMax, showOnlyFollowingReviews, followingReviewedKakaoPlaceIds, matchesCategory])
 
   // 두 좌표 간 거리 계산 (Haversine 공식)
   const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
@@ -558,6 +626,21 @@ export default function SearchPage() {
           matched = matched.filter(r => r.dbRestaurant && r.dbRestaurant.reviewCount > 0)
         }
 
+        // 리뷰 수 범위 필터
+        if (reviewCountMin !== null || reviewCountMax !== null) {
+          matched = matched.filter(r => {
+            const count = r.dbRestaurant?.reviewCount ?? 0
+            if (reviewCountMin !== null && count < reviewCountMin) return false
+            if (reviewCountMax !== null && count > reviewCountMax) return false
+            return true
+          })
+        }
+
+        // 팔로잉 리뷰만 필터
+        if (showOnlyFollowingReviews && followingReviewedKakaoPlaceIds.size > 0) {
+          matched = matched.filter(r => followingReviewedKakaoPlaceIds.has(r.kakaoPlace.id))
+        }
+
         if (isFirstPage) {
           // 새 검색: 기존 결과 교체
           setNearbyRestaurants(matched)
@@ -597,7 +680,7 @@ export default function SearchPage() {
     }, {
       size: 15
     })
-  }, [dbRestaurants, currentPosition, getJibunAddress, selectedCategory, showOnlyWithReviews, matchesCategory])
+  }, [dbRestaurants, currentPosition, getJibunAddress, selectedCategory, showOnlyWithReviews, reviewCountMin, reviewCountMax, showOnlyFollowingReviews, followingReviewedKakaoPlaceIds, matchesCategory])
 
   // 더 많은 결과 로드
   const loadMoreResults = useCallback(() => {
@@ -1261,18 +1344,125 @@ export default function SearchPage() {
                 </div>
               </div>
 
-              {/* 리뷰 있는 곳만 */}
+              {/* 리뷰 수 필터 */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-gray-900">리뷰 수</h4>
+                  {(reviewCountMin !== null || reviewCountMax !== null) && (
+                    <button
+                      onClick={() => {
+                        setReviewCountMin(null)
+                        setReviewCountMax(null)
+                      }}
+                      className="text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      초기화
+                    </button>
+                  )}
+                </div>
+
+                {/* 프리셋 버튼 */}
+                <div className="flex flex-wrap gap-2">
+                  {REVIEW_COUNT_PRESETS.map((preset) => {
+                    const isActive = preset.min === reviewCountMin && preset.max === reviewCountMax
+                    return (
+                      <button
+                        key={preset.label}
+                        onClick={() => {
+                          setReviewCountMin(preset.min)
+                          setReviewCountMax(preset.max)
+                          // 첫 리뷰 선택 시 "리뷰 있는 곳만" 해제
+                          if (preset.min === 0 && preset.max === 0) {
+                            setShowOnlyWithReviews(false)
+                          }
+                        }}
+                        className={cn(
+                          "px-3 py-1.5 rounded-full text-sm font-medium transition-colors",
+                          isActive
+                            ? "bg-orange-500 text-white"
+                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                        )}
+                      >
+                        {preset.label}
+                        {'bonus' in preset && preset.bonus && (
+                          <span className="ml-1">🎁</span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* 슬라이더 (커스텀 범위) */}
+                <div className="pt-2">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <label className="text-xs text-gray-500 mb-1 block">최소</label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="20"
+                        value={reviewCountMin ?? 0}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value)
+                          setReviewCountMin(val === 0 ? null : val)
+                        }}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                      />
+                      <div className="text-center text-xs text-gray-600 mt-1">
+                        {reviewCountMin ?? 0}개
+                      </div>
+                    </div>
+                    <span className="text-gray-400 mt-4">~</span>
+                    <div className="flex-1">
+                      <label className="text-xs text-gray-500 mb-1 block">최대</label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="50"
+                        value={reviewCountMax ?? 50}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value)
+                          setReviewCountMax(val === 50 ? null : val)
+                        }}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                      />
+                      <div className="text-center text-xs text-gray-600 mt-1">
+                        {reviewCountMax === null ? "제한없음" : `${reviewCountMax}개`}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 첫 리뷰 보너스 안내 */}
+                {reviewCountMin === 0 && reviewCountMax === 0 && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                    <p className="text-xs text-orange-700">
+                      🎁 첫 리뷰 작성 시 맛잘알 점수 2배!
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* 팔로잉 리뷰만 */}
               <div>
                 <button
-                  onClick={() => setShowOnlyWithReviews(!showOnlyWithReviews)}
+                  onClick={() => setShowOnlyFollowingReviews(!showOnlyFollowingReviews)}
                   className="w-full flex items-center justify-between py-3 px-4 bg-gray-50 rounded-xl"
+                  disabled={isLoadingFollowingData}
                 >
-                  <span className="text-sm font-medium text-gray-900">리뷰 있는 곳만 보기</span>
+                  <div className="flex flex-col items-start">
+                    <span className="text-sm font-medium text-gray-900">팔로잉 리뷰만 보기</span>
+                    <span className="text-xs text-gray-500">내가 팔로우하는 사람들이 리뷰한 곳</span>
+                  </div>
                   <div className={cn(
                     "w-10 h-6 rounded-full transition-colors flex items-center px-1",
-                    showOnlyWithReviews ? "bg-orange-500 justify-end" : "bg-gray-300 justify-start"
+                    showOnlyFollowingReviews ? "bg-orange-500 justify-end" : "bg-gray-300 justify-start"
                   )}>
-                    <div className="w-4 h-4 bg-white rounded-full shadow" />
+                    {isLoadingFollowingData ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
+                    ) : (
+                      <div className="w-4 h-4 bg-white rounded-full shadow" />
+                    )}
                   </div>
                 </button>
               </div>
@@ -1285,6 +1475,9 @@ export default function SearchPage() {
                   setSearchRadius(1000)
                   setSelectedCategory("all")
                   setShowOnlyWithReviews(false)
+                  setReviewCountMin(null)
+                  setReviewCountMax(null)
+                  setShowOnlyFollowingReviews(false)
                 }}
                 className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors"
               >
@@ -1392,14 +1585,14 @@ export default function SearchPage() {
             onClick={() => setShowFilterSheet(true)}
             className={cn(
               "flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
-              (selectedCategory !== "all" || searchRadius !== 1000 || showOnlyWithReviews)
+              (selectedCategory !== "all" || searchRadius !== 1000 || showOnlyWithReviews || reviewCountMin !== null || reviewCountMax !== null || showOnlyFollowingReviews)
                 ? "bg-orange-100 text-orange-600 border border-orange-200"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             )}
           >
             <SlidersHorizontal className="h-3.5 w-3.5" />
             필터
-            {(selectedCategory !== "all" || searchRadius !== 1000 || showOnlyWithReviews) && (
+            {(selectedCategory !== "all" || searchRadius !== 1000 || showOnlyWithReviews || reviewCountMin !== null || reviewCountMax !== null || showOnlyFollowingReviews) && (
               <span className="w-1.5 h-1.5 bg-orange-500 rounded-full" />
             )}
           </button>

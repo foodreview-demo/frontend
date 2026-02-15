@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense, useRef, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowLeft, Camera, Star, X, Sparkles, Search, MapPin, Loader2, Eye, Users, Navigation, Receipt, Pencil, Check } from "lucide-react"
+import { ArrowLeft, Camera, Star, X, Sparkles, Search, MapPin, Loader2, Eye, Users, Navigation, Receipt, Pencil, Check, Plus, Store, ChevronDown } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { KakaoMapSearch, KakaoPlace } from "@/components/kakao-map-search"
 import { RegionSelector } from "@/components/region-selector"
+import { LocationPicker, SelectedLocation } from "@/components/location-picker"
 import { cn } from "@/lib/utils"
 import { api, Restaurant, Review, ReferenceType } from "@/lib/api"
 import { parseAddress } from "@/lib/regions"
@@ -96,6 +97,27 @@ function WriteReviewContent() {
   const [reviewPage, setReviewPage] = useState(0)
   const [reviewTotalPages, setReviewTotalPages] = useState(0)
   const [reviewTotalElements, setReviewTotalElements] = useState(0)
+
+  // 수동 등록 관련 상태
+  const [isManualMode, setIsManualMode] = useState(false)
+  const [manualName, setManualName] = useState("")
+  const [manualCategory, setManualCategory] = useState("")
+  const [manualLocation, setManualLocation] = useState<SelectedLocation | null>(null)
+  const [signboardImage, setSignboardImage] = useState<string | null>(null)
+  const [isUploadingSignboard, setIsUploadingSignboard] = useState(false)
+  const [showLocationPicker, setShowLocationPicker] = useState(false)
+  const signboardInputRef = useRef<HTMLInputElement>(null)
+
+  // 카테고리 목록
+  const CATEGORY_OPTIONS = [
+    { value: "KOREAN", label: "한식" },
+    { value: "JAPANESE", label: "일식" },
+    { value: "CHINESE", label: "중식" },
+    { value: "WESTERN", label: "양식" },
+    { value: "CAFE", label: "카페" },
+    { value: "BAKERY", label: "베이커리" },
+    { value: "SNACK", label: "분식" },
+  ]
 
   // Load preselected restaurant or kakao place
   useEffect(() => {
@@ -319,7 +341,8 @@ function WriteReviewContent() {
   })
 
   const isFirstReview = selectedRestaurant?.reviewCount === 0
-  const hasSelectedPlace = selectedRestaurant || selectedKakaoPlace
+  const hasSelectedPlace = selectedRestaurant || selectedKakaoPlace || (isManualMode && manualName && manualCategory && manualLocation && signboardImage)
+  const isManualRegistration = isManualMode && manualName && manualCategory && manualLocation && signboardImage
 
   // 카카오 장소 선택 핸들러
   const handleKakaoPlaceSelect = async (place: KakaoPlace) => {
@@ -379,6 +402,62 @@ function WriteReviewContent() {
     setReviewTotalPages(0)
     setReviewTotalElements(0)
     setReviewSearchQuery("")
+    // 수동 등록 초기화
+    setIsManualMode(false)
+    setManualName("")
+    setManualCategory("")
+    setManualLocation(null)
+    setSignboardImage(null)
+  }
+
+  // 간판 이미지 업로드 핸들러
+  const handleSignboardButtonClick = () => {
+    signboardInputRef.current?.click()
+  }
+
+  const handleSignboardUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    const file = files[0]
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    if (!validTypes.includes(file.type)) {
+      alert("JPEG, PNG, GIF, WebP 형식의 이미지만 업로드할 수 있습니다")
+      return
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert("이미지 파일 크기는 10MB를 초과할 수 없습니다")
+      return
+    }
+
+    setIsUploadingSignboard(true)
+    try {
+      const result = await api.uploadImages([file])
+      if (result.success) {
+        setSignboardImage(result.data.urls[0])
+      }
+    } catch (error) {
+      console.error("간판 이미지 업로드 실패:", error)
+      alert(error instanceof Error ? error.message : "이미지 업로드에 실패했습니다")
+    } finally {
+      setIsUploadingSignboard(false)
+      if (signboardInputRef.current) {
+        signboardInputRef.current.value = ""
+      }
+    }
+  }
+
+  // 위치 선택 핸들러
+  const handleLocationSelect = (location: SelectedLocation) => {
+    setManualLocation(location)
+    setRegion(location.region)
+    setDistrict(location.district)
+    setNeighborhood(location.neighborhood)
+    setShowLocationPicker(false)
   }
 
   const handleImageButtonClick = () => {
@@ -480,13 +559,39 @@ function WriteReviewContent() {
       return
     }
 
+    // 수동 등록 시 간판 사진 필수 확인
+    if (isManualMode && !signboardImage) {
+      alert("수동 등록 시 간판 사진은 필수입니다")
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
       let restaurantId: number
 
+      // 수동 등록 시 음식점 생성
+      if (isManualMode && manualLocation && signboardImage) {
+        const restaurantResult = await api.createRestaurant({
+          name: manualName,
+          category: manualCategory,
+          address: manualLocation.address,
+          region: manualLocation.region,
+          district: manualLocation.district || undefined,
+          neighborhood: manualLocation.neighborhood || undefined,
+          latitude: manualLocation.latitude,
+          longitude: manualLocation.longitude,
+          isManualRegistration: true,
+          signboardImageUrl: signboardImage,
+        })
+
+        if (!restaurantResult.success) {
+          throw new Error(restaurantResult.message || '음식점 등록에 실패했습니다')
+        }
+        restaurantId = restaurantResult.data.id
+      }
       // 카카오 장소 선택 시 먼저 음식점 등록
-      if (selectedKakaoPlace) {
+      else if (selectedKakaoPlace) {
         // 카테고리 추출 (예: "음식점 > 한식 > 국밥" -> "KOREAN")
         const categoryMap: Record<string, string> = {
           '한식': 'KOREAN',
@@ -580,7 +685,11 @@ function WriteReviewContent() {
         }
 
         const isFirst = reviewResult.data.isFirstReview
-        alert(isFirst ? "첫 리뷰 작성 완료! 맛잘알 점수가 2배로 적용됩니다!" : "리뷰가 등록되었습니다!")
+        if (isManualMode) {
+          alert("리뷰가 등록되었습니다!\n\n수동 등록된 음식점은 관리자 승인 후 다른 사용자에게 공개됩니다.\n승인 전까지는 마이페이지에서만 확인 가능합니다.")
+        } else {
+          alert(isFirst ? "첫 리뷰 작성 완료! 맛잘알 점수가 2배로 적용됩니다!" : "리뷰가 등록되었습니다!")
+        }
       }
       router.push("/?refresh=true")
     } catch (error) {
@@ -656,6 +765,152 @@ function WriteReviewContent() {
                 <X className="h-4 w-4" />
               </Button>
             </Card>
+          ) : isManualMode ? (
+            /* 수동 등록 폼 */
+            <Card className="p-4 border border-primary/30 bg-primary/5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Store className="h-5 w-5 text-primary" />
+                  <span className="font-medium text-foreground">음식점 직접 등록</span>
+                </div>
+                <Button variant="ghost" size="icon" onClick={clearSelectedPlace}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                {/* 음식점명 */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                    음식점 이름 *
+                  </label>
+                  <Input
+                    placeholder="음식점 이름을 입력하세요"
+                    value={manualName}
+                    onChange={(e) => setManualName(e.target.value)}
+                  />
+                </div>
+
+                {/* 카테고리 선택 */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                    카테고리 *
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={manualCategory}
+                      onChange={(e) => setManualCategory(e.target.value)}
+                      className="w-full h-10 px-3 pr-10 rounded-md border border-input bg-background text-sm appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <option value="">카테고리 선택</option>
+                      {CATEGORY_OPTIONS.map((cat) => (
+                        <option key={cat.value} value={cat.value}>
+                          {cat.label}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  </div>
+                </div>
+
+                {/* 위치 선택 */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                    위치 *
+                  </label>
+                  {manualLocation ? (
+                    <div className="flex items-center gap-2 p-3 bg-background rounded-lg border border-border">
+                      <MapPin className="h-4 w-4 text-primary shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {manualLocation.address}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {manualLocation.region} {manualLocation.district} {manualLocation.neighborhood}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowLocationPicker(true)}
+                        className="shrink-0"
+                      >
+                        변경
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-muted-foreground"
+                      onClick={() => setShowLocationPicker(true)}
+                    >
+                      <MapPin className="h-4 w-4 mr-2" />
+                      지도에서 위치 선택
+                    </Button>
+                  )}
+                </div>
+
+                {/* 간판 사진 (필수) */}
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                    간판 사진 * <span className="text-destructive">(필수)</span>
+                  </label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    음식점 간판이 보이는 사진을 첨부해주세요. 관리자 승인에 사용됩니다.
+                  </p>
+                  <input
+                    ref={signboardInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    onChange={handleSignboardUpload}
+                    className="hidden"
+                  />
+                  {signboardImage ? (
+                    <div className="relative h-32 w-full rounded-lg overflow-hidden bg-muted border-2 border-primary">
+                      <Image
+                        src={signboardImage}
+                        alt="간판 이미지"
+                        fill
+                        className="object-cover"
+                        unoptimized
+                      />
+                      <button
+                        onClick={() => setSignboardImage(null)}
+                        className="absolute top-2 right-2 bg-background/80 rounded-full p-1"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                      <div className="absolute bottom-0 left-0 right-0 bg-primary/90 text-primary-foreground text-xs text-center py-1">
+                        간판 사진
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleSignboardButtonClick}
+                      disabled={isUploadingSignboard}
+                      className="w-full h-32 rounded-lg border-2 border-dashed border-primary/50 flex flex-col items-center justify-center text-primary hover:border-primary hover:bg-primary/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isUploadingSignboard ? (
+                        <Loader2 className="h-8 w-8 animate-spin" />
+                      ) : (
+                        <>
+                          <Store className="h-8 w-8 mb-2" />
+                          <span className="text-sm">간판 사진 업로드</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                {/* 승인 안내 */}
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-xs text-amber-800">
+                    ⚠️ 수동 등록된 음식점은 관리자 승인 후 다른 사용자에게 공개됩니다.
+                    승인 전까지는 마이페이지에서만 확인 가능합니다.
+                  </p>
+                </div>
+              </div>
+            </Card>
           ) : (
             <Tabs value={searchMode} onValueChange={(v) => setSearchMode(v as "app" | "kakao")}>
               <TabsList className="grid w-full grid-cols-2 mb-3">
@@ -677,6 +932,7 @@ function WriteReviewContent() {
                   region={region}
                   district={district}
                   neighborhood={neighborhood}
+                  onManualRegister={() => setIsManualMode(true)}
                   regionSelector={
                     selectedKakaoPlace && (
                       isEditingRegion ? (
@@ -820,6 +1076,7 @@ function WriteReviewContent() {
               </TabsContent>
             </Tabs>
           )}
+
         </div>
 
         {/* Rating */}
@@ -1368,6 +1625,14 @@ function WriteReviewContent() {
           </ul>
         </div>
       </div>
+
+      {/* Location Picker Modal */}
+      {showLocationPicker && (
+        <LocationPicker
+          onSelect={handleLocationSelect}
+          onClose={() => setShowLocationPicker(false)}
+        />
+      )}
     </MobileLayout>
   )
 }

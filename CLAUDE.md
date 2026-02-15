@@ -201,6 +201,13 @@ npx cap open android       # Android Studio 열기
 - [x] 지도 페이지 진입 시 내 위치 자동 검색
 - [x] 카카오맵 Capacitor 에러 처리 개선
 
+### 번개모임 기능 (2026-02-11)
+- [x] 음식점 상세 페이지에 "번개" 탭 추가
+- [x] 번개모임 목록/생성/상세 UI 구현
+- [x] 아임포트 결제 연동 (보증금 결제)
+- [x] 모임 완료/취소 및 환금 처리 UI
+- [x] 관련 컴포넌트: `gathering-section.tsx`, `gathering-create-dialog.tsx`, `gathering-detail-dialog.tsx`
+
 ## TODO (Future Development)
 
 ### 우선순위 높음

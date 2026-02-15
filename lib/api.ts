@@ -418,6 +418,11 @@ class ApiClient {
     return this.request<ApiResponse<Restaurant | null>>(`/restaurants/kakao/${kakaoPlaceId}`);
   }
 
+  // 팔로잉 사용자들이 리뷰한 음식점의 kakaoPlaceId 목록 조회
+  async getFollowingReviewedKakaoPlaceIds() {
+    return this.request<ApiResponse<string[]>>('/restaurants/following-reviewed');
+  }
+
   // Review API
   async getReviews(
     region?: string,
@@ -858,6 +863,88 @@ class ApiClient {
       body: JSON.stringify({ badgeId, display }),
     });
   }
+
+  // ============ 번개모임 API ============
+
+  // 모임 생성
+  async createGathering(data: CreateGatheringRequest) {
+    return this.request<ApiResponse<GatheringResponse>>('/gatherings', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // 모임 상세 조회
+  async getGathering(uuid: string) {
+    return this.request<ApiResponse<GatheringDetailResponse>>(`/gatherings/${uuid}`);
+  }
+
+  // 음식점별 모임 조회
+  async getGatheringsByRestaurant(restaurantId: number) {
+    return this.request<ApiResponse<GatheringResponse[]>>(`/gatherings/restaurant/${restaurantId}`);
+  }
+
+  // 지역별 모임 조회
+  async getGatheringsByRegion(region: string, district?: string, page = 0, size = 20) {
+    const params = new URLSearchParams({ region, page: String(page), size: String(size) });
+    if (district) params.append('district', district);
+    return this.request<ApiResponse<PageResponse<GatheringResponse>>>(`/gatherings/region?${params}`);
+  }
+
+  // 내가 생성한 모임 조회
+  async getMyCreatedGatherings(page = 0, size = 20) {
+    return this.request<ApiResponse<PageResponse<GatheringResponse>>>(`/gatherings/my/created?page=${page}&size=${size}`);
+  }
+
+  // 내가 참여한 모임 조회
+  async getMyJoinedGatherings(page = 0, size = 20) {
+    return this.request<ApiResponse<PageResponse<GatheringResponse>>>(`/gatherings/my/joined?page=${page}&size=${size}`);
+  }
+
+  // 모임 참여 (결제 전 예약)
+  async joinGathering(uuid: string) {
+    return this.request<ApiResponse<GatheringParticipantInfo>>(`/gatherings/${uuid}/join`, {
+      method: 'POST',
+    });
+  }
+
+  // 결제 검증 및 참여 확정
+  async verifyGatheringDeposit(uuid: string, impUid: string, merchantUid: string) {
+    return this.request<ApiResponse<GatheringParticipantInfo>>(`/gatherings/${uuid}/deposit/verify`, {
+      method: 'POST',
+      body: JSON.stringify({ impUid, merchantUid }),
+    });
+  }
+
+  // 환금 처리 (호스트용)
+  async refundGatheringParticipant(uuid: string, participantId: number) {
+    return this.request<ApiResponse<void>>(`/gatherings/${uuid}/deposit/refund`, {
+      method: 'POST',
+      body: JSON.stringify({ participantId }),
+    });
+  }
+
+  // 모임 완료 처리
+  async completeGathering(uuid: string) {
+    return this.request<ApiResponse<void>>(`/gatherings/${uuid}/complete`, {
+      method: 'POST',
+    });
+  }
+
+  // 모임 취소 처리
+  async cancelGathering(uuid: string) {
+    return this.request<ApiResponse<void>>(`/gatherings/${uuid}/cancel`, {
+      method: 'POST',
+    });
+  }
+
+  // 모임 상태 변경
+  async updateGatheringStatus(uuid: string, status: GatheringStatus) {
+    return this.request<ApiResponse<GatheringResponse>>(`/gatherings/${uuid}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+  }
 }
 
 // 카테고리 한글 -> Enum 변환
@@ -912,6 +999,9 @@ export interface UserSearchResult {
   isFollowing: boolean;
 }
 
+// 음식점 승인 상태
+export type RestaurantApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
 export interface Restaurant {
   id: number;
   uuid: string;
@@ -936,6 +1026,11 @@ export interface Restaurant {
   kakaoPlaceId?: string;
   latitude?: number;
   longitude?: number;
+  // 수동 등록 관련 필드
+  isManualRegistration?: boolean;
+  signboardImageUrl?: string;
+  approvalStatus?: RestaurantApprovalStatus;
+  approvalStatusDisplay?: string;
 }
 
 export interface ReferenceInfo {
@@ -1109,6 +1204,9 @@ export interface CreateRestaurantRequest {
   kakaoPlaceId?: string;
   latitude?: number;
   longitude?: number;
+  // 수동 등록 관련 필드
+  isManualRegistration?: boolean;
+  signboardImageUrl?: string;
 }
 
 export interface Playlist {
@@ -1317,5 +1415,96 @@ export interface SimpleBadge {
   icon: string;
   category: BadgeCategory;
 }
+
+// ============ 번개모임 Types ============
+
+export type GatheringStatus = 'RECRUITING' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+export type DepositStatus = 'PENDING' | 'DEPOSITED' | 'REFUNDED' | 'REFUND_FAILED';
+export type RefundType = 'AUTO' | 'MANUAL';
+
+export interface GatheringRestaurantInfo {
+  id: number;
+  uuid: string;
+  name: string;
+  category: string;
+  categoryDisplay: string;
+  address: string;
+  thumbnail: string;
+}
+
+export interface GatheringCreatorInfo {
+  id: number;
+  name: string;
+  avatar: string;
+  tasteScore: number;
+}
+
+export interface GatheringResponse {
+  id: number;
+  uuid: string;
+  restaurant: GatheringRestaurantInfo;
+  creator: GatheringCreatorInfo;
+  title: string;
+  description?: string;
+  targetTime: string;
+  maxParticipants: number;
+  currentParticipants: number;
+  depositAmount: number;
+  refundType: RefundType;
+  refundTypeDisplay: string;
+  status: GatheringStatus;
+  statusDisplay: string;
+  region: string;
+  district?: string;
+  neighborhood?: string;
+  chatRoomUuid?: string;
+  isHost: boolean;
+  isParticipant: boolean;
+  myDepositStatus?: DepositStatus;
+  createdAt: string;
+}
+
+export interface GatheringParticipantInfo {
+  id: number;
+  userId: number;
+  userName: string;
+  userAvatar: string;
+  userTasteScore: number;
+  depositStatus: DepositStatus;
+  depositStatusDisplay: string;
+  joinedAt?: string;
+  isHost: boolean;
+}
+
+export interface GatheringDetailResponse {
+  gathering: GatheringResponse;
+  participants: GatheringParticipantInfo[];
+}
+
+export interface CreateGatheringRequest {
+  restaurantId: number;
+  title: string;
+  description?: string;
+  targetTime: string;
+  maxParticipants: number;
+  depositAmount: number;
+  refundType: RefundType;
+}
+
+// 번개모임 상태 표시 매핑
+export const GatheringStatusLabels: Record<GatheringStatus, string> = {
+  RECRUITING: '모집중',
+  CONFIRMED: '확정',
+  IN_PROGRESS: '진행중',
+  COMPLETED: '완료',
+  CANCELLED: '취소',
+};
+
+export const DepositStatusLabels: Record<DepositStatus, string> = {
+  PENDING: '결제대기',
+  DEPOSITED: '보증금완료',
+  REFUNDED: '환금완료',
+  REFUND_FAILED: '환금실패',
+};
 
 export const api = new ApiClient(API_BASE_URL);

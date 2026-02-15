@@ -14,9 +14,9 @@ interface TasteScoreCardProps {
 // color 클래스를 text-* 형식으로 변환
 function getTextColor(level: string): string {
   switch (level) {
-    case "마스터": return "text-primary"
-    case "전문가": return "text-accent-foreground"
-    case "미식가": return "text-foreground"
+    case "다이아몬드": return "text-primary"
+    case "플래티넘": return "text-accent-foreground"
+    case "골드": return "text-foreground"
     default: return "text-muted-foreground"
   }
 }

@@ -4,9 +4,10 @@ import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowLeft, MapPin, Star, Clock, Sparkles, Share2, Phone, Loader2, Bookmark } from "lucide-react"
+import { ArrowLeft, MapPin, Star, Clock, Sparkles, Share2, Phone, Loader2, Bookmark, Users } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { ReviewCard } from "@/components/review-card"
+import { GatheringSection } from "@/components/gathering-section"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -254,8 +255,11 @@ export function RestaurantClient() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="px-4">
-        <TabsList className="grid w-full grid-cols-2 bg-secondary">
+        <TabsList className="grid w-full grid-cols-3 bg-secondary">
           <TabsTrigger value="reviews">리뷰 ({reviews.length})</TabsTrigger>
+          <TabsTrigger value="gatherings" className="gap-1">
+            <Users className="h-3.5 w-3.5" />번개
+          </TabsTrigger>
           <TabsTrigger value="info">정보</TabsTrigger>
         </TabsList>
 
@@ -272,6 +276,10 @@ export function RestaurantClient() {
               </Link>
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="gatherings" className="mt-4 pb-4">
+          <GatheringSection restaurant={restaurant} />
         </TabsContent>
 
         <TabsContent value="info" className="mt-4 space-y-4 pb-4">

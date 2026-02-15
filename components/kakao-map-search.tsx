@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react"
 import Script from "next/script"
-import { Search, MapPin, Loader2, X, Navigation, Sparkles, AlertCircle } from "lucide-react"
+import { Search, MapPin, Loader2, X, Navigation, Sparkles, AlertCircle, Plus } from "lucide-react"
 import { Capacitor } from "@capacitor/core"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -35,6 +35,8 @@ interface KakaoMapSearchProps {
   neighborhood?: string
   onRegionChange?: (region: string, district: string, neighborhood: string) => void
   regionSelector?: React.ReactNode
+  // 수동 등록 콜백
+  onManualRegister?: () => void
 }
 
 // 카카오맵 API 키 (환경변수에서 가져옴)
@@ -48,7 +50,8 @@ export function KakaoMapSearch({
   region,
   district,
   neighborhood,
-  regionSelector
+  regionSelector,
+  onManualRegister
 }: KakaoMapSearchProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
@@ -543,47 +546,71 @@ export function KakaoMapSearch({
 
       {/* 검색 결과 목록 */}
       {searchResults.length > 0 && !selectedPlace && (
-        <div className="max-h-60 overflow-y-auto rounded-lg border border-border divide-y divide-border">
-          {searchResults.map((place) => (
-            <button
-              key={place.id}
-              className="w-full p-3 text-left hover:bg-secondary/50 transition-colors"
-              onClick={() => {
-                showPlaceOnMap(place, true)
-                setSearchResults([])
-              }}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-foreground truncate">{place.name}</span>
-                    <Badge variant="secondary" className="text-xs shrink-0">
-                      {getCategoryDisplay(place.category)}
-                    </Badge>
+        <div className="space-y-2">
+          <div className="max-h-60 overflow-y-auto rounded-lg border border-border divide-y divide-border">
+            {searchResults.map((place) => (
+              <button
+                key={place.id}
+                className="w-full p-3 text-left hover:bg-secondary/50 transition-colors"
+                onClick={() => {
+                  showPlaceOnMap(place, true)
+                  setSearchResults([])
+                }}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-foreground truncate">{place.name}</span>
+                      <Badge variant="secondary" className="text-xs shrink-0">
+                        {getCategoryDisplay(place.category)}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                      {place.address}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                    {place.address}
-                  </p>
+                  {place.distance && (
+                    <span className="text-xs text-muted-foreground shrink-0 ml-2">
+                      {parseInt(place.distance) > 1000
+                        ? `${(parseInt(place.distance) / 1000).toFixed(1)}km`
+                        : `${place.distance}m`
+                      }
+                    </span>
+                  )}
                 </div>
-                {place.distance && (
-                  <span className="text-xs text-muted-foreground shrink-0 ml-2">
-                    {parseInt(place.distance) > 1000
-                      ? `${(parseInt(place.distance) / 1000).toFixed(1)}km`
-                      : `${place.distance}m`
-                    }
-                  </span>
-                )}
-              </div>
+              </button>
+            ))}
+          </div>
+          {/* 검색 결과가 있어도 직접 등록 옵션 표시 */}
+          {onManualRegister && (
+            <button
+              onClick={onManualRegister}
+              className="w-full py-2.5 text-sm text-muted-foreground hover:text-primary flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              찾는 음식점이 없나요? 직접 등록하기
             </button>
-          ))}
+          )}
         </div>
       )}
 
-      {/* 검색 결과 없음 */}
+      {/* 검색 결과 없음 + 직접 등록 버튼 */}
       {searchResults.length === 0 && searchQuery && !isLoading && isMapLoaded && !selectedPlace && (
-        <p className="text-sm text-muted-foreground text-center py-4">
-          검색 결과가 없습니다
-        </p>
+        <div className="text-center py-4 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            검색 결과가 없습니다
+          </p>
+          {onManualRegister && (
+            <Button
+              variant="outline"
+              className="border-primary text-primary hover:bg-primary/5"
+              onClick={onManualRegister}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              음식점 직접 등록하기
+            </Button>
+          )}
+        </div>
       )}
 
       {/* 선택된 장소 표시 */}

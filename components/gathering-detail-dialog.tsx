@@ -242,6 +242,9 @@ export function GatheringDetailDialog({
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>모임 정보</DialogTitle>
+          </DialogHeader>
           <div className="flex justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
@@ -254,6 +257,9 @@ export function GatheringDetailDialog({
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>모임 정보</DialogTitle>
+          </DialogHeader>
           <div className="text-center py-12 text-muted-foreground">
             {error || "모임 정보를 불러올 수 없습니다"}
           </div>

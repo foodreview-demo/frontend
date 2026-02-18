@@ -945,6 +945,39 @@ class ApiClient {
       body: JSON.stringify({ status }),
     });
   }
+
+  // ============ AI 추천 API ============
+
+  // 오늘의 추천 조회
+  async getTodayRecommendation(latitude?: number, longitude?: number, timeSlot?: string) {
+    const params = new URLSearchParams();
+    if (latitude) params.append('latitude', String(latitude));
+    if (longitude) params.append('longitude', String(longitude));
+    if (timeSlot) params.append('timeSlot', timeSlot);
+    const queryString = params.toString();
+    return this.request<ApiResponse<RecommendationResponse>>(`/recommendations/today${queryString ? `?${queryString}` : ''}`);
+  }
+
+  // AI에게 질문하기
+  async askRecommendation(query: string, latitude?: number, longitude?: number) {
+    return this.request<ApiResponse<RecommendationResponse>>('/recommendations/ask', {
+      method: 'POST',
+      body: JSON.stringify({ query, latitude, longitude }),
+    });
+  }
+
+  // 추천 히스토리 조회
+  async getRecommendationHistory() {
+    return this.request<ApiResponse<RecommendationHistoryItem[]>>('/recommendations/history');
+  }
+
+  // 추천 피드백 저장
+  async saveRecommendationFeedback(cacheId: number, feedback: number) {
+    return this.request<ApiResponse<void>>('/recommendations/feedback', {
+      method: 'POST',
+      body: JSON.stringify({ cacheId, feedback }),
+    });
+  }
 }
 
 // 카테고리 한글 -> Enum 변환
@@ -1266,7 +1299,7 @@ export interface CreateCommentRequest {
 
 export interface Notification {
   id: number;
-  type: 'COMMENT' | 'REPLY' | 'SYMPATHY' | 'FOLLOW';
+  type: 'COMMENT' | 'REPLY' | 'SYMPATHY' | 'FOLLOW' | 'REFERENCE' | 'GATHERING_REVIEWED' | 'GATHERING_NEARBY' | 'GATHERING_REMINDER';
   message: string;
   referenceId: number | null;
   actor: {
@@ -1287,6 +1320,7 @@ export interface NotificationSettings {
   follows: boolean;
   messages: boolean;
   marketing: boolean;
+  gatherings: boolean;
 }
 
 // Report types
@@ -1505,6 +1539,57 @@ export const DepositStatusLabels: Record<DepositStatus, string> = {
   DEPOSITED: '보증금완료',
   REFUNDED: '환금완료',
   REFUND_FAILED: '환금실패',
+};
+
+// ============ AI 추천 Types ============
+
+export interface RecommendationRestaurant {
+  id: number;
+  kakaoPlaceId?: string;
+  name: string;
+  category: string;
+  categoryDisplay: string;
+  address: string;
+  reason: string;
+  recommendedMenu?: string;
+  rating?: number;
+  reviewCount?: number;
+  distance?: number;
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface RecommendationContext {
+  timeSlot: string;
+  dayOfWeek: string;
+  weather?: string;
+  temperature?: number;
+  generatedAt: string;
+}
+
+export interface RecommendationResponse {
+  summary: string;
+  restaurants: RecommendationRestaurant[];
+  context: RecommendationContext;
+  cacheId: number;
+}
+
+export interface RecommendationHistoryItem {
+  id: number;
+  type: 'today' | 'ask';
+  query?: string;
+  summary: string;
+  restaurants: RecommendationRestaurant[];
+  date: string;
+  feedback?: number;
+}
+
+export const TimeSlotLabels: Record<string, string> = {
+  morning: '아침',
+  lunch: '점심',
+  afternoon: '오후',
+  dinner: '저녁',
+  lateNight: '야식',
 };
 
 export const api = new ApiClient(API_BASE_URL);

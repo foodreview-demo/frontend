@@ -104,7 +104,6 @@ export default function SearchPage() {
   const [showFilterSheet, setShowFilterSheet] = useState(false)
   const [searchRadius, setSearchRadius] = useState(1000)
   const [selectedCategory, setSelectedCategory] = useState("all")
-  const [showOnlyWithReviews, setShowOnlyWithReviews] = useState(false)
   // 리뷰 수 필터: [min, max] - null이면 제한 없음
   const [reviewCountMin, setReviewCountMin] = useState<number | null>(null)
   const [reviewCountMax, setReviewCountMax] = useState<number | null>(null)
@@ -522,11 +521,6 @@ export default function SearchPage() {
           return { kakaoPlace: kp, dbRestaurant: dbMatch }
         })
 
-        // 리뷰 있는 곳만 필터
-        if (showOnlyWithReviews) {
-          matched = matched.filter(r => r.dbRestaurant && r.dbRestaurant.reviewCount > 0)
-        }
-
         // 리뷰 수 범위 필터
         if (reviewCountMin !== null || reviewCountMax !== null) {
           matched = matched.filter(r => {
@@ -555,7 +549,7 @@ export default function SearchPage() {
       size: 15,
       sort: kakao.maps.services.SortBy.DISTANCE
     })
-  }, [dbRestaurants, getJibunAddress, searchRadius, selectedCategory, showOnlyWithReviews, reviewCountMin, reviewCountMax, showOnlyFollowingReviews, followingReviewedKakaoPlaceIds, matchesCategory])
+  }, [dbRestaurants, getJibunAddress, searchRadius, selectedCategory, reviewCountMin, reviewCountMax, showOnlyFollowingReviews, followingReviewedKakaoPlaceIds, matchesCategory])
 
   // 두 좌표 간 거리 계산 (Haversine 공식)
   const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
@@ -626,11 +620,6 @@ export default function SearchPage() {
           return { kakaoPlace: kp, dbRestaurant: dbMatch }
         })
 
-        // 리뷰 있는 곳만 필터
-        if (showOnlyWithReviews) {
-          matched = matched.filter(r => r.dbRestaurant && r.dbRestaurant.reviewCount > 0)
-        }
-
         // 리뷰 수 범위 필터
         if (reviewCountMin !== null || reviewCountMax !== null) {
           matched = matched.filter(r => {
@@ -685,7 +674,7 @@ export default function SearchPage() {
     }, {
       size: 15
     })
-  }, [dbRestaurants, currentPosition, getJibunAddress, selectedCategory, showOnlyWithReviews, reviewCountMin, reviewCountMax, showOnlyFollowingReviews, followingReviewedKakaoPlaceIds, matchesCategory])
+  }, [dbRestaurants, currentPosition, getJibunAddress, selectedCategory, reviewCountMin, reviewCountMax, showOnlyFollowingReviews, followingReviewedKakaoPlaceIds, matchesCategory])
 
   // 더 많은 결과 로드
   const loadMoreResults = useCallback(() => {
@@ -1412,10 +1401,6 @@ export default function SearchPage() {
                         onClick={() => {
                           setReviewCountMin(preset.min)
                           setReviewCountMax(preset.max)
-                          // 첫 리뷰 선택 시 "리뷰 있는 곳만" 해제
-                          if (preset.min === 0 && preset.max === 0) {
-                            setShowOnlyWithReviews(false)
-                          }
                         }}
                         className={cn(
                           "px-3 py-1.5 rounded-full text-sm font-medium transition-colors",
@@ -1515,7 +1500,6 @@ export default function SearchPage() {
                 onClick={() => {
                   setSearchRadius(1000)
                   setSelectedCategory("all")
-                  setShowOnlyWithReviews(false)
                   setReviewCountMin(null)
                   setReviewCountMax(null)
                   setShowOnlyFollowingReviews(false)
@@ -1626,14 +1610,14 @@ export default function SearchPage() {
             onClick={() => setShowFilterSheet(true)}
             className={cn(
               "flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
-              (selectedCategory !== "all" || searchRadius !== 1000 || showOnlyWithReviews || reviewCountMin !== null || reviewCountMax !== null || showOnlyFollowingReviews)
+              (selectedCategory !== "all" || searchRadius !== 1000 || reviewCountMin !== null || reviewCountMax !== null || showOnlyFollowingReviews)
                 ? "bg-orange-100 text-orange-600 border border-orange-200"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             )}
           >
             <SlidersHorizontal className="h-3.5 w-3.5" />
             필터
-            {(selectedCategory !== "all" || searchRadius !== 1000 || showOnlyWithReviews || reviewCountMin !== null || reviewCountMax !== null || showOnlyFollowingReviews) && (
+            {(selectedCategory !== "all" || searchRadius !== 1000 || reviewCountMin !== null || reviewCountMax !== null || showOnlyFollowingReviews) && (
               <span className="w-1.5 h-1.5 bg-orange-500 rounded-full" />
             )}
           </button>

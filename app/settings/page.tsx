@@ -16,7 +16,8 @@ import {
   Settings2,
   UserX,
   Receipt,
-  Users
+  Users,
+  Zap
 } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { Button } from "@/components/ui/button"
@@ -52,6 +53,7 @@ export default function SettingsPage() {
     follows: true,
     messages: true,
     marketing: false,
+    gatherings: true,
   })
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(true)
   const [showLanguageSelect, setShowLanguageSelect] = useState(false)
@@ -320,6 +322,20 @@ export default function SettingsPage() {
               <Switch
                 checked={notifications.marketing}
                 onCheckedChange={(checked) => updateNotificationSetting('marketing', checked)}
+                disabled={isLoadingNotifications}
+              />
+            </div>
+            <div className="flex items-center justify-between p-4">
+              <div className="flex items-center gap-3">
+                <Zap className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">번개모임 알림</p>
+                  <p className="text-sm text-muted-foreground">근처 번개모임 생성 및 리마인더</p>
+                </div>
+              </div>
+              <Switch
+                checked={notifications.gatherings}
+                onCheckedChange={(checked) => updateNotificationSetting('gatherings', checked)}
                 disabled={isLoadingNotifications}
               />
             </div>

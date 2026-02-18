@@ -115,8 +115,25 @@ export default function FollowsPage() {
       } else {
         await api.follow(userId)
         setFollowingIds((prev) => new Set(prev).add(userId))
-        const user = recommendations.find((r) => r.id === userId) || searchResults.find((r) => r.id === userId)
-        if (user) setFollowingList((prev) => [...prev, user])
+        const recommendedUser = recommendations.find((r) => r.id === userId)
+        const searchUser = searchResults.find((r) => r.id === userId)
+        if (recommendedUser) {
+          setFollowingList((prev) => [...prev, recommendedUser])
+        } else if (searchUser) {
+          // UserSearchResult를 User 타입으로 변환
+          const userToAdd: User = {
+            id: searchUser.id,
+            name: searchUser.name,
+            avatar: searchUser.avatar || '',
+            region: searchUser.region,
+            tasteScore: searchUser.tasteScore,
+            tasteGrade: searchUser.tasteGrade,
+            reviewCount: searchUser.reviewCount,
+            receivedSympathyCount: 0,
+            favoriteCategories: [],
+          }
+          setFollowingList((prev) => [...prev, userToAdd])
+        }
       }
     } catch (err) {
       console.error("팔로우 처리 실패:", err)

@@ -88,7 +88,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Capacitor 앱에서 Deep Link 처리 (카카오 로그인 콜백)
     if (Capacitor.isNativePlatform()) {
-      const handleAppUrlOpen = App.addListener('appUrlOpen', async (event) => {
+      let listenerHandle: { remove: () => Promise<void> } | null = null
+
+      App.addListener('appUrlOpen', async (event) => {
         const url = new URL(event.url)
         // matjalal://callback?token=xxx&refreshToken=xxx
         if (url.host === 'callback') {
@@ -112,10 +114,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             window.location.href = '/'
           }
         }
+      }).then(handle => {
+        listenerHandle = handle
       })
 
       return () => {
-        handleAppUrlOpen.remove()
+        listenerHandle?.remove()
       }
     }
   }, [refreshUser])

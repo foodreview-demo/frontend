@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Bell, Heart, UserPlus, MessageCircle, Star, Loader2, CheckCheck } from "lucide-react"
+import { ArrowLeft, Bell, Heart, UserPlus, MessageCircle, Star, Loader2, CheckCheck, Zap } from "lucide-react"
 import { MobileLayout } from "@/components/mobile-layout"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -79,6 +79,8 @@ export default function NotificationsPage() {
         router.push(`/reviews/${notification.referenceId}`)
       } else if (notification.type === 'FOLLOW') {
         router.push(`/profile/${notification.referenceId}`)
+      } else if (notification.type === 'GATHERING_REVIEWED' || notification.type === 'GATHERING_NEARBY' || notification.type === 'GATHERING_REMINDER') {
+        router.push('/search?tab=gathering')
       } else {
         router.push(`/reviews/${notification.referenceId}`)
       }
@@ -115,6 +117,10 @@ export default function NotificationsPage() {
       case "COMMENT":
       case "REPLY":
         return <MessageCircle className="h-4 w-4 text-green-500" />
+      case "GATHERING_REVIEWED":
+      case "GATHERING_NEARBY":
+      case "GATHERING_REMINDER":
+        return <Zap className="h-4 w-4 text-yellow-500" />
       default:
         return <Bell className="h-4 w-4 text-gray-500" />
     }

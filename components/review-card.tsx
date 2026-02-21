@@ -272,70 +272,34 @@ export function ReviewCard({ review, onDelete, defaultShowComments, highlightCom
 
         {/* Detail Ratings */}
         {(review.tasteRating || review.priceRating || review.atmosphereRating || review.serviceRating) && (
-          <div className="grid grid-cols-4 gap-3 p-4 bg-gradient-to-br from-[#FFF5E9] to-white rounded-2xl mb-4 border-2 border-[#FFE5CC]">
+          <div className="flex flex-wrap gap-3 mb-3 text-xs text-muted-foreground">
             {review.tasteRating && (
-              <div className="text-center">
-                <div className="text-xs text-[#8B7355] mb-1.5 font-semibold">맛</div>
-                <div className="flex justify-center gap-0.5">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star
-                      key={i}
-                      className={cn(
-                        "h-4 w-4",
-                        i < Math.floor(review.tasteRating) ? "fill-[#FF6B6B] text-[#FF6B6B]" : "fill-gray-200 text-gray-200"
-                      )}
-                    />
-                  ))}
-                </div>
-              </div>
+              <span className="flex items-center gap-1">
+                <span>맛</span>
+                <Star className="h-3 w-3 fill-primary text-primary" />
+                <span className="font-medium text-foreground">{review.tasteRating}</span>
+              </span>
             )}
             {review.priceRating && (
-              <div className="text-center">
-                <div className="text-xs text-[#8B7355] mb-1.5 font-semibold">가격</div>
-                <div className="flex justify-center gap-0.5">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star
-                      key={i}
-                      className={cn(
-                        "h-4 w-4",
-                        i < Math.floor(review.priceRating) ? "fill-[#FF6B6B] text-[#FF6B6B]" : "fill-gray-200 text-gray-200"
-                      )}
-                    />
-                  ))}
-                </div>
-              </div>
+              <span className="flex items-center gap-1">
+                <span>가격</span>
+                <Star className="h-3 w-3 fill-primary text-primary" />
+                <span className="font-medium text-foreground">{review.priceRating}</span>
+              </span>
             )}
             {review.atmosphereRating && (
-              <div className="text-center">
-                <div className="text-xs text-[#8B7355] mb-1.5 font-semibold">분위기</div>
-                <div className="flex justify-center gap-0.5">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star
-                      key={i}
-                      className={cn(
-                        "h-4 w-4",
-                        i < Math.floor(review.atmosphereRating) ? "fill-[#FF6B6B] text-[#FF6B6B]" : "fill-gray-200 text-gray-200"
-                      )}
-                    />
-                  ))}
-                </div>
-              </div>
+              <span className="flex items-center gap-1">
+                <span>분위기</span>
+                <Star className="h-3 w-3 fill-primary text-primary" />
+                <span className="font-medium text-foreground">{review.atmosphereRating}</span>
+              </span>
             )}
             {review.serviceRating && (
-              <div className="text-center">
-                <div className="text-xs text-[#8B7355] mb-1.5 font-semibold">친절</div>
-                <div className="flex justify-center gap-0.5">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star
-                      key={i}
-                      className={cn(
-                        "h-4 w-4",
-                        i < Math.floor(review.serviceRating) ? "fill-[#FF6B6B] text-[#FF6B6B]" : "fill-gray-200 text-gray-200"
-                      )}
-                    />
-                  ))}
-                </div>
-              </div>
+              <span className="flex items-center gap-1">
+                <span>친절</span>
+                <Star className="h-3 w-3 fill-primary text-primary" />
+                <span className="font-medium text-foreground">{review.serviceRating}</span>
+              </span>
             )}
           </div>
         )}

@@ -111,25 +111,25 @@ export function ReviewCard({ review, onDelete, defaultShowComments, highlightCom
   }
 
   return (
-    <Card className="overflow-hidden border-0 shadow-sm bg-card">
+    <Card className="overflow-hidden rounded-3xl border-2 border-[#FFE5CC] shadow-[0_4px_16px_rgba(255,107,107,0.15)] bg-card transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_12px_32px_rgba(255,107,107,0.25)] hover:border-[#FF6B6B]">
       {/* User Header */}
-      <div className="p-4 flex items-center gap-3">
+      <div className="p-5 flex items-center gap-3 bg-gradient-to-br from-[#FFF5E9] to-white">
         <Link href={`/profile/${review.user.id}`}>
-          <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+          <Avatar className="h-12 w-12 ring-3 ring-gradient-to-br ring-offset-2 from-[#FF6B6B] to-[#4ECDC4] shadow-[0_4px_12px_rgba(255,107,107,0.2)]">
             <AvatarImage src={review.user.avatar || "/placeholder.svg"} alt={review.user.name} />
             <AvatarFallback>{review.user.name[0]}</AvatarFallback>
           </Avatar>
         </Link>
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <Link href={`/profile/${review.user.id}`} className="font-semibold text-foreground hover:underline">
+            <Link href={`/profile/${review.user.id}`} className="font-black text-base text-foreground hover:underline">
               {review.user.name}
             </Link>
-            <Badge variant="secondary" className={cn("text-xs", tasteLevel.color)}>
+            <Badge variant="secondary" className={cn("text-xs font-black bg-gradient-to-br from-[#FFD93D] to-[#FFA500] text-white shadow-[0_2px_8px_rgba(255,165,0,0.3)]", tasteLevel.color)}>
               {tasteLevel.label}
             </Badge>
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-[#8B7355] font-medium">
             {review.user.region} · 맛잘알 점수 {review.user.tasteScore.toLocaleString()}
           </p>
         </div>
@@ -196,15 +196,19 @@ export function ReviewCard({ review, onDelete, defaultShowComments, highlightCom
       </div>
 
       {/* Restaurant Info */}
+      {/* Restaurant Info */}
       <Link href={`/restaurant?id=${review.restaurant.uuid}`}>
-        <div className="px-4 pb-3">
-          <div className="flex items-center gap-2">
-            <h3 className="font-bold text-lg text-foreground">{review.restaurant.name}</h3>
-            <Badge variant="outline" className="text-xs">
-              {review.restaurant.categoryDisplay || review.restaurant.category}
-            </Badge>
+        <div className="mx-5 mb-4 p-4 bg-white rounded-2xl border-2 border-[#FFE5CC] transition-all hover:border-[#4ECDC4] hover:bg-gradient-to-br hover:from-[rgba(78,205,196,0.05)] hover:to-white hover:translate-x-1 shadow-sm hover:shadow-md flex items-center justify-between gap-3">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="font-black text-lg text-foreground">{review.restaurant.name}</h3>
+              <Badge variant="outline" className="text-xs border-[#FFE5CC]">
+                {review.restaurant.categoryDisplay || review.restaurant.category}
+              </Badge>
+            </div>
+            <p className="text-sm text-[#8B7355] font-medium">{review.restaurant.address}</p>
           </div>
-          <p className="text-sm text-muted-foreground">{review.restaurant.address}</p>
+          <div className="text-2xl text-[#4ECDC4] transition-transform group-hover:translate-x-1">→</div>
         </div>
       </Link>
 
@@ -268,34 +272,30 @@ export function ReviewCard({ review, onDelete, defaultShowComments, highlightCom
 
         {/* Detail Ratings */}
         {(review.tasteRating || review.priceRating || review.atmosphereRating || review.serviceRating) && (
-          <div className="flex flex-wrap gap-3 mb-3 text-xs text-muted-foreground">
+          <div className="grid grid-cols-4 gap-3 p-4 bg-gradient-to-br from-[#FFF5E9] to-white rounded-2xl mb-4 border-2 border-[#FFE5CC]">
             {review.tasteRating && (
-              <span className="flex items-center gap-1">
-                <span>맛</span>
-                <Star className="h-3 w-3 fill-primary text-primary" />
-                <span className="font-medium text-foreground">{review.tasteRating}</span>
-              </span>
+              <div className="text-center">
+                <div className="text-xs text-[#8B7355] mb-1.5 font-semibold">맛</div>
+                <div className="text-2xl font-black bg-gradient-to-br from-[#FF6B6B] to-[#FF8E53] bg-clip-text text-transparent">{review.tasteRating}</div>
+              </div>
             )}
             {review.priceRating && (
-              <span className="flex items-center gap-1">
-                <span>가격</span>
-                <Star className="h-3 w-3 fill-primary text-primary" />
-                <span className="font-medium text-foreground">{review.priceRating}</span>
-              </span>
+              <div className="text-center">
+                <div className="text-xs text-[#8B7355] mb-1.5 font-semibold">가격</div>
+                <div className="text-2xl font-black bg-gradient-to-br from-[#FF6B6B] to-[#FF8E53] bg-clip-text text-transparent">{review.priceRating}</div>
+              </div>
             )}
             {review.atmosphereRating && (
-              <span className="flex items-center gap-1">
-                <span>분위기</span>
-                <Star className="h-3 w-3 fill-primary text-primary" />
-                <span className="font-medium text-foreground">{review.atmosphereRating}</span>
-              </span>
+              <div className="text-center">
+                <div className="text-xs text-[#8B7355] mb-1.5 font-semibold">분위기</div>
+                <div className="text-2xl font-black bg-gradient-to-br from-[#FF6B6B] to-[#FF8E53] bg-clip-text text-transparent">{review.atmosphereRating}</div>
+              </div>
             )}
             {review.serviceRating && (
-              <span className="flex items-center gap-1">
-                <span>친절</span>
-                <Star className="h-3 w-3 fill-primary text-primary" />
-                <span className="font-medium text-foreground">{review.serviceRating}</span>
-              </span>
+              <div className="text-center">
+                <div className="text-xs text-[#8B7355] mb-1.5 font-semibold">친절</div>
+                <div className="text-2xl font-black bg-gradient-to-br from-[#FF6B6B] to-[#FF8E53] bg-clip-text text-transparent">{review.serviceRating}</div>
+              </div>
             )}
           </div>
         )}
@@ -319,36 +319,50 @@ export function ReviewCard({ review, onDelete, defaultShowComments, highlightCom
         )} */}
 
         {/* Reference Count Badge */}
+        {/* Reference Count Badge */}
         {review.referenceCount !== undefined && review.referenceCount > 0 && (
-          <div className="flex items-center gap-1 mb-3 text-xs text-muted-foreground">
-            <Users className="h-3 w-3" />
-            <span>{review.referenceCount}명이 이 리뷰를 참고했어요</span>
+          <div className="bg-gradient-to-br from-[rgba(167,139,250,0.1)] to-[rgba(139,92,246,0.05)] border-l-4 border-[#A78BFA] p-4 rounded-2xl mb-4 shadow-[0_2px_12px_rgba(167,139,250,0.15)]">
+            <div className="flex items-center gap-2 mb-3">
+              <Users className="h-4 w-4 text-[#A78BFA]" />
+              <span className="text-sm font-black text-[#A78BFA]">💡 이 리뷰를 참고한 사람들</span>
+            </div>
+            <div className="text-sm text-[#5D4E37] font-semibold">
+              <strong className="text-foreground">{review.referenceCount}명</strong>이 참고했어요
+            </div>
           </div>
         )}
 
         {/* Actions */}
-        <div className="flex items-center gap-4">
+        {/* Actions */}
+        <div className="flex items-center gap-3 pt-3 border-t-2 border-[#FFE5CC]">
           <Button
             variant="ghost"
             size="sm"
-            className={cn("gap-2 px-0 hover:bg-transparent", hasSympathized ? "text-primary" : "text-muted-foreground")}
+            className={cn(
+              "flex-1 gap-2 py-3 rounded-xl border-2 font-bold transition-all hover:-translate-y-0.5 hover:shadow-md",
+              hasSympathized 
+                ? "bg-gradient-to-br from-[rgba(255,107,107,0.15)] to-[rgba(255,142,83,0.1)] border-[#FF6B6B] text-[#FF6B6B]" 
+                : "bg-white border-[#FFE5CC] text-[#8B7355] hover:bg-[#FFF5E9]"
+            )}
             onClick={handleSympathy}
           >
-            <Heart className={cn("h-5 w-5", hasSympathized && "fill-primary")} />
-            <span className="font-semibold">{sympathyCount}</span>
+            <Heart className={cn("h-5 w-5", hasSympathized && "fill-[#FF6B6B]")} />
+            <span className="font-bold">{sympathyCount}</span>
             <span className="text-sm">공감</span>
           </Button>
           <Button
             variant="ghost"
             size="sm"
             className={cn(
-              "gap-2 px-0 hover:bg-transparent hover:text-foreground",
-              showComments ? "text-primary" : "text-muted-foreground"
+              "flex-1 gap-2 py-3 rounded-xl border-2 font-bold transition-all hover:-translate-y-0.5 hover:shadow-md",
+              showComments
+                ? "bg-gradient-to-br from-[rgba(255,107,107,0.15)] to-[rgba(255,142,83,0.1)] border-[#FF6B6B] text-[#FF6B6B]"
+                : "bg-white border-[#FFE5CC] text-[#8B7355] hover:bg-[#FFF5E9]"
             )}
             onClick={() => setShowComments(!showComments)}
           >
-            <MessageCircle className={cn("h-5 w-5", showComments && "fill-primary")} />
-            {commentCount > 0 && <span className="font-semibold">{commentCount}</span>}
+            <MessageCircle className={cn("h-5 w-5", showComments && "fill-[#FF6B6B]")} />
+            {commentCount > 0 && <span className="font-bold">{commentCount}</span>}
             <span className="text-sm">댓글</span>
           </Button>
         </div>

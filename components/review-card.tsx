@@ -111,7 +111,7 @@ export function ReviewCard({ review, onDelete, defaultShowComments, highlightCom
   }
 
   return (
-    <Card className="overflow-hidden rounded-3xl border-2 border-[#FFE5CC] shadow-[0_4px_16px_rgba(255,107,107,0.15)] bg-card transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_12px_32px_rgba(255,107,107,0.25)] hover:border-[#FF6B6B]">
+    <Card className="overflow-hidden rounded-3xl border-2 border-[#FFE5CC] shadow-[0_4px_16px_rgba(255,107,107,0.15)] bg-card transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_24px_rgba(255,107,107,0.25)] hover:border-[#FF6B6B]">
       {/* User Header */}
       <div className="p-5 flex items-center gap-3 bg-gradient-to-br from-[#FFF5E9] to-white">
         <Link href={`/profile/${review.user.id}`}>

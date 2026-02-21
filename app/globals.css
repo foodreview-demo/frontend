@@ -5,55 +5,39 @@
 
 /* 맛잘알 앱 - 따뜻한 코랄/오렌지 테마 (Android WebView 호환) */
 :root {
-  --background: #FFF8F0;
-  --foreground: #2D1B08;
+  --background: #faf9f7;
+  --foreground: #1c1917;
   --card: #ffffff;
-  --card-foreground: #2D1B08;
+  --card-foreground: #1c1917;
   --popover: #ffffff;
-  --popover-foreground: #2D1B08;
-  --primary: #FF6B6B;
+  --popover-foreground: #1c1917;
+  --primary: #f97316;
   --primary-foreground: #ffffff;
-  --secondary: #FFF5E9;
-  --secondary-foreground: #5D4E37;
-  --muted: #FFF5E9;
-  --muted-foreground: #8B7355;
-  --accent: #FFD93D;
-  --accent-foreground: #2D1B08;
+  --secondary: #f5f5f4;
+  --secondary-foreground: #44403c;
+  --muted: #f5f5f4;
+  --muted-foreground: #78716c;
+  --accent: #fbbf24;
+  --accent-foreground: #292524;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: #FFE5CC;
-  --input: #FFE5CC;
-  --ring: #FF6B6B;
-  --chart-1: #FF6B6B;
-  --chart-2: #FFD93D;
-  --chart-3: #6BCF7F;
-  --chart-4: #45B7D1;
-  --chart-5: #A78BFA;
-  --radius: 1rem;
-  --sidebar: #FFF8F0;
-  --sidebar-foreground: #2D1B08;
-  --sidebar-primary: #FF6B6B;
+  --border: #e7e5e4;
+  --input: #e7e5e4;
+  --ring: #f97316;
+  --chart-1: #f97316;
+  --chart-2: #fbbf24;
+  --chart-3: #22c55e;
+  --chart-4: #3b82f6;
+  --chart-5: #8b5cf6;
+  --radius: 0.75rem;
+  --sidebar: #faf9f7;
+  --sidebar-foreground: #1c1917;
+  --sidebar-primary: #f97316;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #FFF5E9;
-  --sidebar-accent-foreground: #5D4E37;
-  --sidebar-border: #FFE5CC;
-  --sidebar-ring: #FF6B6B;
-
-  /* 프로토타입 추가 색상 */
-  --coral: #FF6B6B;
-  --peach: #FF8E53;
-  --mint: #4ECDC4;
-  --teal: #45B7D1;
-  --amber: #FFA500;
-  --gold: #FFD93D;
-  --purple: #A78BFA;
-  --violet: #8B5CF6;
-  --green: #6BCF7F;
-  --pink: #FF6B9D;
-  --bg-warm: #FFF5E9;
-  --text-medium: #5D4E37;
-  --text-light: #8B7355;
-  --shadow: rgba(255, 107, 107, 0.15);
+  --sidebar-accent: #f5f5f4;
+  --sidebar-accent-foreground: #44403c;
+  --sidebar-border: #e7e5e4;
+  --sidebar-ring: #f97316;
 }
 
 .dark {
@@ -138,28 +122,5 @@
   }
   body {
     @apply bg-background text-foreground;
-  }
-}
-
-/* 프로토타입 애니메이션 */
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes pulse-soft {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.1);
-    opacity: 0.8;
   }
 }

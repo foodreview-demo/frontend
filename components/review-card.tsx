@@ -276,25 +276,65 @@ export function ReviewCard({ review, onDelete, defaultShowComments, highlightCom
             {review.tasteRating && (
               <div className="text-center">
                 <div className="text-xs text-[#8B7355] mb-1.5 font-semibold">맛</div>
-                <div className="text-2xl font-black bg-gradient-to-br from-[#FF6B6B] to-[#FF8E53] bg-clip-text text-transparent">{review.tasteRating}</div>
+                <div className="flex justify-center gap-0.5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star
+                      key={i}
+                      className={cn(
+                        "h-4 w-4",
+                        i < Math.floor(review.tasteRating) ? "fill-[#FF6B6B] text-[#FF6B6B]" : "fill-gray-200 text-gray-200"
+                      )}
+                    />
+                  ))}
+                </div>
               </div>
             )}
             {review.priceRating && (
               <div className="text-center">
                 <div className="text-xs text-[#8B7355] mb-1.5 font-semibold">가격</div>
-                <div className="text-2xl font-black bg-gradient-to-br from-[#FF6B6B] to-[#FF8E53] bg-clip-text text-transparent">{review.priceRating}</div>
+                <div className="flex justify-center gap-0.5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star
+                      key={i}
+                      className={cn(
+                        "h-4 w-4",
+                        i < Math.floor(review.priceRating) ? "fill-[#FF6B6B] text-[#FF6B6B]" : "fill-gray-200 text-gray-200"
+                      )}
+                    />
+                  ))}
+                </div>
               </div>
             )}
             {review.atmosphereRating && (
               <div className="text-center">
                 <div className="text-xs text-[#8B7355] mb-1.5 font-semibold">분위기</div>
-                <div className="text-2xl font-black bg-gradient-to-br from-[#FF6B6B] to-[#FF8E53] bg-clip-text text-transparent">{review.atmosphereRating}</div>
+                <div className="flex justify-center gap-0.5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star
+                      key={i}
+                      className={cn(
+                        "h-4 w-4",
+                        i < Math.floor(review.atmosphereRating) ? "fill-[#FF6B6B] text-[#FF6B6B]" : "fill-gray-200 text-gray-200"
+                      )}
+                    />
+                  ))}
+                </div>
               </div>
             )}
             {review.serviceRating && (
               <div className="text-center">
                 <div className="text-xs text-[#8B7355] mb-1.5 font-semibold">친절</div>
-                <div className="text-2xl font-black bg-gradient-to-br from-[#FF6B6B] to-[#FF8E53] bg-clip-text text-transparent">{review.serviceRating}</div>
+                <div className="flex justify-center gap-0.5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star
+                      key={i}
+                      className={cn(
+                        "h-4 w-4",
+                        i < Math.floor(review.serviceRating) ? "fill-[#FF6B6B] text-[#FF6B6B]" : "fill-gray-200 text-gray-200"
+                      )}
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </div>
